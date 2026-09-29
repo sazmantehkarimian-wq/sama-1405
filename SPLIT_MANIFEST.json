@@ -1,0 +1,76 @@
+{
+  "chunk_size_bytes": 20971520,
+  "files": [
+    {
+      "original_name": "daramad final2.pdf",
+      "size": 106780689,
+      "sha256": "593352f2b60ff60654bfccb2bd8f3a09afd8feffa10ba41dac4659db0f8ca54f",
+      "parts": [
+        {
+          "name": "daramad final2.pdf.part001",
+          "size": 20971520,
+          "sha256": "482b6a826092fbf365a907b1f8beb8f2a8b0afc0956abf07ce056b541f10ccf6"
+        },
+        {
+          "name": "daramad final2.pdf.part002",
+          "size": 20971520,
+          "sha256": "d223c5fe1fb19527bbe5122e4f9383659fff4ab4d9f026a653b828ec04d63b88"
+        },
+        {
+          "name": "daramad final2.pdf.part003",
+          "size": 20971520,
+          "sha256": "9d4e697ddeb0a4c407b513dcfae00a0bb901aa0d42302c51dfc86e4f17daba51"
+        },
+        {
+          "name": "daramad final2.pdf.part004",
+          "size": 20971520,
+          "sha256": "43ae659e8b1ac505d320c3423ee0dfb963b44f65c142377cb76d06a0838c3e1c"
+        },
+        {
+          "name": "daramad final2.pdf.part005",
+          "size": 20971520,
+          "sha256": "37e595665aa0d0ce6707601e6b4d6f0b7d764d91a6746f881ffc3e632012416e"
+        },
+        {
+          "name": "daramad final2.pdf.part006",
+          "size": 1923089,
+          "sha256": "7c35e2fc276e8202612bfd67b992123fd7ed77d3677207e5e9c8c2228b00a29c"
+        }
+      ]
+    },
+    {
+      "original_name": "SAMA_ENTERPRISE_LAN_v3.8.5_LONG_TERM_OVER_365_1405-05-15(1).zip",
+      "size": 46324056,
+      "sha256": "332973817a13c00f11edb066c0729197df83dcb5637f008e96c0dad68cd4082c",
+      "parts": [
+        {
+          "name": "SAMA_ENTERPRISE_LAN_v3.8.5_LONG_TERM_OVER_365_1405-05-15(1).zip.part001",
+          "size": 20971520,
+          "sha256": "955c627678b4ec9148c56a18a00d3a378969f04cb0a428794002fed390689878"
+        },
+        {
+          "name": "SAMA_ENTERPRISE_LAN_v3.8.5_LONG_TERM_OVER_365_1405-05-15(1).zip.part002",
+          "size": 20971520,
+          "sha256": "a85f22bfc9b2a706bd6418a34afd14063a5ec773e16ada63dffc862b4c8b4938"
+        },
+        {
+          "name": "SAMA_ENTERPRISE_LAN_v3.8.5_LONG_TERM_OVER_365_1405-05-15(1).zip.part003",
+          "size": 4381016,
+          "sha256": "a636f7968790d6be7a18e06d31d361c9beb6fb9bcddafc4a3590f2710e6f488c"
+        }
+      ]
+    },
+    {
+      "original_name": "اسناد مزایده فضای تجاری.zip",
+      "size": 3905137,
+      "sha256": "68e63331fccaa308cb26c522263a6b25ce4733533e41f8550a86fde7b7cb2299",
+      "parts": [
+        {
+          "name": "اسناد مزایده فضای تجاری.zip",
+          "size": 3905137,
+          "sha256": "68e63331fccaa308cb26c522263a6b25ce4733533e41f8550a86fde7b7cb2299"
+        }
+      ]
+    }
+  ]
+}
