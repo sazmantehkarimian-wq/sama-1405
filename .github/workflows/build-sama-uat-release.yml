@@ -172,9 +172,16 @@ jobs:
         run: |
           set -euo pipefail
           expected_size="$(stat -c %s release-ci/SAMA_4.0.0-uat.2.zip)"
-          actual_size="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/v4.0.0-uat.2" \
-            --jq '.assets[] | select(.name == "SAMA_4.0.0-uat.2.zip") | .size')"
+          actual_size="$(gh release view v4.0.0-uat.2 --repo "${GITHUB_REPOSITORY}" \
+            --json assets --jq '.assets[] | select(.name == "SAMA_4.0.0-uat.2.zip") | .size')"
           test -n "${actual_size}"
           test "${actual_size}" = "${expected_size}"
-          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/v4.0.0-uat.2" \
-            --jq '.assets[] | select(.name == "SHA256SUMS.txt") | .name' | grep -Fx SHA256SUMS.txt
+          gh release view v4.0.0-uat.2 --repo "${GITHUB_REPOSITORY}" \
+            --json assets --jq '.assets[] | select(.name == "SHA256SUMS.txt") | .name' | grep -Fx SHA256SUMS.txt
+          mkdir published-assets
+          gh release download v4.0.0-uat.2 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern 'SAMA_4.0.0-uat.2.zip' \
+            --pattern 'SHA256SUMS.txt' \
+            --dir published-assets
+          (cd published-assets && sha256sum --check SHA256SUMS.txt)
