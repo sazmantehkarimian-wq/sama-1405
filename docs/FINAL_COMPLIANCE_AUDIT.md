@@ -17,7 +17,7 @@
 | Document upload/alerts/audit | FAIL | storage schema موجود؛ end-to-end permission/audit UI کامل نشده |
 | Advanced filters/saved views | FAIL | core query موجود؛ همه operatorها و save action کامل نیست |
 | Official exports | PASS | XLSX/DOCX/PDF واقعی، فیلتر/ستون جاری، فونت فارسی محلی و page number |
-| RBAC/user administration | NEEDS VERIFICATION | provisioning امن/list native؛ reset/role UI کامل نشده |
+| RBAC/user administration | PASS | native create/reset/activate actions، staff enforcement و audit test |
 | Backup/restore | NEEDS VERIFICATION | scripts؛ write-lock/media round-trip کامل نشده |
 | Browser/print/concurrency/security matrices | NEEDS VERIFICATION | automated unit/security موجود؛ full real-browser/concurrency pending |
 | Clean release | FAIL | به‌علت FAILهای بحرانی، release عمداً تولید نشده است |

@@ -23,7 +23,7 @@
 | Search/filter/saved views | IN PROGRESS | shared space query؛ advanced operators/multiselect/save UI باقی است |
 | Official PDF/XLSX/DOCX engine | PASS | server-side structures, local Persian PDF font, exact filters/selected columns |
 | Report builder / archived snapshot | IN PROGRESS | builder preview/export exists؛ save/snapshot actions باقی است |
-| RBAC/user provisioning | IN PROGRESS | secure provisioning and native list؛ reset/role actions باقی است |
+| RBAC/user provisioning | PASS | native create/reset/activate UI، one-time passwords، forced change، staff gate و audit tests |
 | Backup/restore | IN PROGRESS | scripts موجود؛ global write lock/media integrity gate باقی است |
 | Browser/print QA | IN PROGRESS | Chromium list/dossier smoke + screenshots passed؛ print visual gate remains |
 | Five-user application concurrency | IN PROGRESS | five authenticated concurrent search/export/dossier reads pass؛ concurrent writes remain |

@@ -110,3 +110,46 @@ def upload_document(request,code):
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
  else:messages.success(request,'سند با ثبت checksum بارگذاری شد.')
  return redirect('space-detail',code=code)
+
+@login_required
+@user_passes_test(lambda u:u.is_staff)
+@require_POST
+def user_create(request):
+ from django.contrib.auth import get_user_model
+ from django.db import transaction
+ from domains.identity.models import AuditEvent
+ import secrets
+ username=request.POST.get('username','').strip(); display=request.POST.get('display_name','').strip()
+ if not username or not display:
+  messages.error(request,'نام کاربری و نام نمایشی الزامی است.');return redirect('user-list')
+ if get_user_model().objects.filter(username=username).exists():
+  messages.error(request,'این نام کاربری قبلاً ثبت شده است.');return redirect('user-list')
+ temporary=secrets.token_urlsafe(18)
+ with transaction.atomic():
+  user=get_user_model().objects.create_user(username=username,password=temporary,first_name=display)
+  UserProfile.objects.create(user=user,display_name=display,must_change_password=True,operational_access=True)
+  AuditEvent.objects.create(actor=request.user,action='USER_CREATE',entity_type='User',entity_id=str(user.pk),reason='ایجاد کاربر از مدیریت بومی سما',after={'username':username,'active':True},ip_address=request.META.get('REMOTE_ADDR'))
+ messages.success(request,f'کاربر ایجاد شد. گذرواژه موقت فقط همین بار نمایش داده می‌شود: {temporary}')
+ return redirect('user-list')
+
+@login_required
+@user_passes_test(lambda u:u.is_staff)
+@require_POST
+def user_reset_password(request,user_id):
+ from django.contrib.auth import get_user_model
+ from domains.identity.models import AuditEvent
+ import secrets
+ target=get_object_or_404(get_user_model(),pk=user_id); temporary=secrets.token_urlsafe(18);target.set_password(temporary);target.save(update_fields=['password']); profile,_=UserProfile.objects.get_or_create(user=target,defaults={'display_name':target.get_full_name() or target.username});profile.must_change_password=True;profile.save(update_fields=['must_change_password'])
+ AuditEvent.objects.create(actor=request.user,action='USER_PASSWORD_RESET',entity_type='User',entity_id=str(target.pk),reason=request.POST.get('reason','بازنشانی مدیریتی').strip(),after={'must_change_password':True},ip_address=request.META.get('REMOTE_ADDR'))
+ messages.success(request,f'گذرواژه موقت {target.username} فقط همین بار: {temporary}');return redirect('user-list')
+
+@login_required
+@user_passes_test(lambda u:u.is_staff)
+@require_POST
+def user_toggle_active(request,user_id):
+ from django.contrib.auth import get_user_model
+ from domains.identity.models import AuditEvent
+ target=get_object_or_404(get_user_model(),pk=user_id)
+ if target==request.user:
+  messages.error(request,'مدیر نمی‌تواند حساب جاری خود را غیرفعال کند.');return redirect('user-list')
+ before=target.is_active;target.is_active=not before;target.save(update_fields=['is_active']);AuditEvent.objects.create(actor=request.user,action='USER_STATUS_CHANGE',entity_type='User',entity_id=str(target.pk),reason=request.POST.get('reason','تغییر وضعیت دسترسی').strip(),before={'active':before},after={'active':target.is_active},ip_address=request.META.get('REMOTE_ADDR'));messages.success(request,'وضعیت کاربر تغییر کرد.');return redirect('user-list')
