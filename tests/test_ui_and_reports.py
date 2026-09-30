@@ -1,8 +1,9 @@
-import io,zipfile,pytest
+import io,zipfile,pytest,hashlib
 from django.contrib.auth import get_user_model
 from openpyxl import load_workbook
 from domains.properties.models import CommercialSpace
 from reporting.engine import excel,docx,pdf
+from domains.identity.models import SavedReport, ArchivedReportSnapshot, AuditEvent
 @pytest.fixture
 def user(db):return get_user_model().objects.create_user('u',password='A-very-safe-password')
 @pytest.mark.django_db
@@ -16,3 +17,20 @@ def test_real_export_structures():
  x=load_workbook(io.BytesIO(excel(qs)));assert x.active.sheet_view.rightToLeft and x.active.auto_filter.ref
  with zipfile.ZipFile(io.BytesIO(docx(qs))) as z:assert 'word/document.xml' in z.namelist()
  assert pdf(qs).startswith(b'%PDF')
+
+@pytest.mark.django_db
+def test_saved_report_and_immutable_snapshot(client,user,settings,tmp_path):
+ settings.MEDIA_ROOT=tmp_path
+ CommercialSpace.objects.create(code='501',name='فضای مرجع',status='ACTIVE',source_row=2,source_classification='authority')
+ client.force_login(user)
+ response=client.post('/reports/save/',{'name':'فضاهای فعال','status':'ACTIVE','field':['code','status'],'blank':['اقدام']})
+ assert response.status_code==302
+ report=SavedReport.objects.get(owner=user)
+ assert report.filters=={'status':'ACTIVE'} and report.fields==['code','status']
+ assert client.get(f'/reports/{report.pk}/open/').url=='/spaces/?status=ACTIVE&field=code&field=status&blank=%D8%A7%D9%82%D8%AF%D8%A7%D9%85'
+ assert client.post(f'/reports/{report.pk}/archive/').status_code==302
+ snapshot=ArchivedReportSnapshot.objects.get(report=report);payload=snapshot.file.read()
+ assert snapshot.row_count==1 and hashlib.sha256(payload).hexdigest()==snapshot.sha256
+ assert snapshot.query_context['filters']=={'status':'ACTIVE'}
+ assert AuditEvent.objects.filter(action='REPORT_DEFINITION_CREATE').exists()
+ assert AuditEvent.objects.filter(action='REPORT_SNAPSHOT_CREATE').exists()

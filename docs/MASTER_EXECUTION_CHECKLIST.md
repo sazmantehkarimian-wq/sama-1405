@@ -22,7 +22,7 @@
 | Documents / alerts / audit | IN PROGRESS | typed schema/list؛ secure upload/action hooks کامل نیست |
 | Search/filter/saved views | IN PROGRESS | shared space query؛ advanced operators/multiselect/save UI باقی است |
 | Official PDF/XLSX/DOCX engine | PASS | server-side structures, local Persian PDF font, exact filters/selected columns |
-| Report builder / archived snapshot | IN PROGRESS | builder preview/export exists؛ save/snapshot actions باقی است |
+| Report builder / archived snapshot | PASS | تعریف زنده، اجرای مجدد، نسخه ثابت XLSX با query context، تعداد ردیف، SHA-256 و Audit؛ `test_saved_report_and_immutable_snapshot` |
 | RBAC/user provisioning | PASS | native create/reset/activate UI، one-time passwords، forced change، staff gate و audit tests |
 | Backup/restore | PASS | DB/media manifests، checksum، integrity/FK، global write lock، pre-restore backup، atomic restore و rollback tests |
 | Browser/print QA | IN PROGRESS | Chromium list/dossier/operational-form smoke + `docs/qa/space-dossier-operations.png` passed؛ print visual gate remains |

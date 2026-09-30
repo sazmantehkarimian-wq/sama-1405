@@ -59,6 +59,27 @@ def domain_list(request,domain):
 def report_builder(request):
  fields=[('code','کد فضا'),('name','نام فضا / مرکز'),('status','وضعیت'),('region','منطقه'),('current_usage','کاربری'),('area','مساحت')]
  return render(request,'ui/report_builder.html',{'fields':fields,'saved':SavedReport.objects.filter(owner=request.user)})
+@login_required
+@require_POST
+def report_save(request):
+ from services.reports import save_report
+ name=request.POST.get('name','').strip()
+ if not name: messages.error(request,'نام گزارش الزامی است.');return redirect('report-builder')
+ save_report(owner=request.user,name=name,data=request.POST,ip_address=request.META.get('REMOTE_ADDR'))
+ messages.success(request,'تعریف زنده گزارش ذخیره شد.');return redirect('report-builder')
+@login_required
+def report_open(request,report_id):
+ from services.reports import report_query_string
+ report=get_object_or_404(SavedReport,pk=report_id,owner=request.user)
+ return redirect(f"/spaces/?{report_query_string(report)}")
+@login_required
+@require_POST
+def report_archive(request,report_id):
+ from services.reports import archive_report
+ report=get_object_or_404(SavedReport,pk=report_id,owner=request.user)
+ snapshot=archive_report(report=report,actor=request.user,ip_address=request.META.get('REMOTE_ADDR'))
+ messages.success(request,f'نسخه ثابت با {snapshot.row_count} ردیف و اثر انگشت {snapshot.sha256[:12]} ثبت شد.')
+ return redirect('report-builder')
 def _query(request): return filter_spaces(request.GET)[:5000]
 @login_required
 def spaces_excel(request):return HttpResponse(excel(_query(request),request.GET.getlist('blank'),request.GET.getlist('field')),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="spaces.xlsx"'})
