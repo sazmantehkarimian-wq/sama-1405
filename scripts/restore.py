@@ -1,8 +1,8 @@
-import hashlib,json,shutil,sqlite3,sys
+import os,sys
 from pathlib import Path
-root=Path(__file__).resolve().parents[1];backup=Path(sys.argv[1]);manifest=json.loads((backup/'manifest.json').read_text());db=backup/'sama.sqlite3'
-if hashlib.sha256(db.read_bytes()).hexdigest()!=manifest['database_sha256']:raise SystemExit('invalid backup hash')
-with sqlite3.connect(db) as c:
- if c.execute('pragma integrity_check').fetchone()[0]!='ok':raise SystemExit('invalid sqlite backup')
-exec(open(root/'scripts/backup.py').read());shutil.copy2(db,root/'data/sama.sqlite3')
-if (backup/'media').exists():shutil.copytree(backup/'media',root/'data/media',dirs_exist_ok=True)
+root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root))
+from services.backup import restore_backup
+if len(sys.argv)!=2:raise SystemExit('usage: python scripts/restore.py BACKUP_DIRECTORY')
+database=Path(os.environ.get('SAMA_DB_PATH',root/'data/sama.sqlite3'))
+pre=restore_backup(Path(sys.argv[1]),database,root/'data/media',Path(os.environ.get('SAMA_BACKUP_PATH',root/'backups')),root/'data/.maintenance-lock')
+print(f'restore verified; pre-restore backup: {pre}')
