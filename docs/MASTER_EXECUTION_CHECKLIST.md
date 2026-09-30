@@ -1,23 +1,30 @@
 # Master Execution Checklist
 
+این جدول وضعیت واقعی خط پاک را ثبت می‌کند. «PASS» فقط با شاهد خودکار موجود به‌کار رفته است.
+
 | Gate | وضعیت | شاهد |
 |---|---|---|
-| Authority/Data Inventory | PASS | `tests/test_import.py` و گزارش import |
-| Canonical Field Registry | PASS | `CanonicalField`, `RawCell` و tests |
-| Canonical Domain Schema | PASS | migrations و model tests |
-| Design System | PASS | token/component drift tests |
-| Shared UI Components | PASS | templates و UI tests |
-| Horizontal Navigation | PASS | design enforcement/browser tests |
-| 501 Space / 225 Property baseline | PASS | import acceptance tests |
-| Dossier and history | PASS | dossier integration tests |
-| Contracts / beneficiaries / appraisal / auction | PASS | typed import and dossier tests |
-| Appraisal fee / utilities / commission | IN PROGRESS | typed schema complete; operational UI/process tests pending |
-| File movement/current holder | IN PROGRESS | derivation service passes; movement UI pending |
-| Documents / alerts / audit | IN PROGRESS | typed schema complete; operational hooks pending |
-| Search/filter/saved views | IN PROGRESS | shared space query complete; saved-view UI pending |
-| Official PDF/XLSX/DOCX reports | IN PROGRESS | structures pass; Persian PDF/print QA pending |
-| RBAC/user provisioning | IN PROGRESS | secure provisioning works; management workflows pending |
-| Backup/restore | IN PROGRESS | scripts complete; controlled-write round-trip pending |
-| Browser/print QA | IN PROGRESS | CI browser gate |
-| Five-user concurrency | IN PROGRESS | application concurrency gate |
-| Clean release | NOT STARTED | blocked until all critical gates PASS |
+| Authority SHA/Data Inventory | PASS | `tests/test_authority.py`; `SHA256SUMS.txt` |
+| Lossless import / 225 + 350 + 151 | PASS | `tests/test_import_pipeline.py`; شمارش مستقیم workbook و همه cellهای غیرتهی |
+| Canonical Field Registry | IN PROGRESS | پنج وضعیت و metadata ذخیره می‌شود؛ بازبینی معنایی aliasهای reference ادامه دارد |
+| Canonical typed domain schema | PASS | migrations و `tests/test_domain.py` |
+| Design System / local Vazirmatn | PASS | token enforcement، فونت محلی، `tests/test_design_enforcement.py` |
+| Shared UI components | IN PROGRESS | shell/filter/table/dossier موجود؛ modal/multiselect/column chooser باقی است |
+| Horizontal Navigation | PASS | `ui/templates/ui/base.html`; enforcement test |
+| Dossier and imported history | PASS | dossier همه domainهای واردشده را پیوند می‌دهد؛ UI integration test |
+| Contracts / beneficiaries / appraisal / auction | PASS | typed import + dossier + full import gate |
+| Decisions / source documents / utility obligations | PASS | typed import از workbook + full import gate |
+| Appraisal fee operational process | IN PROGRESS | typed schema/list/dossier؛ create/payment/follow-up UI باقی است |
+| Utility consumption operational process | IN PROGRESS | typed billing/share schema/list؛ create/override UI باقی است |
+| Commission operational process | IN PROGRESS | typed schema/list/dossier؛ session lifecycle باقی است |
+| File movement/current holder | IN PROGRESS | derivation service passes؛ movement form/history permissions باقی است |
+| Workflow | IN PROGRESS | typed instance/list/dossier؛ transition service/UI باقی است |
+| Documents / alerts / audit | IN PROGRESS | typed schema/list؛ secure upload/action hooks کامل نیست |
+| Search/filter/saved views | IN PROGRESS | shared space query؛ advanced operators/multiselect/save UI باقی است |
+| Official PDF/XLSX/DOCX engine | PASS | server-side structures, local Persian PDF font, exact filters/selected columns |
+| Report builder / archived snapshot | IN PROGRESS | builder preview/export exists؛ save/snapshot actions باقی است |
+| RBAC/user provisioning | IN PROGRESS | secure provisioning and native list؛ reset/role actions باقی است |
+| Backup/restore | IN PROGRESS | scripts موجود؛ global write lock/media integrity gate باقی است |
+| Browser/print QA | IN PROGRESS | Chromium list/dossier smoke + screenshots passed؛ print visual gate remains |
+| Five-user application concurrency | IN PROGRESS | five authenticated concurrent search/export/dossier reads pass؛ concurrent writes remain |
+| Clean release | NOT STARTED | تا رفع همه gateهای بحرانی عمداً مسدود است |

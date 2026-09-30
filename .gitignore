@@ -9,3 +9,5 @@ build/
 dist/
 playwright-report/
 *.egg-info/
+
+artifacts/

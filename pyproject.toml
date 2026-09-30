@@ -5,7 +5,8 @@ description = "Clean SAMA property and contract management application"
 requires-python = ">=3.11"
 dependencies = [
   "Django==5.2.7", "openpyxl==3.1.5", "python-docx==1.2.0", "reportlab==4.4.4",
-  "jdatetime==5.2.0", "waitress==3.0.2", "Pillow==11.3.0", "whitenoise==6.11.0"
+  "jdatetime==5.2.0", "waitress==3.0.2", "Pillow==11.3.0", "whitenoise==6.11.0",
+  "arabic-reshaper==3.0.0", "python-bidi==0.4.2"
 ]
 [project.optional-dependencies]
 test = ["pytest==8.4.2", "pytest-django==4.11.1", "playwright==1.55.0"]

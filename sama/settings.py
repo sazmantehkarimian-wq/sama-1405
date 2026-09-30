@@ -1,9 +1,14 @@
 from pathlib import Path
-import os
+import os, secrets
 BASE_DIR=Path(__file__).resolve().parent.parent
-SECRET_KEY=os.environ.get('SAMA_SECRET_KEY','development-only-change-me')
+_secret_file=BASE_DIR/'data/.secret-key'
+if os.environ.get('SAMA_SECRET_KEY'): SECRET_KEY=os.environ['SAMA_SECRET_KEY']
+else:
+ _secret_file.parent.mkdir(parents=True,exist_ok=True)
+ if not _secret_file.exists(): _secret_file.write_text(secrets.token_urlsafe(64),encoding='utf-8'); _secret_file.chmod(0o600)
+ SECRET_KEY=_secret_file.read_text(encoding='utf-8').strip()
 DEBUG=os.environ.get('SAMA_DEBUG','0')=='1'
-ALLOWED_HOSTS=[h.strip() for h in os.environ.get('SAMA_ALLOWED_HOSTS','127.0.0.1,localhost,*').split(',')]
+ALLOWED_HOSTS=[h.strip() for h in os.environ.get('SAMA_ALLOWED_HOSTS','127.0.0.1,localhost').split(',')]
 INSTALLED_APPS=['django.contrib.auth','django.contrib.contenttypes','django.contrib.sessions','django.contrib.messages','django.contrib.staticfiles','domains.registry','domains.properties','domains.contracts','domains.operations','domains.documents','domains.identity','ui']
 MIDDLEWARE=['django.middleware.security.SecurityMiddleware','whitenoise.middleware.WhiteNoiseMiddleware','django.contrib.sessions.middleware.SessionMiddleware','django.middleware.locale.LocaleMiddleware','django.middleware.common.CommonMiddleware','django.middleware.clickjacking.XFrameOptionsMiddleware','django.middleware.csrf.CsrfViewMiddleware','django.contrib.auth.middleware.AuthenticationMiddleware','django.contrib.messages.middleware.MessageMiddleware','core.middleware.ForcePasswordChangeMiddleware','core.middleware.AuditRequestMiddleware']
 ROOT_URLCONF='sama.urls'; WSGI_APPLICATION='sama.wsgi.application'

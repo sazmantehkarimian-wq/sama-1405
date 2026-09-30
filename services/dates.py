@@ -1,8 +1,12 @@
 import re
 import jdatetime
+from datetime import date, datetime
 DATE_RE=re.compile(r'^(13|14)\d{2}/(0[1-9]|1[0-2])/(0[1-9]|[12]\d|3[01])$')
 def normalize_jalali(value):
  if value in (None,''): return ''
+ if isinstance(value, datetime): value=value.date()
+ if isinstance(value, date):
+  return jdatetime.date.fromgregorian(date=value).strftime('%Y/%m/%d')
  text=str(value).strip().replace('-','/').replace('.','/')
  text=text.translate(str.maketrans('۰۱۲۳۴۵۶۷۸۹','0123456789'))
  parts=text.split('/')
