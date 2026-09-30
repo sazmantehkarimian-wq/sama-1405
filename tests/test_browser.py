@@ -16,10 +16,12 @@ def test_real_chromium_rtl_navigation_filter_and_dossier(live_server, tmp_path):
         code="BROWSER-501", name="فضای آزمون مرورگر", status="ACTIVE",
         current_usage="فرهنگی", source_row=2, source_classification="authority",
     )
+    manager = None
     try:
         manager = sync_playwright().start()
         browser = manager.chromium.launch(headless=True)
     except Error:
+        if manager: manager.stop()
         if os.environ.get("SAMA_REQUIRE_BROWSER") == "1":
             raise
         pytest.skip("Chromium binary is not installed; CI browser gate installs it explicitly")
