@@ -1,0 +1,1 @@
+14826af6e13c2c3b56b98a1ff919f639a6fe24f0ccb95b5322aff653598f1726  release/SAMA_4.0.0-uat.2.zip
