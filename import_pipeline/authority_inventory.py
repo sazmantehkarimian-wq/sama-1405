@@ -65,19 +65,23 @@ def _normal(value) -> str:
 
 
 def _identifiers(path: Path, sheet: str, heading: str) -> list[str]:
-    worksheet = load_workbook(path, read_only=True, data_only=True)[sheet]
+    workbook = load_workbook(path, read_only=True, data_only=True)
     heading_index = None
     values = []
-    for row in worksheet.iter_rows(values_only=True):
-        if heading_index is None:
-            headings = [_normal(value) for value in row]
-            if heading in headings:
-                heading_index = headings.index(heading)
-            continue
-        if heading_index < len(row):
-            value = _normal(row[heading_index])
-            if value:
-                values.append(value)
+    try:
+        worksheet = workbook[sheet]
+        for row in worksheet.iter_rows(values_only=True):
+            if heading_index is None:
+                headings = [_normal(value) for value in row]
+                if heading in headings:
+                    heading_index = headings.index(heading)
+                continue
+            if heading_index < len(row):
+                value = _normal(row[heading_index])
+                if value:
+                    values.append(value)
+    finally:
+        workbook.close()
     if heading_index is None:
         raise ValueError(f"Heading {heading!r} not found in {path.name}/{sheet}")
     return values
