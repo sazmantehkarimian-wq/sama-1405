@@ -1,0 +1,90 @@
+name: Bootstrap 6 Mehr authority inputs
+
+on:
+  push:
+    branches:
+      - authority/6mehr-final-inputs
+    paths:
+      - .github/workflows/bootstrap_6mehr_authorities.yml
+      - authority/inputs/1405-07-06/**
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout authority branch
+        uses: actions/checkout@v4
+        with:
+          ref: authority/6mehr-final-inputs
+          fetch-depth: 0
+
+      - name: Verify existing authoritative files or download them
+        shell: bash
+        env:
+          ZIP_URL: "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-4d48-820a-badb-a9735eb2caa3/raw?se=2026-09-30T06%3A23%3A16Z&sp=r&sv=2026-02-06&sr=b&scid=61f23519-663d-59e6-9698-f3cff0df3664&skoid=061609b8-1cdb-4a5b-9e68-c7ab9a523a8f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-30T03%3A16%3A03Z&ske=2026-10-01T03%3A16%3A03Z&sks=b&skv=2026-02-06&sig=jZfZymZI9SFUb9qUD%2BGqluO2/X%2BU%2B1Z1MatnRKSmRME%3D"
+          LOGO_URL: "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-5df0-820a-9f48-dbc53bce8219/raw?se=2026-09-30T06%3A23%3A17Z&sp=r&sv=2026-02-06&sr=b&scid=42c349a8-7e1f-50d4-afa9-80e538bcdb51&skoid=061609b8-1cdb-4a5b-9e68-c7ab9a523a8f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-30T05%3A04%3A19Z&ske=2026-10-01T05%3A04%3A19Z&sks=b&skv=2026-02-06&sig=b06VXATQYKuq8tubjqPHQtL7kJJj1hgVKRys4qggEOQ%3D"
+          ZIP_SHA: "81442c789bc774d48db4260787f0e96adc42f8f0381101404072caac59692c78"
+          LOGO_SHA: "082567b88011d144f3d0a75fce31d3d5852995df5c591ad671f023d58cdb8f25"
+        run: |
+          set -euo pipefail
+          DIR='authority/inputs/1405-07-06'
+          ZIP="$DIR/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip"
+          LOGO="$DIR/لوگو شیشه ای.png"
+          mkdir -p "$DIR"
+
+          if [ -f "$ZIP" ] && [ -f "$LOGO" ]; then
+            echo "$ZIP_SHA  $ZIP" | sha256sum -c -
+            echo "$LOGO_SHA  $LOGO" | sha256sum -c -
+            echo "Authority files already present and verified."
+            exit 0
+          fi
+
+          curl --fail --location --retry 3 --retry-delay 2 "$ZIP_URL" --output "$ZIP"
+          curl --fail --location --retry 3 --retry-delay 2 "$LOGO_URL" --output "$LOGO"
+
+          echo "$ZIP_SHA  $ZIP" | sha256sum -c -
+          echo "$LOGO_SHA  $LOGO" | sha256sum -c -
+
+          cat > "$DIR/SHA256SUMS.txt" <<'EOF'
+81442c789bc774d48db4260787f0e96adc42f8f0381101404072caac59692c78  بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip
+082567b88011d144f3d0a75fce31d3d5852995df5c591ad671f023d58cdb8f25  لوگو شیشه ای.png
+EOF
+
+          cat > "$DIR/README.md" <<'EOF'
+# SAMA authoritative inputs — 6 Mehr 1405
+
+These are the Owner-approved source assets for the clean SAMA NEXT rebuild.
+
+- بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip
+- لوگو شیشه ای.png
+
+The ZIP contains the three final 6-Mehr Excel authorities:
+- املاک_مادر_به‌روزشده_6مهر.xlsx
+- فضاهای_تجاری_فعال_به‌روزشده_6مهر.xlsx
+- فضاهای_از_دور_خارج_شده_به‌روزشده_6مهر.xlsx
+
+Expected baseline after independent verification from the actual files:
+- Mother properties: 225
+- Active commercial spaces: 350
+- Out-of-cycle commercial spaces: 151
+- Total unique commercial-space codes: 501
+
+Do not substitute older Excel packages or older logo archives.
+EOF
+
+      - name: Commit authoritative inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add authority/inputs/1405-07-06
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Add final 6 Mehr authority inputs"
+          git push origin HEAD:authority/6mehr-final-inputs
