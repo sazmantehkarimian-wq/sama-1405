@@ -1,6 +1,6 @@
 [project]
 name = "sama-next"
-version = "5.0.0rc3"
+version = "5.0.0rc4"
 description = "Clean SAMA property and contract management application"
 requires-python = ">=3.11"
 dependencies = [
