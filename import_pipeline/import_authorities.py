@@ -77,7 +77,9 @@ def rows(ws):
 def run(package:Path):
  inventory=inspect_package(package)
  digest=sha(package); batch=ImportBatch.objects.create(source_package=package.name,package_sha256=digest)
- extract=package.parent/'.extracted'; extract.mkdir(exist_ok=True)
+ # Authority inputs are immutable evidence. Extraction is confined to runtime data.
+ extract=Path(__file__).resolve().parents[1]/'data'/'imports'/digest
+ extract.mkdir(parents=True,exist_ok=True)
  with zipfile.ZipFile(package) as z:
   for member in z.infolist():
    try: name=member.filename.encode('cp437').decode('utf-8')

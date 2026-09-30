@@ -5,7 +5,7 @@ from django.test import Client
 from django.db import close_old_connections
 import pytest
 from domains.properties.models import CommercialSpace
-from domains.operations.models import FileMovement
+from domains.operations.models import FileMovement, OperationalHistory
 from domains.documents.models import Document
 from domains.identity.models import AuditEvent
 
@@ -61,3 +61,23 @@ def test_fee_utility_and_workflow_commands_validate_and_audit(client):
  workflow.refresh_from_db()
  assert response.status_code==302 and workflow.state=='DONE' and workflow.closed_at
  assert set(AuditEvent.objects.values_list('action',flat=True)) >= {'APPRAISAL_FEE_CREATE','UTILITY_RECORD_CREATE','WORKFLOW_TRANSITION'}
+ assert OperationalHistory.objects.filter(entity_type='AppraisalFee',action='CREATED').exists()
+ assert OperationalHistory.objects.filter(entity_type='UtilityRecord',action='CREATED').exists()
+ assert OperationalHistory.objects.filter(entity_type='WorkflowInstance',action='TRANSITION').exists()
+
+@pytest.mark.django_db
+def test_operational_workflow_commission_and_alert_lifecycles(client):
+ from domains.operations.models import Alert, CommissionDecision, WorkflowInstance
+ user=get_user_model().objects.create_user('operator3',password='A-very-safe-password')
+ space=CommercialSpace.objects.create(code='503',name='فضا',status='ACTIVE',source_row=2,source_classification='authority')
+ client.force_login(user)
+ response=client.post('/spaces/503/workflows/',{'process_type':'APPRAISAL','title':'کارشناسی جدید','next_action':'ارجاع به کارشناس','due_date':'1405/08/01'})
+ assert response.status_code==302 and WorkflowInstance.objects.filter(space=space,process_type='APPRAISAL').exists()
+ decision=CommissionDecision.objects.create(identity='C-1',decision_date='1405/07/01',subject='واگذاری',decision='موافقت')
+ decision.spaces.add(space)
+ response=client.post(f'/commissions/{decision.pk}/transition/',{'state':'APPROVED','subsequent_action':'ابلاغ','reason':'تصویب جلسه'})
+ decision.refresh_from_db();assert response.status_code==302 and decision.state=='APPROVED'
+ alert=Alert.objects.create(space=space,subject='پیگیری',reason='سررسید',status='OPEN',target_url='/spaces/503/')
+ response=client.post(f'/alerts/{alert.pk}/resolve/',{'reason':'اقدام و ثبت نامه'})
+ alert.refresh_from_db();assert response.status_code==302 and alert.status=='RESOLVED'
+ assert set(AuditEvent.objects.values_list('action',flat=True)) >= {'WORKFLOW_CREATE','COMMISSION_TRANSITION','ALERT_RESOLVE'}

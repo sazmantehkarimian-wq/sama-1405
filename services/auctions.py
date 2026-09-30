@@ -1,0 +1,101 @@
+"""Deterministic, explainable auction candidate rules from the FROZEN authority."""
+from decimal import Decimal
+
+import jdatetime
+from django.core.exceptions import ValidationError
+from django.db import transaction
+
+from domains.identity.models import AuditEvent
+from domains.operations.models import Appraisal, AuctionEvaluation, AuctionRule
+
+
+def _date(value: str) -> jdatetime.date:
+    year, month, day = (int(part) for part in value.split("/"))
+    return jdatetime.date(year, month, day)
+
+
+def _add_months(value: jdatetime.date, months: int) -> jdatetime.date:
+    index = value.year * 12 + value.month - 1 + months
+    year, month = divmod(index, 12)
+    month += 1
+    day = min(value.day, jdatetime.j_days_in_month[month - 1] if month < 12 else (30 if jdatetime.date(year, 1, 1).isleap() else 29))
+    return jdatetime.date(year, month, day)
+
+
+def _level(amount: Decimal, rule: AuctionRule) -> str:
+    if amount <= rule.minor_ceiling_rial:
+        return "MINOR"
+    if amount <= rule.medium_ceiling_rial:
+        return "MEDIUM"
+    return "MAJOR"
+
+
+@transaction.atomic
+def evaluate_space(*, space, on_date: str, actor, rule: AuctionRule | None = None,
+                   auction_date: str = "", ip_address=None) -> AuctionEvaluation:
+    rule = rule or AuctionRule.objects.filter(active=True).order_by("-effective_year", "-id").first()
+    if not rule:
+        raise ValidationError("Rule فعال و مصوب مزایده ثبت نشده است.")
+    today = _date(on_date)
+    contracts = []
+    for contract in space.contracts.exclude(status__in=["باطل", "فسخ‌شده"]):
+        try:
+            if _date(contract.start_date) <= today <= _date(contract.end_date):
+                contracts.append(contract)
+        except (ValueError, TypeError):
+            continue
+    contract = sorted(contracts, key=lambda item: item.start_date, reverse=True)[0] if contracts else None
+    appraisals = []
+    for appraisal in space.appraisals.exclude(appraisal_date=""):
+        try:
+            appraisals.append((_date(appraisal.appraisal_date), appraisal))
+        except (ValueError, TypeError):
+            continue
+    appraisal_pair = max(appraisals, default=None, key=lambda item: item[0])
+    appraisal = appraisal_pair[1] if appraisal_pair else None
+    appraisal_expiry = _add_months(appraisal_pair[0], rule.appraisal_valid_months) if appraisal_pair else None
+    appraisal_reference_date = _date(auction_date) if auction_date else today
+    appraisal_valid = bool(appraisal_expiry and appraisal_expiry >= appraisal_reference_date)
+    reasons, decision, readiness, amount, basis, remaining = [], "REVIEW_REQUIRED", "REVIEW_REQUIRED", None, "", None
+
+    if space.status != "ACTIVE":
+        decision, readiness, reasons = "NOT_CANDIDATE", "ACTION_REQUIRED", ["NOT_CANDIDATE_SPACE_OUT_OF_CYCLE"]
+    elif contract:
+        remaining = (contract and (_date(contract.end_date).togregorian() - today.togregorian()).days)
+        amount, basis = contract.amount_rial, "CONTRACT"
+        if amount is None:
+            reasons = ["REVIEW_MISSING_CONTRACT_AMOUNT"]
+        elif rule.contract_window_min_days <= remaining <= rule.contract_window_max_days:
+            if _level(amount, rule) == "MINOR":
+                decision, readiness, reasons = "NOT_CANDIDATE", "ACTION_REQUIRED", ["NOT_CANDIDATE_LEVEL_JOZ"]
+            else:
+                decision, reasons = "CANDIDATE", ["CANDIDATE_CONTRACT_WINDOW"]
+                readiness = "READY" if appraisal_valid else "ACTION_REQUIRED"
+                if not appraisal_valid:
+                    reasons.append("REVIEW_MISSING_APPRAISAL")
+        else:
+            decision, readiness, reasons = "NOT_CANDIDATE", "ACTION_REQUIRED", ["NOT_CANDIDATE_OUTSIDE_TIME_WINDOW"]
+    else:
+        amount, basis = (appraisal.amount_rial if appraisal else None), "APPRAISAL"
+        if not appraisal or amount is None or not appraisal_valid:
+            reasons = ["REVIEW_MISSING_APPRAISAL"]
+            readiness = "ACTION_REQUIRED"
+        elif _level(amount, rule) == "MINOR":
+            decision, readiness, reasons = "NOT_CANDIDATE", "ACTION_REQUIRED", ["NOT_CANDIDATE_LEVEL_JOZ"]
+        else:
+            decision, readiness, reasons = "CANDIDATE", "READY", ["CANDIDATE_NO_CONTRACT_VALID_APPRAISAL"]
+
+    prior_candidate = space.auction_evaluations.filter(decision="CANDIDATE").exists()
+    if prior_candidate and decision == "NOT_CANDIDATE" and reasons == ["NOT_CANDIDATE_OUTSIDE_TIME_WINDOW"]:
+        decision, reasons = "CANDIDATE", ["CANDIDATE_STICKY_PREVIOUS_VALID_DECISION"]
+    snapshot = {"space_code": space.code, "space_status": space.status, "contract_id": contract.pk if contract else None,
+        "remaining_days": remaining, "amount_rial": str(amount) if amount is not None else None, "amount_basis": basis,
+        "transaction_level": _level(amount, rule) if amount is not None else None,
+        "appraisal_id": appraisal.pk if appraisal else None, "appraisal_expiry": str(appraisal_expiry) if appraisal_expiry else None,
+        "rule_version": rule.version, "evaluation_date": on_date, "auction_date": auction_date or None}
+    evaluation = AuctionEvaluation.objects.create(space=space, rule=rule, decision=decision,
+        readiness=readiness, reason_codes=reasons, snapshot=snapshot, evaluated_by=actor)
+    AuditEvent.objects.create(actor=actor, action="AUCTION_EVALUATE", entity_type="AuctionEvaluation",
+        entity_id=str(evaluation.pk), after={"decision": decision, "reasons": reasons, "space": space.code},
+        ip_address=ip_address)
+    return evaluation

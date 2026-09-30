@@ -5,6 +5,8 @@
 ```bash
 python -m pip install -e '.[test]'
 python manage.py migrate
-python import_pipeline/cli.py authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip
+python -m import_pipeline.cli verify authority/inputs/1405-07-06
+python -m import_pipeline.cli inspect authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip
+python -m import_pipeline.cli import authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip
 python scripts/run_server.py
 ```

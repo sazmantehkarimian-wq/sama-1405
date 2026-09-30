@@ -6,7 +6,11 @@ from django.db import transaction
 from django.utils import timezone
 
 from domains.identity.models import AuditEvent
-from domains.operations.models import Appraisal, AppraisalFee, UtilityRecord, WorkflowInstance
+from domains.documents.models import Document
+from domains.operations.models import (
+    Alert, Appraisal, AppraisalFee, CommissionDecision, OperationalHistory,
+    UtilityRecord, WorkflowInstance,
+)
 from services.dates import normalize_jalali
 
 
@@ -33,23 +37,28 @@ def _money(value: str, label: str, *, allow_zero: bool = False) -> Decimal:
 @transaction.atomic
 def record_appraisal_fee(*, appraisal: Appraisal, actor, amount: str, payment_status: str,
                          payment_date: str = "", payment_reference: str = "",
-                         follow_up_date: str = "", notes: str = "", ip_address=None) -> AppraisalFee:
+                         follow_up_date: str = "", notes: str = "", document: Document | None = None,
+                         ip_address=None) -> AppraisalFee:
     if hasattr(appraisal, "fee"):
         raise ValidationError("برای این کارشناسی قبلاً پرونده حق‌الزحمه ثبت شده است.")
     fee = AppraisalFee.objects.create(
         appraisal=appraisal, amount_rial=_money(amount, "حق‌الزحمه"),
         payment_status=payment_status.strip(), payment_date=_date(payment_date),
         payment_reference=payment_reference.strip(), follow_up_date=_date(follow_up_date), notes=notes.strip(),
+        supporting_document=document,
     )
     AuditEvent.objects.create(actor=actor, action="APPRAISAL_FEE_CREATE", entity_type="AppraisalFee",
                               entity_id=str(fee.pk), after={"space": appraisal.space.code,
                               "amount_rial": str(fee.amount_rial), "payment_status": fee.payment_status},
                               ip_address=ip_address)
+    OperationalHistory.objects.create(entity_type="AppraisalFee", entity_id=str(fee.pk),
+        action="CREATED", previous_state=None, new_state={"payment_status": fee.payment_status},
+        responsible=actor)
     return fee
 
 
 @transaction.atomic
-def record_utility(*, space, actor, values: dict, ip_address=None) -> UtilityRecord:
+def record_utility(*, space, actor, values: dict, document: Document | None = None, ip_address=None) -> UtilityRecord:
     utility_type = values.get("utility_type", "")
     if utility_type not in UtilityRecord.Type.values:
         raise ValidationError("نوع انشعاب معتبر نیست.")
@@ -70,11 +79,14 @@ def record_utility(*, space, actor, values: dict, ip_address=None) -> UtilityRec
         bill_amount_rial=bill, organization_share_rial=organization, beneficiary_share_rial=beneficiary,
         calculation_basis=values.get("calculation_basis", "").strip(), overridden=overridden,
         override_reason=reason, payment_status=values.get("payment_status", "").strip(),
-        payment_date=_date(values.get("payment_date", "")),
+        payment_date=_date(values.get("payment_date", "")), supporting_document=document,
     )
     AuditEvent.objects.create(actor=actor, action="UTILITY_RECORD_CREATE", entity_type="UtilityRecord",
                               entity_id=str(record.pk), after={"space": space.code, "bill_amount_rial": str(bill),
                               "overridden": overridden}, ip_address=ip_address)
+    OperationalHistory.objects.create(entity_type="UtilityRecord", entity_id=str(record.pk),
+        action="CREATED", previous_state=None, new_state={"payment_status": record.payment_status,
+        "bill_amount_rial": str(bill)}, reason=reason, responsible=actor)
     return record
 
 
@@ -96,4 +108,57 @@ def transition_workflow(*, workflow: WorkflowInstance, actor, new_state: str, ne
                               entity_id=str(workflow.pk), before=before,
                               after={"state": workflow.state, "next_action": workflow.next_action,
                                      "due_date": workflow.due_date}, ip_address=ip_address)
+    OperationalHistory.objects.create(entity_type="WorkflowInstance", entity_id=str(workflow.pk),
+        action="TRANSITION", previous_state=before,
+        new_state={"state": workflow.state, "next_action": workflow.next_action, "due_date": workflow.due_date},
+        responsible=actor)
     return workflow
+
+
+@transaction.atomic
+def create_workflow(*, space, actor, process_type: str, title: str, next_action: str,
+                    due_date: str = "", ip_address=None) -> WorkflowInstance:
+    allowed = {"CONTRACT", "APPRAISAL", "AUCTION", "COMMISSION", "FILE", "OTHER"}
+    if process_type not in allowed or not title.strip() or not next_action.strip():
+        raise ValidationError("نوع فرایند، عنوان و اقدام بعدی معتبر الزامی است.")
+    workflow = WorkflowInstance.objects.create(space=space, process_type=process_type,
+        title=title.strip(), next_action=next_action.strip(), due_date=_date(due_date), created_by=actor)
+    OperationalHistory.objects.create(entity_type="WorkflowInstance", entity_id=str(workflow.pk),
+        action="CREATED", previous_state=None, new_state={"state": workflow.state,
+        "next_action": workflow.next_action}, responsible=actor)
+    AuditEvent.objects.create(actor=actor, action="WORKFLOW_CREATE", entity_type="WorkflowInstance",
+        entity_id=str(workflow.pk), after={"space": space.code, "process_type": process_type},
+        ip_address=ip_address)
+    return workflow
+
+
+@transaction.atomic
+def transition_commission(*, decision: CommissionDecision, actor, new_state: str,
+                          subsequent_action: str, reason: str, ip_address=None) -> CommissionDecision:
+    if new_state not in CommissionDecision.State.values or not reason.strip():
+        raise ValidationError("وضعیت و علت تغییر الزامی است.")
+    before = {"state": decision.state, "subsequent_action": decision.subsequent_action}
+    decision.state = new_state
+    decision.subsequent_action = subsequent_action.strip()
+    decision.save(update_fields=["state", "subsequent_action"])
+    after = {"state": decision.state, "subsequent_action": decision.subsequent_action}
+    OperationalHistory.objects.create(entity_type="CommissionDecision", entity_id=str(decision.pk),
+        action="TRANSITION", previous_state=before, new_state=after, reason=reason.strip(), responsible=actor)
+    AuditEvent.objects.create(actor=actor, action="COMMISSION_TRANSITION", entity_type="CommissionDecision",
+        entity_id=str(decision.pk), reason=reason.strip(), before=before, after=after, ip_address=ip_address)
+    return decision
+
+
+@transaction.atomic
+def resolve_alert(*, alert: Alert, actor, reason: str, ip_address=None) -> Alert:
+    if not reason.strip():
+        raise ValidationError("شرح اقدام انجام‌شده الزامی است.")
+    before = {"status": alert.status}
+    alert.status = "RESOLVED"
+    alert.save(update_fields=["status"])
+    OperationalHistory.objects.create(entity_type="Alert", entity_id=str(alert.pk), action="RESOLVED",
+        previous_state=before, new_state={"status": alert.status}, reason=reason.strip(), responsible=actor)
+    AuditEvent.objects.create(actor=actor, action="ALERT_RESOLVE", entity_type="Alert",
+        entity_id=str(alert.pk), reason=reason.strip(), before=before, after={"status": alert.status},
+        ip_address=ip_address)
+    return alert

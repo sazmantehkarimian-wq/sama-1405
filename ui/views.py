@@ -9,7 +9,7 @@ from django.shortcuts import render,get_object_or_404,redirect
 from django.db.models import Count
 from domains.properties.models import CommercialSpace,Region,Center,MotherProperty
 from domains.registry.models import Discrepancy
-from domains.identity.models import UserProfile, SavedReport, ArchivedReportSnapshot
+from domains.identity.models import UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
 from domains.contracts.models import Contract, Beneficiary
 from domains.operations.models import Appraisal, AppraisalFee, Auction, CommissionDecision, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
 from domains.documents.models import Document
@@ -23,11 +23,30 @@ def dashboard(request):
 @login_required
 def space_list(request):
  qs=filter_spaces(request.GET);page=Paginator(qs,25).get_page(request.GET.get('page'))
- return render(request,'ui/space_list.html',{'page':page,'regions':Region.objects.all(),'centers':Center.objects.filter(is_special=True),'total':qs.count()})
+ return render(request,'ui/space_list.html',{'page':page,'regions':Region.objects.all(),'centers':Center.objects.filter(is_special=True),'total':qs.count(),'saved_filters':SavedFilter.objects.filter(owner=request.user,domain='spaces')})
 @login_required
 def space_detail(request,code):
  s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','beneficiary_assignments__beneficiary','appraisals','auctions','utilities','utility_obligations','decisions','commission_decisions','timeline','alerts','file_movements','workflows','source_documents','property_links__mother_property'),code=code)
- return render(request,'ui/space_detail.html',{'space':s,'holder':current_holder(s),'uploaded_documents':Document.objects.filter(entity_type='CommercialSpace',entity_id=s.code,archived_at__isnull=True)})
+ return render(request,'ui/space_detail.html',{'space':s,'holder':current_holder(s),'uploaded_documents':Document.objects.filter(entity_type='CommercialSpace',entity_id=s.code,archived_at__isnull=True),'history':__import__('domains.operations.models',fromlist=['OperationalHistory']).OperationalHistory.objects.filter(entity_type__in=['WorkflowInstance','AppraisalFee','UtilityRecord','CommissionDecision','Alert'])[:100]})
+
+@login_required
+@require_POST
+def save_space_filter(request):
+ from django.http import QueryDict
+ name=request.POST.get('name','').strip()
+ if not name:
+  messages.error(request,'نام نمای ذخیره‌شده الزامی است.');return redirect('space-list')
+ excluded={'csrfmiddlewaretoken','name'}
+ definition={key:request.POST.getlist(key) for key in request.POST if key not in excluded and request.POST.getlist(key)}
+ SavedFilter.objects.create(owner=request.user,name=name,domain='spaces',definition=definition)
+ messages.success(request,'نمای فیلتر ذخیره شد.');return redirect('space-list')
+
+@login_required
+def open_space_filter(request,filter_id):
+ from urllib.parse import urlencode
+ saved=get_object_or_404(SavedFilter,pk=filter_id,owner=request.user,domain='spaces')
+ pairs=[(key,value) for key,values in saved.definition.items() for value in values]
+ return redirect('/spaces/?'+urlencode(pairs))
 
 DOMAIN_LISTS={
  'contracts':('قراردادها',Contract.objects.select_related('space'),(('number','شماره'),('space.code','کد فضا'),('start_date','شروع'),('end_date','پایان'),('status','وضعیت'))),
@@ -138,7 +157,8 @@ def add_utility(request,code):
  from django.core.exceptions import ValidationError
  from services.operations import record_utility
  space=get_object_or_404(CommercialSpace,code=code)
- try:record_utility(space=space,actor=request.user,values=request.POST,ip_address=request.META.get('REMOTE_ADDR'))
+ document=_owned_document(request.POST.get('document_id'),space)
+ try:record_utility(space=space,actor=request.user,values=request.POST,document=document,ip_address=request.META.get('REMOTE_ADDR'))
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
  else:messages.success(request,'رکورد مصرف و سهم‌ها ثبت شد.')
  return redirect('space-detail',code=code)
@@ -149,10 +169,48 @@ def add_appraisal_fee(request,appraisal_id):
  from django.core.exceptions import ValidationError
  from services.operations import record_appraisal_fee
  appraisal=get_object_or_404(Appraisal.objects.select_related('space'),pk=appraisal_id)
- try:record_appraisal_fee(appraisal=appraisal,actor=request.user,amount=request.POST.get('amount_rial',''),payment_status=request.POST.get('payment_status',''),payment_date=request.POST.get('payment_date',''),payment_reference=request.POST.get('payment_reference',''),follow_up_date=request.POST.get('follow_up_date',''),notes=request.POST.get('notes',''),ip_address=request.META.get('REMOTE_ADDR'))
+ document=_owned_document(request.POST.get('document_id'),appraisal.space)
+ try:record_appraisal_fee(appraisal=appraisal,actor=request.user,amount=request.POST.get('amount_rial',''),payment_status=request.POST.get('payment_status',''),payment_date=request.POST.get('payment_date',''),payment_reference=request.POST.get('payment_reference',''),follow_up_date=request.POST.get('follow_up_date',''),notes=request.POST.get('notes',''),document=document,ip_address=request.META.get('REMOTE_ADDR'))
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
  else:messages.success(request,'پرونده حق‌الزحمه کارشناسی ثبت شد.')
  return redirect('space-detail',code=appraisal.space.code)
+
+def _owned_document(document_id,space):
+ if not document_id:return None
+ return get_object_or_404(Document,pk=document_id,entity_type='CommercialSpace',entity_id=space.code,archived_at__isnull=True)
+
+@login_required
+@require_POST
+def workflow_create(request,code):
+ from django.core.exceptions import ValidationError
+ from services.operations import create_workflow
+ space=get_object_or_404(CommercialSpace,code=code)
+ try:create_workflow(space=space,actor=request.user,process_type=request.POST.get('process_type',''),title=request.POST.get('title',''),next_action=request.POST.get('next_action',''),due_date=request.POST.get('due_date',''),ip_address=request.META.get('REMOTE_ADDR'))
+ except ValidationError as exc:messages.error(request,' '.join(exc.messages))
+ else:messages.success(request,'فرایند عملیاتی ایجاد شد.')
+ return redirect('space-detail',code=code)
+
+@login_required
+@require_POST
+def commission_transition(request,decision_id):
+ from django.core.exceptions import ValidationError
+ from services.operations import transition_commission
+ decision=get_object_or_404(CommissionDecision,pk=decision_id)
+ try:transition_commission(decision=decision,actor=request.user,new_state=request.POST.get('state',''),subsequent_action=request.POST.get('subsequent_action',''),reason=request.POST.get('reason',''),ip_address=request.META.get('REMOTE_ADDR'))
+ except ValidationError as exc:messages.error(request,' '.join(exc.messages))
+ else:messages.success(request,'وضعیت تصمیم کمیسیون ثبت شد.')
+ space=decision.spaces.first();return redirect('space-detail',code=space.code) if space else redirect('domain-list',domain='commissions')
+
+@login_required
+@require_POST
+def alert_resolve(request,alert_id):
+ from django.core.exceptions import ValidationError
+ from services.operations import resolve_alert
+ alert=get_object_or_404(Alert.objects.select_related('space'),pk=alert_id)
+ try:resolve_alert(alert=alert,actor=request.user,reason=request.POST.get('reason',''),ip_address=request.META.get('REMOTE_ADDR'))
+ except ValidationError as exc:messages.error(request,' '.join(exc.messages))
+ else:messages.success(request,'هشدار پس از ثبت اقدام مختومه شد.')
+ return redirect('space-detail',code=alert.space.code)
 
 @login_required
 @require_POST
