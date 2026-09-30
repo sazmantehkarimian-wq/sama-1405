@@ -24,3 +24,12 @@ def test_operational_user_cannot_manage_users(client):
  user=get_user_model().objects.create_user('operator-test',password='A-very-safe-password');client.force_login(user)
  assert client.post('/users/create/',{'username':'forbidden','display_name':'ممنوع'}).status_code==302
  assert not get_user_model().objects.filter(username='forbidden').exists()
+
+@pytest.mark.django_db
+def test_login_is_throttled_after_five_failures(client):
+ from django.core.cache import cache
+ cache.clear()
+ payload={'username':'unknown-user','password':'wrong-password'}
+ for _ in range(5): assert client.post('/login/',payload).status_code==200
+ response=client.post('/login/',payload)
+ assert response.status_code==429

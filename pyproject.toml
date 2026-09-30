@@ -1,6 +1,6 @@
 [project]
 name = "sama-next"
-version = "5.0.0a1"
+version = "5.0.0rc1"
 description = "Clean SAMA property and contract management application"
 requires-python = ">=3.11"
 dependencies = [
@@ -9,7 +9,7 @@ dependencies = [
   "arabic-reshaper==3.0.0", "python-bidi==0.4.2"
 ]
 [project.optional-dependencies]
-test = ["pytest==8.4.2", "pytest-django==4.11.1", "playwright==1.55.0"]
+test = ["pytest==8.4.2", "pytest-django==4.11.1", "playwright==1.55.0", "pypdf==6.1.1"]
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "sama.settings"
 python_files = ["test_*.py"]

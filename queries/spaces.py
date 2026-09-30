@@ -24,6 +24,13 @@ def _text(qs, field, value, operator):
     return qs.filter(**{f"{field}__{lookup}": value})
 
 
+def _text_q(field, value, operator):
+    value = (value or "").strip()
+    if not value:
+        return None
+    return Q(**{f"{field}__{TEXT_OPERATORS.get(operator, 'icontains')}": value})
+
+
 def filter_spaces(params):
     qs = CommercialSpace.objects.select_related("region", "center").all()
     q = params.get("q", "").strip()
@@ -37,32 +44,37 @@ def filter_spaces(params):
     statuses = _values(params, "status")
     regions = _values(params, "region_id")
     centers = _values(params, "center_id")
-    if statuses:
-        qs = qs.filter(status__in=statuses)
-    if regions:
-        qs = qs.filter(region_id__in=regions)
-    if centers:
-        qs = qs.filter(center_id__in=centers)
-
-    qs = _text(qs, "code", params.get("code", ""), params.get("code_op", "equals"))
-    qs = _text(qs, "current_usage", params.get("usage", ""), params.get("usage_op", "contains"))
-    qs = _text(qs, "beneficiary_assignments__beneficiary__name", params.get("beneficiary", ""),
-               params.get("beneficiary_op", "contains"))
-    qs = _text(qs, "contracts__number", params.get("contract", ""), params.get("contract_op", "contains"))
-
+    clauses = []
+    if statuses: clauses.append(Q(status__in=statuses))
+    if regions: clauses.append(Q(region_id__in=regions))
+    if centers: clauses.append(Q(center_id__in=centers))
+    for field, value_key, operator_key, fallback in (
+        ("code", "code", "code_op", "equals"),
+        ("current_usage", "usage", "usage_op", "contains"),
+        ("beneficiary_assignments__beneficiary__name", "beneficiary", "beneficiary_op", "contains"),
+        ("contracts__number", "contract", "contract_op", "contains"),
+    ):
+        clause = _text_q(field, params.get(value_key, ""), params.get(operator_key, fallback))
+        if clause is not None: clauses.append(clause)
     presence = params.get("address_presence")
     if presence == "empty":
-        qs = qs.filter(Q(address="") | Q(address__isnull=True))
+        clauses.append(Q(address="") | Q(address__isnull=True))
     elif presence == "nonempty":
-        qs = qs.exclude(Q(address="") | Q(address__isnull=True))
+        clauses.append(~(Q(address="") | Q(address__isnull=True)))
 
     try:
         if params.get("area_min"):
-            qs = qs.filter(area__gte=Decimal(params["area_min"]))
+            clauses.append(Q(area__gte=Decimal(params["area_min"])))
         if params.get("area_max"):
-            qs = qs.filter(area__lte=Decimal(params["area_max"]))
+            clauses.append(Q(area__lte=Decimal(params["area_max"])))
     except (InvalidOperation, ValueError):
         return qs.none()
+
+    if clauses:
+        combined = clauses[0]
+        for clause in clauses[1:]:
+            combined = (combined | clause) if params.get("logic", "and").lower() == "or" else (combined & clause)
+        qs = qs.filter(combined)
 
     allowed = {"code", "name", "status", "area", "current_usage"}
     requested = _values(params, "sort") or ["code"]

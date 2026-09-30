@@ -6,7 +6,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from domains.identity.models import AuditEvent
-from domains.operations.models import Appraisal, AuctionEvaluation, AuctionRule
+from domains.operations.models import Appraisal, AuctionEvaluation, AuctionLot, AuctionPeriod, AuctionRule
+from services.database import retry_locked
 
 
 def _date(value: str) -> jdatetime.date:
@@ -30,6 +31,7 @@ def _level(amount: Decimal, rule: AuctionRule) -> str:
     return "MAJOR"
 
 
+@retry_locked
 @transaction.atomic
 def evaluate_space(*, space, on_date: str, actor, rule: AuctionRule | None = None,
                    auction_date: str = "", ip_address=None) -> AuctionEvaluation:
@@ -99,3 +101,48 @@ def evaluate_space(*, space, on_date: str, actor, rule: AuctionRule | None = Non
         entity_id=str(evaluation.pk), after={"decision": decision, "reasons": reasons, "space": space.code},
         ip_address=ip_address)
     return evaluation
+
+
+@retry_locked
+@transaction.atomic
+def create_period(*, identity: str, title: str, planned_date: str, actor, ip_address=None) -> AuctionPeriod:
+    identity, title = identity.strip(), title.strip()
+    if not identity or not title:
+        raise ValidationError("شناسه و عنوان دوره مزایده الزامی است.")
+    try:
+        _date(planned_date)
+    except (ValueError, TypeError) as exc:
+        raise ValidationError("تاریخ شمسی دوره معتبر نیست.") from exc
+    if AuctionPeriod.objects.filter(identity=identity).exists():
+        raise ValidationError("شناسه دوره مزایده تکراری است.")
+    period = AuctionPeriod.objects.create(
+        identity=identity, title=title, planned_date=planned_date, created_by=actor,
+    )
+    AuditEvent.objects.create(
+        actor=actor, action="AUCTION_PERIOD_CREATE", entity_type="AuctionPeriod",
+        entity_id=str(period.pk), after={"identity": identity, "planned_date": planned_date},
+        ip_address=ip_address,
+    )
+    return period
+
+
+@retry_locked
+@transaction.atomic
+def add_evaluated_lot(*, period: AuctionPeriod, evaluation: AuctionEvaluation, actor,
+                      ip_address=None) -> AuctionLot:
+    if period.state != AuctionPeriod.State.DRAFT:
+        raise ValidationError("افزودن فضا فقط به دوره پیش‌نویس مجاز است.")
+    if evaluation.decision != AuctionEvaluation.Decision.CANDIDATE:
+        raise ValidationError("فقط ارزیابی کاندیدا می‌تواند وارد دوره شود.")
+    lot, created = AuctionLot.objects.get_or_create(
+        period=period, space=evaluation.space,
+        defaults={"evaluation": evaluation, "readiness": evaluation.readiness},
+    )
+    if not created:
+        raise ValidationError("این فضا قبلاً در دوره ثبت شده است.")
+    AuditEvent.objects.create(
+        actor=actor, action="AUCTION_LOT_ADD", entity_type="AuctionLot", entity_id=str(lot.pk),
+        after={"period": period.identity, "space": evaluation.space.code,
+               "evaluation": evaluation.pk}, ip_address=ip_address,
+    )
+    return lot

@@ -1,0 +1,81 @@
+name: SAMA Next clean UAT release
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v5.0.0-uat.1']
+permissions:
+  contents: write
+jobs:
+  build-test-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install build dependencies
+        run: python -m pip install -e ".[test]"
+      - name: Verify immutable authorities
+        shell: pwsh
+        run: |
+          Push-Location "authority/inputs/1405-07-06"
+          $lines = Get-Content SHA256SUMS.txt -Encoding utf8
+          foreach ($line in $lines) {
+            if (-not $line.Trim()) { continue }
+            $parts = $line -split '\s+', 2
+            $actual = (Get-FileHash $parts[1] -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $parts[0].ToLowerInvariant()) { throw "Authority SHA mismatch: $($parts[1])" }
+          }
+          Pop-Location
+          python -m import_pipeline.cli verify authority/inputs/1405-07-06
+          python -m import_pipeline.cli inspect "authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip"
+      - name: Build canonical database from actual workbooks
+        shell: pwsh
+        run: |
+          if (Test-Path data) { Remove-Item data -Recurse -Force }
+          python manage.py migrate --noinput
+          python -m import_pipeline.cli import "authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip"
+          python manage.py collectstatic --noinput
+      - name: Regression and deployment checks
+        shell: pwsh
+        run: |
+          pytest -q
+          python manage.py check --deploy
+          python -c "import sqlite3; c=sqlite3.connect('data/sama.sqlite3'); assert c.execute('pragma integrity_check').fetchone()[0]=='ok'; assert not c.execute('pragma foreign_key_check').fetchall(); assert c.execute('select count(*) from properties_motherproperty').fetchone()[0]==225; assert c.execute('select count(*) from properties_commercialspace where status=\"ACTIVE\"').fetchone()[0]==350; assert c.execute('select count(*) from properties_commercialspace where status=\"OUT_OF_CYCLE\"').fetchone()[0]==151"
+        env:
+          SAMA_HTTPS: '1'
+      - name: Build self-contained Windows package
+        shell: pwsh
+        run: ./scripts/build_windows_release.ps1
+      - name: Package and verify SHA-256
+        shell: pwsh
+        run: |
+          New-Item release -ItemType Directory -Force | Out-Null
+          Compress-Archive -Path "build/SAMA_5.0.0-uat.1" -DestinationPath "release/SAMA_5.0.0-uat.1.zip" -CompressionLevel Optimal
+          $hash = (Get-FileHash "release/SAMA_5.0.0-uat.1.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  SAMA_5.0.0-uat.1.zip" | Set-Content "release/SHA256SUMS.txt" -Encoding utf8NoBOM
+          New-Item verify-package -ItemType Directory | Out-Null
+          Expand-Archive "release/SAMA_5.0.0-uat.1.zip" verify-package
+          if (-not (Test-Path "verify-package/SAMA_5.0.0-uat.1/runtime/python.exe")) { throw "Portable runtime missing" }
+          if (-not (Test-Path "verify-package/SAMA_5.0.0-uat.1/data/sama.sqlite3")) { throw "Canonical DB missing" }
+          $check = ((Get-FileHash "release/SAMA_5.0.0-uat.1.zip" -Algorithm SHA256).Hash.ToLowerInvariant() + "  SAMA_5.0.0-uat.1.zip")
+          if ($check -ne (Get-Content "release/SHA256SUMS.txt" -Raw -Encoding utf8).Trim()) { throw "Release hash verification failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SAMA_5.0.0-uat.1
+          path: release/*
+      - name: Publish and verify GitHub Release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view v5.0.0-uat.1 *> $null
+          if ($LASTEXITCODE -ne 0) { gh release create v5.0.0-uat.1 --target "${{ github.sha }}" --title "SAMA Next 5.0.0-uat.1" --notes "First clean-architecture UAT candidate. Legacy v3/UAT3 remains reference-only." }
+          gh release upload v5.0.0-uat.1 release/SAMA_5.0.0-uat.1.zip release/SHA256SUMS.txt --clobber
+          $asset = gh api repos/${{ github.repository }}/releases/tags/v5.0.0-uat.1 --jq '.assets[] | select(.name == "SAMA_5.0.0-uat.1.zip") | [.name,.size] | @tsv'
+          if (-not $asset) { throw "Release ZIP asset is not visible through GitHub API" }
+          gh release download v5.0.0-uat.1 --pattern SAMA_5.0.0-uat.1.zip --dir downloaded --clobber
+          if ((Get-FileHash downloaded/SAMA_5.0.0-uat.1.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-FileHash release/SAMA_5.0.0-uat.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()) { throw "Published asset hash differs" }

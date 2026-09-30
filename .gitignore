@@ -11,3 +11,4 @@ playwright-report/
 *.egg-info/
 
 artifacts/
+FIRST_LOGIN_CREDENTIALS.txt

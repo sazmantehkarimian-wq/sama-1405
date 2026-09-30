@@ -7,13 +7,19 @@ from domains.identity.models import ArchivedReportSnapshot, AuditEvent, SavedRep
 from queries.spaces import filter_spaces
 from reporting.engine import columns, excel
 
-FILTER_KEYS = ("q", "code", "status", "region_id", "center_id", "usage", "sort")
+FILTER_KEYS = ("q", "logic", "code", "code_op", "status", "region_id", "center_id", "usage", "usage_op", "beneficiary", "beneficiary_op", "contract", "contract_op", "area_min", "area_max", "address_presence", "sort")
+MULTI_KEYS = {"status", "region_id", "center_id", "sort"}
 
 def normalized_report_definition(data):
     fields = columns(data.getlist("field"))
     blanks = [value.strip() for value in data.getlist("blank") if value.strip()][:8]
-    filters = {key: data.get(key, "").strip() for key in FILTER_KEYS if data.get(key, "").strip()}
-    return {"fields": fields, "blank_columns": blanks, "filters": filters, "sorting": [filters.get("sort", "code")], "grouping": []}
+    filters = {}
+    for key in FILTER_KEYS:
+        values = [value.strip() for value in data.getlist(key) if value.strip()]
+        if values: filters[key] = values if key in MULTI_KEYS else values[-1]
+    sorting = filters.get("sort", ["code"])
+    grouping = [value for value in data.getlist("group") if value in {"status", "region", "center", "current_usage"}]
+    return {"fields": fields, "blank_columns": blanks, "filters": filters, "sorting": sorting, "grouping": grouping}
 
 def save_report(*, owner, name, data, ip_address=None):
     definition = normalized_report_definition(data)
@@ -23,7 +29,10 @@ def save_report(*, owner, name, data, ip_address=None):
     return report
 
 def report_query_string(report):
-    pairs = list(report.filters.items()) + [("field", value) for value in report.fields] + [("blank", value) for value in report.blank_columns]
+    pairs = []
+    for key,value in report.filters.items():
+        pairs.extend((key,item) for item in value) if isinstance(value,list) else pairs.append((key,value))
+    pairs += [("field", value) for value in report.fields] + [("blank", value) for value in report.blank_columns]
     return urlencode(pairs)
 
 def archive_report(*, report, actor, ip_address=None):

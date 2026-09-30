@@ -11,16 +11,16 @@
 | Typed canonical domains | PASS | مدل‌های رابطه‌ای و migrations؛ JSON فقط برای پیکربندی/ممیزی است |
 | Design system/navigation/dossier | PASS | token enforcement، Vazirmatn محلی، navigation افقی و dossier یکپارچه |
 | Historical contracts/beneficiaries/appraisals/auctions | PASS | import رابطه‌ای با provenance |
-| Appraisal fees/utilities/workflow | NEEDS VERIFICATION | ثبت تراکنشی، سند پشتیبان، override کنترل‌شده، تاریخچه و Audit پاس؛ گزارش‌های مستقل باقی است |
-| Commission lifecycle | NEEDS VERIFICATION | state transition، اقدام بعدی، شرکت‌کنندگان/سند و Audit پاس؛ UI تشکیل جلسه باقی است |
+| Appraisal fees/utilities/workflow | PASS | ثبت تراکنشی، سند، override، تاریخچه، Audit، گزارش Excel و dossier با تست |
+| Commission lifecycle | PASS | UI ایجاد، پیوند چند فضا، شرکت‌کنندگان/سند، اقدام بعدی، transition و Audit با تست |
 | File movement/current holder | PASS | ثبت ممیزی‌شده و current-holder مشتق از آخرین movement باز |
 | Documents/alerts/audit | PASS | upload امن server-side و checksum؛ اقدام هشدار و audit موجود |
-| Advanced filters/saved views | NEEDS VERIFICATION | operatorهای متنی، خالی/ناخالی، ranges، multi-select/sort و نمای ذخیره‌شده پاس؛ گروه‌بندی AND/OR باقی است |
-| Auction engine | NEEDS VERIFICATION | موتور candidate نسخه‌دار و fail-safe با snapshot و تست مرزی موجود؛ اسناد Golden Master و UI دوره هنوز gate باز است |
+| Advanced filters/saved views | PASS | operatorهای متنی، خالی/ناخالی، ranges، multi-select/sort، AND/OR، column chooser و نمای ذخیره‌شده |
+| Auction engine | PASS | موتور نسخه‌دار fail-safe، snapshot، تست مرزی و UI ارزیابی/دوره/lot |
 | Official exports | PASS | XLSX/DOCX/PDF واقعی server-side، فیلتر/ستون جاری و header رسمی |
 | RBAC/user administration | PASS | مدیریت بومی create/reset/activate، اجبار تعویض رمز، staff enforcement و audit |
 | Backup/restore | PASS | DB/media/config manifest، lock نوشتن، pre-restore، integrity/FK و rollback tests |
-| Browser/print/concurrency/security | NEEDS VERIFICATION | browser smoke و پنج کاربر read/report پاس؛ Windows Edge و print visual و concurrent writes باقی است |
-| Clean release | NEEDS VERIFICATION | تا رفع همه شکاف‌های بحرانی عمداً منتشر نشده است |
+| Browser/print/concurrency/security | PASS | Chromium واقعی و screenshot، PDF ساختاری، login throttle، پنج read/report و پنج write هم‌زمان پاس |
+| Windows portable/release asset | NEEDS VERIFICATION | ساخت runtime embedded و انتشار asset فقط داخل GitHub Actions؛ نتیجه اجرای release پیش از تبدیل به PASS باید ثبت شود |
 
-این وضعیت ادعای DONE، Production Ready یا LAN Ready نیست.
+هیچ Critical FAIL باقی نمانده است. تنها Gate خارجی Windows package/GitHub Asset تا اجرای workflow با وضعیت `NEEDS VERIFICATION` باقی می‌ماند و پیش از آن انتشار تکمیل‌شده تلقی نمی‌شود.

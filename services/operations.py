@@ -9,9 +9,10 @@ from domains.identity.models import AuditEvent
 from domains.documents.models import Document
 from domains.operations.models import (
     Alert, Appraisal, AppraisalFee, CommissionDecision, OperationalHistory,
-    UtilityRecord, WorkflowInstance,
+    TimelineEvent, UtilityRecord, WorkflowInstance,
 )
 from services.dates import normalize_jalali
+from services.database import retry_locked
 
 
 def _date(value: str, *, required: bool = False) -> str:
@@ -34,6 +35,7 @@ def _money(value: str, label: str, *, allow_zero: bool = False) -> Decimal:
     return amount
 
 
+@retry_locked
 @transaction.atomic
 def record_appraisal_fee(*, appraisal: Appraisal, actor, amount: str, payment_status: str,
                          payment_date: str = "", payment_reference: str = "",
@@ -57,6 +59,7 @@ def record_appraisal_fee(*, appraisal: Appraisal, actor, amount: str, payment_st
     return fee
 
 
+@retry_locked
 @transaction.atomic
 def record_utility(*, space, actor, values: dict, document: Document | None = None, ip_address=None) -> UtilityRecord:
     utility_type = values.get("utility_type", "")
@@ -90,6 +93,7 @@ def record_utility(*, space, actor, values: dict, document: Document | None = No
     return record
 
 
+@retry_locked
 @transaction.atomic
 def transition_workflow(*, workflow: WorkflowInstance, actor, new_state: str, next_action: str,
                         due_date: str = "", ip_address=None) -> WorkflowInstance:
@@ -115,6 +119,7 @@ def transition_workflow(*, workflow: WorkflowInstance, actor, new_state: str, ne
     return workflow
 
 
+@retry_locked
 @transaction.atomic
 def create_workflow(*, space, actor, process_type: str, title: str, next_action: str,
                     due_date: str = "", ip_address=None) -> WorkflowInstance:
@@ -132,6 +137,7 @@ def create_workflow(*, space, actor, process_type: str, title: str, next_action:
     return workflow
 
 
+@retry_locked
 @transaction.atomic
 def transition_commission(*, decision: CommissionDecision, actor, new_state: str,
                           subsequent_action: str, reason: str, ip_address=None) -> CommissionDecision:
@@ -149,6 +155,7 @@ def transition_commission(*, decision: CommissionDecision, actor, new_state: str
     return decision
 
 
+@retry_locked
 @transaction.atomic
 def resolve_alert(*, alert: Alert, actor, reason: str, ip_address=None) -> Alert:
     if not reason.strip():
@@ -161,4 +168,56 @@ def resolve_alert(*, alert: Alert, actor, reason: str, ip_address=None) -> Alert
     AuditEvent.objects.create(actor=actor, action="ALERT_RESOLVE", entity_type="Alert",
         entity_id=str(alert.pk), reason=reason.strip(), before=before, after={"status": alert.status},
         ip_address=ip_address)
+    return alert
+
+
+@retry_locked
+@transaction.atomic
+def create_commission_decision(*, identity: str, decision_date: str, subject: str,
+                               decision_text: str, spaces, actor, participants: str = "",
+                               subsequent_action: str = "", document: Document | None = None,
+                               ip_address=None) -> CommissionDecision:
+    """Create an operational commission decision and retain its complete audit context."""
+    identity, subject, decision_text = identity.strip(), subject.strip(), decision_text.strip()
+    spaces = list(spaces)
+    if not identity or not subject or not decision_text or not spaces:
+        raise ValidationError("شناسه، موضوع، متن تصمیم و حداقل یک کد فضا الزامی است.")
+    if CommissionDecision.objects.filter(identity=identity).exists():
+        raise ValidationError("شناسه تصمیم کمیسیون تکراری است.")
+    record = CommissionDecision.objects.create(
+        identity=identity, decision_date=_date(decision_date, required=True), subject=subject,
+        decision=decision_text, participants=participants.strip(),
+        subsequent_action=subsequent_action.strip(), document=document,
+    )
+    record.spaces.set(spaces)
+    codes = [space.code for space in spaces]
+    AuditEvent.objects.create(
+        actor=actor, action="COMMISSION_CREATE", entity_type="CommissionDecision",
+        entity_id=str(record.pk), after={"identity": identity, "spaces": codes}, ip_address=ip_address,
+    )
+    OperationalHistory.objects.create(
+        entity_type="CommissionDecision", entity_id=str(record.pk), action="CREATED",
+        previous_state=None, new_state={"state": record.state, "spaces": codes}, responsible=actor,
+    )
+    return record
+
+
+@retry_locked
+@transaction.atomic
+def create_appraisal(*, space, actor, values, document=None, ip_address=None):
+    appraiser=values.get('appraiser','').strip()
+    if not appraiser:raise ValidationError('نام کارشناس الزامی است.')
+    date=_date(values.get('appraisal_date',''),required=True)
+    appraisal=Appraisal.objects.create(space=space,year=date[:4],sequence=values.get('sequence','').strip(),amount_rial=_money(values.get('amount_rial',''),'مبلغ کارشناسی'),appraiser=appraiser,reference=values.get('reference','').strip(),appraisal_date=date,status=values.get('status','').strip(),created_by=actor)
+    AuditEvent.objects.create(actor=actor,action='APPRAISAL_CREATE',entity_type='Appraisal',entity_id=str(appraisal.pk),after={'space':space.code,'amount_rial':str(appraisal.amount_rial)},ip_address=ip_address)
+    TimelineEvent.objects.create(space=space,event_type='APPRAISAL_CREATE',jalali_date=date,source_entity='Appraisal',source_entity_id=str(appraisal.pk),title='ثبت کارشناسی جدید',description=appraisal.reference,responsible_person=actor.get_full_name() or actor.username,document=document,provenance='عملیات پس از شروع بهره‌برداری',target_url=f'/spaces/{space.code}/')
+    return appraisal
+
+
+@retry_locked
+@transaction.atomic
+def create_alert(*,space,actor,subject,reason,due_date='',target_url='',ip_address=None):
+    if not subject.strip() or not reason.strip():raise ValidationError('موضوع و علت هشدار الزامی است.')
+    alert=Alert.objects.create(space=space,subject=subject.strip(),reason=reason.strip(),due_date=_date(due_date),status='OPEN',target_url=target_url or f'/spaces/{space.code}/')
+    AuditEvent.objects.create(actor=actor,action='ALERT_CREATE',entity_type='Alert',entity_id=str(alert.pk),after={'space':space.code,'due_date':alert.due_date},ip_address=ip_address)
     return alert

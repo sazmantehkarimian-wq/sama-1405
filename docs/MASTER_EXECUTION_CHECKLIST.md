@@ -9,23 +9,23 @@
 | Canonical Field Registry | PASS | ۱۵۳ کلید طبقه‌بندی‌شده: ۱۰۶ mapped، ۳۱ reference-only و ۱۶ unresolved audit-only برای سلول‌های خارج جدول با heading خالی؛ هیچ source cell حذف نمی‌شود |
 | Canonical typed domain schema | PASS | migrations و `tests/test_domain.py` |
 | Design System / local Vazirmatn | PASS | token enforcement، فونت محلی، `tests/test_design_enforcement.py` |
-| Shared UI components | IN PROGRESS | shell/filter/table/dossier و فیلتر چندانتخابی موجود؛ modal/column chooser عمومی باقی است |
+| Shared UI components | PASS | shell، کنترل‌ها، filter، table، column chooser، dossier، timeline، dialog/disclosure و pagination فقط از Design System مشترک استفاده می‌کنند؛ enforcement test |
 | Horizontal Navigation | PASS | `ui/templates/ui/base.html`; enforcement test |
 | Dossier and imported history | PASS | dossier همه domainهای واردشده را پیوند می‌دهد؛ UI integration test |
-| Contracts / beneficiaries / appraisal / auction | PASS | typed import + dossier + full import gate |
+| Contracts / beneficiaries / appraisal / auction | PASS | typed import + ثبت عملیاتی، الحاقیه، تغییر وضعیت، timeline و audit؛ `tests/test_operational_flows.py` |
 | Decisions / source documents / utility obligations | PASS | typed import از workbook + full import gate |
-| Appraisal fee operational process | IN PROGRESS | مبلغ/پرداخت/نامه/پیگیری/سند، تاریخچه و Audit پاس؛ گزارش مستقل fee باقی است |
-| Utility consumption operational process | IN PROGRESS | دوره/مصرف/سهم‌ها/پرداخت/سند و override کنترل‌شده پاس؛ گزارش اختصاصی باقی است |
-| Commission operational process | IN PROGRESS | تصمیم، شرکت‌کنندگان، سند، اقدام بعدی و transition ممیزی‌شده؛ UI تشکیل جلسه باقی است |
-| File movement/current holder | IN PROGRESS | derivation service passes؛ movement form/history permissions باقی است |
+| Appraisal fee operational process | PASS | مبلغ/پرداخت/نامه/پیگیری/سند، تاریخچه، Audit و Excel رسمی؛ تست عملیاتی و export |
+| Utility consumption operational process | PASS | دوره/مصرف/سهم‌ها/پرداخت/سند، override کنترل‌شده، تاریخچه و Excel رسمی |
+| Commission operational process | PASS | UI تشکیل تصمیم، فضاها/شرکت‌کنندگان/سند/اقدام بعدی، transition و Audit |
+| File movement/current holder | PASS | فرم، تاریخچه، audit و current holder مشتق از آخرین حرکت باز |
 | Workflow | PASS | ایجاد فقط با نوع عملیاتی مجاز، transition تراکنشی، تاریخچه و Audit در dossier |
 | Documents / alerts / audit | PASS | upload امن server-side، checksum، permission، اقدام/مختومه‌سازی هشدار و Audit |
-| Search/filter/saved views | IN PROGRESS | exact/contains/starts, empty, multi-select, ranges, multi-sort و نماهای ذخیره‌شده پاس؛ گروه‌بندی صریح AND/OR باقی است |
+| Search/filter/saved views | PASS | exact/contains/starts، empty/nonempty، multi-select، ranges، AND/OR، multi-sort، column chooser و نماهای ذخیره‌شده |
 | Official PDF/XLSX/DOCX engine | PASS | server-side structures, local Persian PDF font, exact filters/selected columns |
 | Report builder / archived snapshot | PASS | تعریف زنده، اجرای مجدد، نسخه ثابت XLSX با query context، تعداد ردیف، SHA-256 و Audit؛ `test_saved_report_and_immutable_snapshot` |
 | RBAC/user provisioning | PASS | native create/reset/activate UI، one-time passwords، forced change، staff gate و audit tests |
 | Backup/restore | PASS | DB/media manifests، checksum، integrity/FK، global write lock، pre-restore backup، atomic restore و rollback tests |
-| Auction candidate rules/lifecycle | IN PROGRESS | rule versioned، مرزهای ۰/۱/۹۰/۹۱، fail-safe، snapshot و schema دوره/lot/proposal؛ UI دوره و Golden Master اسناد باقی است |
-| Browser/print QA | IN PROGRESS | Chromium list/dossier/filter smoke + screenshots passed؛ print visual gate remains |
-| Five-user application concurrency | IN PROGRESS | five authenticated concurrent search/export/dossier reads pass؛ concurrent writes remain |
-| Clean release | NOT STARTED | تا رفع همه gateهای بحرانی عمداً مسدود است |
+| Auction candidate rules/lifecycle | PASS | Rule نسخه‌دار، تست مرزها و fail-safe، snapshot، UI ارزیابی، دوره و lot؛ participant/proposal schema |
+| Browser/print QA | PASS | Chromium واقعی RTL/login/filter/dossier و screenshot؛ PDF server-side واقعی با صفحه، metadata و نبود URL |
+| Five-user application concurrency | PASS | پنج کاربر authenticated در read/search/report و پنج write عملیاتی هم‌زمان با retry محدود SQLite |
+| Clean Windows release | IN PROGRESS | workflow ویندوز، runtime قابل‌حمل، import مجدد، test/hash/API asset gate آماده؛ PASS فقط پس از اجرای GitHub Actions ثبت می‌شود |

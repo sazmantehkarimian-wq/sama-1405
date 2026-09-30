@@ -10,3 +10,5 @@ python -m import_pipeline.cli inspect authority/inputs/1405-07-06/بسته_به_
 python -m import_pipeline.cli import authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip
 python scripts/run_server.py
 ```
+
+نسخه UAT خط پاک: `5.0.0-uat.1`. بسته Windows منتشرشده self-contained است و دستورهای بالا فقط برای توسعه/بازآزمایی منبع هستند.
