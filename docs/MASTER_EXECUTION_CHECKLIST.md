@@ -4,7 +4,7 @@
 
 | Gate | وضعیت | شاهد |
 |---|---|---|
-| Authority SHA/Data Inventory | PASS | `tests/test_authority.py`; `SHA256SUMS.txt` |
+| Authority SHA/Data Inventory | PASS | `verify_manifest` + `inspect_package` و `tests/test_authority.py`: شمارش مستقیم workbook، یکتایی و نبود overlap |
 | Lossless import / 225 + 350 + 151 | PASS | `tests/test_import_pipeline.py`; شمارش مستقیم workbook و همه cellهای غیرتهی |
 | Canonical Field Registry | IN PROGRESS | پنج وضعیت و metadata ذخیره می‌شود؛ بازبینی معنایی aliasهای reference ادامه دارد |
 | Canonical typed domain schema | PASS | migrations و `tests/test_domain.py` |

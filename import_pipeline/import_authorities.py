@@ -10,6 +10,7 @@ from domains.properties.models import Region,Center,MotherProperty,CommercialSpa
 from domains.contracts.models import Beneficiary,BeneficiaryAssignment,Contract
 from domains.operations.models import Appraisal,Auction,TimelineEvent,DecisionOrder,UtilityObligation,SourceDocumentReference
 from services.dates import normalize_jalali
+from import_pipeline.authority_inventory import inspect_package
 MAPPED={
  'کد فضای تجاری':('space.code','کد فضای تجاری','string','properties','CommercialSpace'), 'نام فضا / مرکز':('space.name','نام فضا / مرکز','string','properties','CommercialSpace'),
  'منطقه شهرداری':('space.region','منطقه شهرداری','string','properties','CommercialSpace'), 'حوزه سازمانی':('space.scope','حوزه سازمانی','string','properties','CommercialSpace'),
@@ -74,6 +75,7 @@ def rows(ws):
  return out,headers,hr
 @transaction.atomic
 def run(package:Path):
+ inventory=inspect_package(package)
  digest=sha(package); batch=ImportBatch.objects.create(source_package=package.name,package_sha256=digest)
  extract=package.parent/'.extracted'; extract.mkdir(exist_ok=True)
  with zipfile.ZipFile(package) as z:
@@ -121,9 +123,9 @@ def run(package:Path):
   try: MotherPropertySpaceLink.objects.create(mother_property=MotherProperty.objects.get(identifier=mid),space=CommercialSpace.objects.get(code=code),evidence=text(r.get('وضعیت تطبیق')) or 'ثبت صریح در شیت فضاهای مرتبط',source_file=sources[mother_name][0],source_sheet='فضاهای مرتبط',source_row=n)
   except (MotherProperty.DoesNotExist,CommercialSpace.DoesNotExist): Discrepancy.objects.create(source_file=sources[mother_name][0],entity_type='MotherPropertySpaceLink',entity_key=f'{mid}:{code}',reason='شناسه یک سوی ارتباط در مرجع canonical یافت نشد',severity='HIGH')
  counts={'mother_properties':MotherProperty.objects.count(),'active_spaces':CommercialSpace.objects.filter(status='ACTIVE').count(),'out_of_cycle_spaces':CommercialSpace.objects.filter(status='OUT_OF_CYCLE').count(),'unique_spaces':CommercialSpace.objects.values('code').distinct().count(),'raw_cells':RawCell.objects.count(),'canonical_fields':CanonicalField.objects.count(),'discrepancies':Discrepancy.objects.count()}
- expected=(225,350,151,501)
+ expected=(inventory.mother_properties,inventory.active_spaces,inventory.out_of_cycle_spaces,inventory.unique_spaces)
  actual=(counts['mother_properties'],counts['active_spaces'],counts['out_of_cycle_spaces'],counts['unique_spaces'])
- if actual!=expected: raise ValueError(f'Authority baseline mismatch: {actual}')
+ if actual!=expected: raise ValueError(f'Canonical import differs from independently inventoried workbooks: actual={actual}, source={expected}')
  batch.status='COMPLETE'; batch.completed_at=timezone.now(); batch.summary=counts; batch.save(); return counts
 def region_obj(v):
  val=norm_code(v)

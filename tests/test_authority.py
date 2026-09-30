@@ -1,6 +1,7 @@
 import hashlib,zipfile
 from pathlib import Path
 from openpyxl import load_workbook
+from import_pipeline.authority_inventory import inspect_package, verify_manifest
 ROOT=Path(__file__).parents[1]/'authority/inputs/1405-07-06'
 def test_checksums_match_manifest():
  expected={line.split(maxsplit=1)[1].lstrip('*'):line.split(maxsplit=1)[0] for line in (ROOT/'SHA256SUMS.txt').read_text().splitlines() if line.strip()}
@@ -19,3 +20,9 @@ def test_workbook_baseline_is_derived_from_rows(tmp_path):
   counts[key]=(len(codes),len(set(codes)))
  assert counts=={'mother':(225,225),'active':(350,350),'inactive':(151,151)}
  assert counts['active'][1]+counts['inactive'][1]==501
+
+def test_reusable_authority_inventory_and_manifest_verification():
+ verified=verify_manifest(ROOT)
+ assert set(verified)=={'بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip','لوگو شیشه ای.png'}
+ result=inspect_package(ROOT/'بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip')
+ assert result.as_dict()=={'mother_properties':225,'active_spaces':350,'out_of_cycle_spaces':151,'unique_spaces':501,'overlap':(),'duplicate_mother_identifiers':(),'duplicate_active_codes':(),'duplicate_out_of_cycle_codes':()}
