@@ -14,17 +14,17 @@
 | Dossier and imported history | PASS | dossier همه domainهای واردشده را پیوند می‌دهد؛ UI integration test |
 | Contracts / beneficiaries / appraisal / auction | PASS | typed import + dossier + full import gate |
 | Decisions / source documents / utility obligations | PASS | typed import از workbook + full import gate |
-| Appraisal fee operational process | IN PROGRESS | typed schema/list/dossier؛ create/payment/follow-up UI باقی است |
-| Utility consumption operational process | IN PROGRESS | typed billing/share schema/list؛ create/override UI باقی است |
+| Appraisal fee operational process | IN PROGRESS | ثبت مبلغ/وضعیت پرداخت/نامه/پیگیری و Audit در `services/operations.py`؛ اتصال مستقیم سند به fee باقی است |
+| Utility consumption operational process | IN PROGRESS | ثبت دوره/مصرف/سهم‌ها/پرداخت و override کنترل‌شده با Audit؛ گزارش اختصاصی و اتصال مستقیم سند باقی است |
 | Commission operational process | IN PROGRESS | typed schema/list/dossier؛ session lifecycle باقی است |
 | File movement/current holder | IN PROGRESS | derivation service passes؛ movement form/history permissions باقی است |
-| Workflow | IN PROGRESS | typed instance/list/dossier؛ transition service/UI باقی است |
+| Workflow | IN PROGRESS | transition تراکنشی و ممیزی‌شده و UI پرونده موجود؛ ایجاد فرایندهای مصوب تخصصی باقی است |
 | Documents / alerts / audit | IN PROGRESS | typed schema/list؛ secure upload/action hooks کامل نیست |
 | Search/filter/saved views | IN PROGRESS | shared space query؛ advanced operators/multiselect/save UI باقی است |
 | Official PDF/XLSX/DOCX engine | PASS | server-side structures, local Persian PDF font, exact filters/selected columns |
 | Report builder / archived snapshot | IN PROGRESS | builder preview/export exists؛ save/snapshot actions باقی است |
 | RBAC/user provisioning | PASS | native create/reset/activate UI، one-time passwords، forced change، staff gate و audit tests |
 | Backup/restore | PASS | DB/media manifests، checksum، integrity/FK، global write lock، pre-restore backup، atomic restore و rollback tests |
-| Browser/print QA | IN PROGRESS | Chromium list/dossier smoke + screenshots passed؛ print visual gate remains |
+| Browser/print QA | IN PROGRESS | Chromium list/dossier/operational-form smoke + `docs/qa/space-dossier-operations.png` passed؛ print visual gate remains |
 | Five-user application concurrency | IN PROGRESS | five authenticated concurrent search/export/dossier reads pass؛ concurrent writes remain |
 | Clean release | NOT STARTED | تا رفع همه gateهای بحرانی عمداً مسدود است |

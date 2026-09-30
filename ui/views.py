@@ -112,6 +112,39 @@ def upload_document(request,code):
  return redirect('space-detail',code=code)
 
 @login_required
+@require_POST
+def add_utility(request,code):
+ from django.core.exceptions import ValidationError
+ from services.operations import record_utility
+ space=get_object_or_404(CommercialSpace,code=code)
+ try:record_utility(space=space,actor=request.user,values=request.POST,ip_address=request.META.get('REMOTE_ADDR'))
+ except ValidationError as exc:messages.error(request,' '.join(exc.messages))
+ else:messages.success(request,'رکورد مصرف و سهم‌ها ثبت شد.')
+ return redirect('space-detail',code=code)
+
+@login_required
+@require_POST
+def add_appraisal_fee(request,appraisal_id):
+ from django.core.exceptions import ValidationError
+ from services.operations import record_appraisal_fee
+ appraisal=get_object_or_404(Appraisal.objects.select_related('space'),pk=appraisal_id)
+ try:record_appraisal_fee(appraisal=appraisal,actor=request.user,amount=request.POST.get('amount_rial',''),payment_status=request.POST.get('payment_status',''),payment_date=request.POST.get('payment_date',''),payment_reference=request.POST.get('payment_reference',''),follow_up_date=request.POST.get('follow_up_date',''),notes=request.POST.get('notes',''),ip_address=request.META.get('REMOTE_ADDR'))
+ except ValidationError as exc:messages.error(request,' '.join(exc.messages))
+ else:messages.success(request,'پرونده حق‌الزحمه کارشناسی ثبت شد.')
+ return redirect('space-detail',code=appraisal.space.code)
+
+@login_required
+@require_POST
+def workflow_transition(request,workflow_id):
+ from django.core.exceptions import ValidationError
+ from services.operations import transition_workflow
+ workflow=get_object_or_404(WorkflowInstance.objects.select_related('space'),pk=workflow_id)
+ try:transition_workflow(workflow=workflow,actor=request.user,new_state=request.POST.get('state',''),next_action=request.POST.get('next_action',''),due_date=request.POST.get('due_date',''),ip_address=request.META.get('REMOTE_ADDR'))
+ except ValidationError as exc:messages.error(request,' '.join(exc.messages))
+ else:messages.success(request,'وضعیت فرایند با ثبت رویداد ممیزی تغییر کرد.')
+ return redirect('space-detail',code=workflow.space.code)
+
+@login_required
 @user_passes_test(lambda u:u.is_staff)
 @require_POST
 def user_create(request):

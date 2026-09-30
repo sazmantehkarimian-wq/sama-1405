@@ -1,25 +1,25 @@
 # Final Compliance Audit
 
-این سند وضعیت واقعی clean branch را ثبت می‌کند و مجوز Release نیست.
+این سند وضعیت واقعی clean branch را ثبت می‌کند و مجوز Release نیست. هر شکاف بحرانی انتشار را مسدود می‌کند.
 
 | الزام بحرانی | وضعیت | شاهد/شکاف |
 |---|---|---|
-| جدایی معماری از Legacy | PASS | `LEGACY_BOUNDARY.md`; root commit مستقل |
-| Authority/hash/data baseline | PASS | authority و full importer tests |
-| Raw provenance | PASS | تمام cellهای غیرتهی، حتی metadata پیش از header، تطبیق شمارشی می‌شوند |
-| Registry | NEEDS VERIFICATION | schema و classification فعال است؛ مرور نهایی معنایی ۱۵۳ کلید لازم است |
-| Typed canonical domains | PASS | مدل‌های رابطه‌ای و migrations؛ JSON فقط config/evidence است |
-| Design system/navigation/dossier | PASS | token enforcement، navigation افقی، dossier integration |
-| Historical contracts/beneficiaries/appraisals/auctions | PASS | importer typed و provenance-linked |
-| Source decisions/documents/utility obligations | PASS | importer typed و dossier-linked |
-| Appraisal fees/utilities/commission workflow | FAIL | schema/read views موجود؛ lifecycle نوشتن کامل نشده |
-| Workflow/file movement | FAIL | derive/list موجود؛ ثبت و transition عملیاتی کامل نشده |
-| Document upload/alerts/audit | FAIL | storage schema موجود؛ end-to-end permission/audit UI کامل نشده |
-| Advanced filters/saved views | FAIL | core query موجود؛ همه operatorها و save action کامل نیست |
-| Official exports | PASS | XLSX/DOCX/PDF واقعی، فیلتر/ستون جاری، فونت فارسی محلی و page number |
-| RBAC/user administration | PASS | native create/reset/activate actions، staff enforcement و audit test |
-| Backup/restore | NEEDS VERIFICATION | scripts؛ write-lock/media round-trip کامل نشده |
-| Browser/print/concurrency/security matrices | NEEDS VERIFICATION | automated unit/security موجود؛ full real-browser/concurrency pending |
-| Clean release | FAIL | به‌علت FAILهای بحرانی، release عمداً تولید نشده است |
+| جدایی معماری از Legacy | PASS | `LEGACY_BOUNDARY.md`; root commit مستقل؛ آزمون الگوهای ممنوع |
+| Authority/hash/data baseline | PASS | بازخوانی مستقیم workbook: ۲۲۵ / ۳۵۰ / ۱۵۱ / ۵۰۱، بدون overlap/duplicate |
+| Raw provenance | PASS | ۸۴٬۶۱۸ cell غیرتهی با منبع، مختصات و fingerprint |
+| Registry | NEEDS VERIFICATION | ۱۵۳ کلید: ۱۰۶ mapped، ۳۱ reference-only و ۱۶ unresolved؛ مرور معنایی نهایی لازم است |
+| Typed canonical domains | PASS | مدل‌های رابطه‌ای و migrations؛ JSON فقط برای پیکربندی/ممیزی است |
+| Design system/navigation/dossier | PASS | token enforcement، Vazirmatn محلی، navigation افقی و dossier یکپارچه |
+| Historical contracts/beneficiaries/appraisals/auctions | PASS | import رابطه‌ای با provenance |
+| Appraisal fees/utilities/workflow | NEEDS VERIFICATION | ثبت تراکنشی و Audit موجود؛ پیوند مستقیم سند و catalogue فرایندهای مصوب باقی است |
+| Commission lifecycle | NEEDS VERIFICATION | مدل/فهرست/dossier موجود؛ چرخه جلسه و اقدام بعدی کامل نیست |
+| File movement/current holder | PASS | ثبت ممیزی‌شده و current-holder مشتق از آخرین movement باز |
+| Documents/alerts/audit | NEEDS VERIFICATION | upload امن server-side و audit موجود؛ همه actionهای هشدار کامل نیست |
+| Advanced filters/saved views | NEEDS VERIFICATION | query مرکزی پایه موجود؛ AND/OR پیشرفته و UX ذخیره view باقی است |
+| Official exports | PASS | XLSX/DOCX/PDF واقعی server-side، فیلتر/ستون جاری و header رسمی |
+| RBAC/user administration | PASS | مدیریت بومی create/reset/activate، اجبار تعویض رمز، staff enforcement و audit |
+| Backup/restore | PASS | DB/media/config manifest، lock نوشتن، pre-restore، integrity/FK و rollback tests |
+| Browser/print/concurrency/security | NEEDS VERIFICATION | browser smoke و پنج کاربر read/report پاس؛ Windows Edge و print visual و concurrent writes باقی است |
+| Clean release | NEEDS VERIFICATION | تا رفع همه شکاف‌های بحرانی عمداً منتشر نشده است |
 
-هر FAIL بحرانی انتشار را مسدود می‌کند؛ این وضعیت ادعای DONE یا LAN Ready نیست.
+این وضعیت ادعای DONE، Production Ready یا LAN Ready نیست.
