@@ -20,7 +20,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-VERSION = "4.0.0-uat.2"
+VERSION = "4.0.0-uat.3"
 WORKBOOK_ARCHIVE = "اکسل نهایی اداره املاک و مستغلات.zip"
 STANDALONE = ("اصلی اسامی مدیران مناطق سازمان.xlsx", "نام مراکز (1).xlsx")
 

@@ -3,14 +3,14 @@ name: Build and publish SAMA UAT release
 on:
   push:
     branches:
-      - release/sama-4.0.0-uat.2
+      - release/sama-4.0.0-uat.3
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: sama-4.0.0-uat.2-release
+  group: sama-4.0.0-uat.3-release
   cancel-in-progress: false
 
 jobs:
@@ -65,7 +65,7 @@ jobs:
       - name: Run authority import unit and integration tests
         env:
           PYTHONPATH: uat
-        run: python -m unittest -v uat/test_import_authorities.py
+        run: python -m unittest discover -v uat
 
       - name: Build the Windows LAN UAT package from real data
         shell: bash
@@ -74,17 +74,18 @@ jobs:
           rm -rf build release-ci
           mkdir -p build/base release-ci
           unzip -q "SAMA_ENTERPRISE_LAN_v3.8.5_LONG_TERM_OVER_365_1405-05-15(1).zip" -d build/base
-          package="build/SAMA_4.0.0-uat.2"
+          package="build/SAMA_4.0.0-uat.3"
           base_package="$(find build/base -type f -name START_SERVER.bat -printf '%h\n' -quit)"
           test -n "${base_package}"
           cp -a "${base_package}" "${package}"
+          python uat/prepare_release.py --package "${package}"
           mkdir -p "${package}/AUTHORITY" "${package}/data/source_authorities" "${package}/QA"
           unzip -q -o SAMA_FINAL_MD_PACK_PRE_UI.zip -d "${package}/AUTHORITY"
           python - <<'PY'
           from pathlib import Path
           import zipfile
 
-          destination = Path("build/SAMA_4.0.0-uat.2/data/source_authorities")
+          destination = Path("build/SAMA_4.0.0-uat.3/data/source_authorities")
           with zipfile.ZipFile("اکسل نهایی اداره املاک و مستغلات.zip") as archive:
               for member in archive.infolist():
                   if member.filename.lower().endswith(".xlsx"):
@@ -94,17 +95,17 @@ jobs:
           PY
           python uat/import_authorities.py \
             --database "${package}/data/database.sqlite3" \
-            --report "${package}/QA/IMPORT_REPORT_4.0.0-uat.2.json"
+            --report "${package}/QA/IMPORT_REPORT_4.0.0-uat.3.json"
           cp uat/import_authorities.py "${package}/QA/"
           cat > "${package}/CURRENT_VERSION.txt" <<'EOF'
           SAMA Enterprise LAN
-          Version: 4.0.0-uat.2
+          Version: 4.0.0-uat.3
           Release channel: UAT
           Port: 8765
-          Authority import: QA/IMPORT_REPORT_4.0.0-uat.2.json
+          Authority import: QA/IMPORT_REPORT_4.0.0-uat.3.json
           EOF
-          cat > "${package}/VERSION_4.0.0-uat.2.txt" <<'EOF'
-          Version: 4.0.0-uat.2
+          cat > "${package}/VERSION_4.0.0-uat.3.txt" <<'EOF'
+          Version: 4.0.0-uat.3
           Status: UAT candidate
           Organization: سازمان فرهنگی هنری شهرداری تهران
           Unit: مدیریت اقتصادی و املاک / اداره املاک و مستغلات
@@ -117,39 +118,42 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          launcher = Path("build/SAMA_4.0.0-uat.2/START_SERVER.bat")
+          launcher = Path("build/SAMA_4.0.0-uat.3/START_SERVER.bat")
           text = launcher.read_text(encoding="utf-8-sig")
-          text = text.replace("v3.8.5", "v4.0.0-uat.2")
+          text = text.replace("v3.8.5", "v4.0.0-uat.3")
           if "SAMANE_AMLAK_PORT=8765" not in text:
               raise SystemExit("Launcher does not use TCP port 8765")
           launcher.write_text(text, encoding="utf-8-sig", newline="\r\n")
-          boot = Path("build/SAMA_4.0.0-uat.2/app/server_boot.py")
-          text = boot.read_text(encoding="utf-8").replace("v3.8.5", "4.0.0-uat.2")
+          boot = Path("build/SAMA_4.0.0-uat.3/app/server_boot.py")
+          text = boot.read_text(encoding="utf-8").replace("v3.8.5", "4.0.0-uat.3")
           boot.write_text(text, encoding="utf-8")
           PY
 
       - name: Run release, SQLite, backup/restore, and concurrency gates
-        run: python uat/verify_release.py build/SAMA_4.0.0-uat.2
+        run: python uat/verify_release.py build/SAMA_4.0.0-uat.3
 
       - name: Package and verify release archive
         shell: bash
         run: |
           set -euo pipefail
+          test -z "$(find build/SAMA_4.0.0-uat.3 -maxdepth 1 -type f \
+            \( -name 'VERSION_v3*' -o -name 'RELEASE_NOTES_v3*' -o -name 'MANIFEST_SHA256_v3*' \) -print -quit)"
+          test "$(find build/SAMA_4.0.0-uat.3/QA -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 2
           python - <<'PY'
           from pathlib import Path
           import hashlib
 
-          root = Path("build/SAMA_4.0.0-uat.2")
-          manifest = root / "MANIFEST_SHA256_4.0.0-uat.2.txt"
+          root = Path("build/SAMA_4.0.0-uat.3")
+          manifest = root / "MANIFEST_SHA256_4.0.0-uat.3.txt"
           lines = []
           for path in sorted(root.rglob("*")):
               if path.is_file() and path != manifest:
                   lines.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root).as_posix()}")
           manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
-          (cd build && zip -q -r -9 ../release-ci/SAMA_4.0.0-uat.2.zip SAMA_4.0.0-uat.2)
-          (cd release-ci && sha256sum SAMA_4.0.0-uat.2.zip > SHA256SUMS.txt)
-          unzip -t release-ci/SAMA_4.0.0-uat.2.zip
+          (cd build && zip -q -r -9 ../release-ci/SAMA_4.0.0-uat.3.zip SAMA_4.0.0-uat.3)
+          (cd release-ci && sha256sum SAMA_4.0.0-uat.3.zip > SHA256SUMS.txt)
+          unzip -t release-ci/SAMA_4.0.0-uat.3.zip
           (cd release-ci && sha256sum --check SHA256SUMS.txt)
 
       - name: Upload assets to existing GitHub Release
@@ -158,9 +162,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh release view v4.0.0-uat.2 --repo "${GITHUB_REPOSITORY}" >/dev/null
-          gh release upload v4.0.0-uat.2 \
-            release-ci/SAMA_4.0.0-uat.2.zip \
+          gh release view v4.0.0-uat.3 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1 || \
+            gh release create v4.0.0-uat.3 --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" \
+              --title "SAMA 4.0.0-uat.3" --notes "Windows/LAN UAT candidate 4.0.0-uat.3" --prerelease
+          gh release upload v4.0.0-uat.3 \
+            release-ci/SAMA_4.0.0-uat.3.zip \
             release-ci/SHA256SUMS.txt \
             --clobber \
             --repo "${GITHUB_REPOSITORY}"
@@ -171,17 +177,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_size="$(stat -c %s release-ci/SAMA_4.0.0-uat.2.zip)"
-          actual_size="$(gh release view v4.0.0-uat.2 --repo "${GITHUB_REPOSITORY}" \
-            --json assets --jq '.assets[] | select(.name == "SAMA_4.0.0-uat.2.zip") | .size')"
+          expected_size="$(stat -c %s release-ci/SAMA_4.0.0-uat.3.zip)"
+          actual_size="$(gh release view v4.0.0-uat.3 --repo "${GITHUB_REPOSITORY}" \
+            --json assets --jq '.assets[] | select(.name == "SAMA_4.0.0-uat.3.zip") | .size')"
           test -n "${actual_size}"
           test "${actual_size}" = "${expected_size}"
-          gh release view v4.0.0-uat.2 --repo "${GITHUB_REPOSITORY}" \
+          gh release view v4.0.0-uat.3 --repo "${GITHUB_REPOSITORY}" \
             --json assets --jq '.assets[] | select(.name == "SHA256SUMS.txt") | .name' | grep -Fx SHA256SUMS.txt
           mkdir published-assets
-          gh release download v4.0.0-uat.2 \
+          gh release download v4.0.0-uat.3 \
             --repo "${GITHUB_REPOSITORY}" \
-            --pattern 'SAMA_4.0.0-uat.2.zip' \
+            --pattern 'SAMA_4.0.0-uat.3.zip' \
             --pattern 'SHA256SUMS.txt' \
             --dir published-assets
           (cd published-assets && sha256sum --check SHA256SUMS.txt)

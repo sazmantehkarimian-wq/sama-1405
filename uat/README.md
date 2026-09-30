@@ -1,4 +1,4 @@
-# SAMA 4.0.0-uat.2 release tooling
+# SAMA 4.0.0-uat.3 release tooling
 
 `import_authorities.py` performs a fresh, lossless import of the five authority
 workbooks. Every source row carries workbook, worksheet, physical row, JSON

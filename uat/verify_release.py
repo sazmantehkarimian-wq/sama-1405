@@ -25,7 +25,7 @@ def digest(path: Path) -> str:
 
 
 def verify(package: Path) -> dict:
-    report = json.loads((package / "QA/IMPORT_REPORT_4.0.0-uat.2.json").read_text(encoding="utf-8"))
+    report = json.loads((package / "QA/IMPORT_REPORT_4.0.0-uat.3.json").read_text(encoding="utf-8"))
     assert report["workbook_count"] == 5 and report["sheet_count"] == 39
     assert report["silent_drops"] == 0 and report["field_coverage"]["unmapped"] == 0
     launcher = (package / "START_SERVER.bat").read_text(encoding="utf-8-sig")
