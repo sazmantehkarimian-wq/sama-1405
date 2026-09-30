@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/
+backups/
+collected_static/
+.extracted/
+build/
+dist/
+playwright-report/
+*.egg-info/

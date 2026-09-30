@@ -1,0 +1,21 @@
+name: SAMA Next quality
+on:
+  push:
+    branches: [clean/sama-next]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11', cache: pip}
+      - run: python -m pip install -e '.[test]'
+      - run: sha256sum -c SHA256SUMS.txt
+        working-directory: authority/inputs/1405-07-06
+      - run: python manage.py migrate --noinput
+      - run: python import_pipeline/cli.py authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip
+      - run: pytest -q
+      - run: python manage.py check --deploy
