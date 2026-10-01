@@ -7,6 +7,12 @@
   <div class="button-row"><span class="badge">{{ bill.get_status_display }}</span></div>
 </div>
 
+{% if issues %}
+<section class="card dossier-section">
+  <h2>هشدارهای محاسبه</h2>
+  {% for code,label in issues %}<div class="notice"><strong>{{ label }}</strong><small>{{ code }}</small></div>{% endfor %}
+</section>
+{% endif %}
 <section class="card dossier-section">
   <h2>خلاصه قبض</h2>
   <div class="detail-grid">
