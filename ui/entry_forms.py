@@ -56,6 +56,8 @@ class CommercialSpaceForm(BaseNormalizedModelForm):
         if self.instance and self.instance.pk:
             self.fields["code"].disabled = True
             self.fields["code"].help_text = "کد فضا پس از ایجاد قابل تغییر نیست."
+            self.fields["status"].disabled = True
+            self.fields["status"].help_text = "تغییر وضعیت فقط از گردش کنترل‌شده وضعیت پرونده انجام می‌شود."
 
     def clean_code(self):
         try:
