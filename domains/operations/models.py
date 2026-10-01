@@ -87,7 +87,7 @@ class AppraisalFee(models.Model):
  notes=models.TextField(blank=True)
  supporting_document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='appraisal_fees')
  created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='created_appraisal_fees')
- created_at=models.DateTimeField(auto_now_add=True)
+ created_at=models.DateTimeField(auto_now_add=True,null=True)
  updated_at=models.DateTimeField(auto_now=True)
  class Meta:
   ordering=['-created_at','-id']
