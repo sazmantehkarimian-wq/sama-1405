@@ -88,3 +88,22 @@ def test_current_appraisal_requires_date_and_amount(client):
     assert response.status_code==200
     assert Appraisal.objects.count()==0
     assert "کارشناسی مرجع باید تاریخ خود کارشناسی و مبلغ کارشناسی داشته باشد" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_appraiser_and_appraisal_search_support_system_codes_and_letters(client):
+    user=get_user_model().objects.create_user("search-appraisal",password="A-very-safe-password")
+    client.force_login(user)
+    space=CommercialSpace.objects.create(code="6299",name="فضای جست‌وجو",status="ACTIVE")
+    appraiser=Appraiser.objects.create(first_name="سارا",last_name="ارزیاب",license_number="LIC-SEARCH")
+    appraisal=Appraisal.objects.create(
+        space=space,appraiser_ref=appraiser,appraiser=appraiser.full_name,
+        response_number="RESP-77",appraisal_date="1405/06/01",amount_rial=1000000,
+    )
+    AppraisalNotification.objects.create(
+        appraisal=appraisal,number="NOTIFY-55",notification_date="1405/05/20",recipient="EXPERT"
+    )
+
+    assert "سارا" in client.get("/records/appraisers/",{"q":appraiser.sama_code}).content.decode()
+    assert appraisal.sama_code in client.get("/records/appraisals/",{"q":"RESP-77"}).content.decode()
+    assert appraisal.sama_code in client.get("/records/appraisals/",{"q":"NOTIFY-55"}).content.decode()
