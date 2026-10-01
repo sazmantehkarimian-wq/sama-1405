@@ -18,7 +18,6 @@ from reporting.engine import excel,docx,pdf,tabular_excel
 from ui.forms import PersianPasswordChangeForm
 from core.uat import is_fixed_uat_admin
 from services.money import format_rial
-@login_required
 def _filtered_utility_bills(params):
  from decimal import Decimal, InvalidOperation
  previous=UtilityBill.objects.filter(
@@ -109,6 +108,7 @@ def utility_bills_excel(request):
  )
 
 
+@login_required
 def dashboard(request):
  spaces=CommercialSpace.objects.all();active=spaces.filter(status='ACTIVE')
  region_rows=list(active.exclude(region=None).values('region__name').annotate(total=Count('id')).order_by('-total')[:5]);maximum=max((row['total'] for row in region_rows),default=1)
