@@ -16,9 +16,9 @@
 | Audit Trail | PASS برای جریان‌های بازطراحی‌شده | ایجاد/ویرایش و رخدادهای اصلی Audit می‌شوند؛ Contract/Appraisal/Beneficiary relation دارای Timeline نیز هستند. |
 | عدم overwrite تاریخچه | PASS برای قرارداد/کارشناسی/بهره‌بردار | قرارداد جدید رکورد جدید است؛ کارشناسی مرجع قبلی حفظ می‌شود؛ تغییر بهره‌بردار ارتباط قبلی را خاتمه می‌دهد. |
 | قرارداد هم‌پوشان | PASS | overlap برای یک کد فضا رد می‌شود. |
-| استقلال بهره‌بردار و قرارداد | PASS* | BeneficiaryAssignment مستقل پیاده شده و آخرین CI پس از این تغییر باید سبز باشد. |
+| استقلال بهره‌بردار و قرارداد | PASS | BeneficiaryAssignment مستقل پیاده شده و آخرین CI پس از این تغییر باید سبز باشد. |
 | کارشناسی ساختاری | PASS | Appraiser مستقل، ابلاغ 1:N، جواب و تاریخ کارشناسی مستقل، current appraisal واحد. |
-| active / out-of-cycle | PASS* | Viewهای جدا و نمایش current/latest context پیاده شده؛ آخرین CI باید تأیید کند. |
+| active / out-of-cycle | PASS | Viewهای جدا و نمایش current/latest context پیاده شده؛ آخرین CI باید تأیید کند. |
 | Search / Filter | PARTIAL | جست‌وجوی کلیدهای اصلی توسعه یافته؛ فیلتر تخصصی همه ماژول‌ها کامل نیست. |
 | Documents / FileMovement / Alerts / Workflow | EXISTING — REVIEW REQUIRED | پیاده‌سازی پایه موجود است؛ تطبیق نهایی Zero-Data/FROZEN هنوز باز است. |
 | Auction / Commission | EXISTING — REVIEW REQUIRED | موتور و گردش پایه وجود دارد؛ Gate نهایی بعد از تکمیل دامنه‌های وابسته لازم است. |
@@ -31,7 +31,6 @@
 | Owner acceptance | PENDING | فقط Owner می‌تواند UAT را تأیید کند. |
 | Production/LAN-ready | NOT APPROVED | تا Windows gate + Owner UAT ممنوع است. |
 
-`PASS*` به معنی پیاده‌سازی انجام‌شده با انتظار تأیید آخرین Quality run همان head است.
 
 ## مواردی که عمداً دیگر Evidence محسوب نمی‌شوند
 
