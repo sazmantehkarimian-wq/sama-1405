@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from domains.identity.models import AuditEvent
-from domains.properties.models import MotherPropertyUsageHistory
+from domains.properties.models import MotherPropertyCorrespondence, MotherPropertyUsageHistory
 from services.database import retry_locked
 from services.dates import normalize_jalali
 from services.text import normalize_persian_text
@@ -82,6 +82,35 @@ def change_mother_property_usage(*, property, actor, values, ip_address=None):
             "beneficiary_name": record.beneficiary_name,
             "start_date": record.start_date,
         },
+        ip_address=ip_address,
+    )
+    return record
+
+
+
+@retry_locked
+@transaction.atomic
+def transition_mother_property_correspondence(*, record, actor, new_status, reason, ip_address=None):
+    if new_status not in MotherPropertyCorrespondence.FollowUpStatus.values:
+        raise ValidationError("وضعیت پیگیری معتبر نیست.")
+    reason = normalize_persian_text(reason)
+    if not reason:
+        raise ValidationError("علت / نتیجه تغییر وضعیت پیگیری الزامی است.")
+    if not record.needs_follow_up:
+        raise ValidationError("این مکاتبه به‌عنوان نیازمند پیگیری ثبت نشده است.")
+    if record.follow_up_status == new_status:
+        raise ValidationError("وضعیت جدید با وضعیت فعلی یکسان است.")
+    before = record.follow_up_status
+    record.follow_up_status = new_status
+    record.save(update_fields=["follow_up_status"])
+    AuditEvent.objects.create(
+        actor=actor,
+        action="MOTHER_PROPERTY_CORRESPONDENCE_TRANSITION",
+        entity_type="MotherProperty",
+        entity_id=record.property.identifier,
+        reason=reason,
+        before={"correspondence_id": record.pk, "follow_up_status": before},
+        after={"correspondence_id": record.pk, "follow_up_status": new_status},
         ip_address=ip_address,
     )
     return record
