@@ -12,7 +12,8 @@
 </div>
 
 <div class="kpi-grid">
-  <a class="card kpi" href="#fees"><small>کل پرونده‌ها</small><strong>{{ fee_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="#fees"><small>کل پرونده‌های حق‌الزحمه</small><strong>{{ fee_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="#missing-fees"><small>مبلغ ثبت نشده</small><strong>{{ missing_fee_count|fa_digits }}</strong></a>
   <a class="card kpi" href="?status=FEE_ENTERED#fees"><small>مبلغ ثبت شده</small><strong>{{ entered_count|fa_digits }}</strong></a>
   <a class="card kpi" href="?status=READY_TO_SEND#fees"><small>آماده ارسال</small><strong>{{ ready_count|fa_digits }}</strong></a>
   <a class="card kpi" href="?status=SENT_TO_FINANCE#fees"><small>ارسال شده به مالی</small><strong>{{ sent_count|fa_digits }}</strong></a>
@@ -49,6 +50,13 @@
     <label>کد Batch<input name="batch" value="{{ request.GET.batch }}" placeholder="PAY-1405-001"></label>
   </div></details>
 </form>
+
+<section class="card dossier-section" id="missing-fees">
+  <h2>کارشناسی‌های فاقد مبلغ حق‌الزحمه</h2>
+  <div class="table-wrap"><table><thead><tr><th>کد کارشناسی</th><th>کد فضا</th><th>کارشناس</th><th>تاریخ کارشناسی</th><th>مبلغ کارشناسی</th><th>اقدام</th></tr></thead><tbody>
+  {% for appraisal in missing_fees %}<tr><td>{{ appraisal.sama_code }}</td><td><a href="{% url 'space-detail' appraisal.space.code %}">{{ appraisal.space.code }}</a></td><td>{{ appraisal.appraiser_display }}</td><td>{{ appraisal.appraisal_date|default:'—' }}</td><td>{{ appraisal.amount_rial|rial }}</td><td><a class="button compact" href="{% url 'appraisal-fee-create' appraisal.pk %}">ثبت مبلغ حق‌الزحمه</a></td></tr>{% empty %}<tr><td colspan="6">کارشناسی دارای کارشناس ثبت‌شده و فاقد حق‌الزحمه وجود ندارد.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
 
 <section class="card dossier-section" id="fees">
   <h2>پرونده‌های حق‌الزحمه</h2>
