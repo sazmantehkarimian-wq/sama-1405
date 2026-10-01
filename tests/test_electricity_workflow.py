@@ -11,11 +11,13 @@ from domains.operations.models import (
     ElectricityCalculationSnapshot,
     ElectricityConsumptionCategory,
     UtilityMeasurement,
+    UtilityParameterRule,
     UtilityUnit,
 )
 from domains.properties.models import CommercialSpace
 from services.electricity import (
     create_electricity_bill,
+    electricity_bill_issues,
     finalize_electricity_bill,
     record_measurement,
     recalculate_electricity_bill,
@@ -310,3 +312,57 @@ def test_bill_share_update_is_authorized_audited_and_recalculates(electricity_co
     event=AuditEvent.objects.get(action="ELECTRICITY_BILL_UPDATE",entity_id=str(bill.pk))
     assert event.reason=="نامه اصلاح سهم"
     assert Decimal(event.before["beneficiary_share_percent"])==Decimal("60")
+
+
+@pytest.mark.django_db
+def test_snapshot_freezes_effective_rules_and_future_rules_do_not_change_it(electricity_context):
+    user,unit,s1,_=electricity_context
+    rule=UtilityParameterRule.objects.create(
+        key="ROUNDING_POLICY",label="قاعده گردکردن",value_text="HALF_UP",
+        effective_from="1405/01/01",active=True,created_by=user,
+    )
+    bill=create_electricity_bill(
+        unit=unit,actor=user,
+        values={
+            "period_start":"1405/07/01","period_end":"1405/07/30",
+            "amount_rial":"100000","beneficiary_share_percent":"100",
+            "organization_share_percent":"0",
+        },
+    )
+    upsert_electricity_allocation(
+        bill=bill,space=s1,actor=user,
+        values={"eligible":True,"effective_area":"10","eui":"1"},
+    )
+    snapshot=finalize_electricity_bill(bill=bill,actor=user)
+    assert snapshot.payload["effective_rules"][0]["key"]=="ROUNDING_POLICY"
+    assert snapshot.payload["effective_rules"][0]["value_text"]=="HALF_UP"
+
+    UtilityParameterRule.objects.create(
+        key="ROUNDING_POLICY",label="قاعده گردکردن",value_text="NEW_RULE",
+        effective_from="1406/01/01",active=True,created_by=user,
+    )
+    snapshot.refresh_from_db()
+    assert snapshot.payload["effective_rules"][0]["value_text"]=="HALF_UP"
+
+
+@pytest.mark.django_db
+def test_integrity_warnings_are_drilldown_ready(electricity_context):
+    user,unit,s1,_=electricity_context
+    bill=create_electricity_bill(
+        unit=unit,actor=user,
+        values={
+            "period_start":"1405/07/01","period_end":"1405/07/30",
+            "amount_rial":"100000","beneficiary_share_percent":"60",
+            "organization_share_percent":"40",
+        },
+    )
+    issues=dict(electricity_bill_issues(bill))
+    assert "NO_ELIGIBLE_SPACE" in issues
+    assert "SPACE_SHARE_MISMATCH" in issues
+
+    upsert_electricity_allocation(
+        bill=bill,space=s1,actor=user,
+        values={"eligible":True},
+    )
+    issues=dict(electricity_bill_issues(bill))
+    assert "INCOMPLETE_DATA" in issues
