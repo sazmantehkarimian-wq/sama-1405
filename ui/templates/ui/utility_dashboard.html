@@ -7,6 +7,7 @@
   <div class="button-row">
     <a class="button emphasized compact" href="{% url 'electricity-dashboard' %}">زیرسامانه برق</a>
     <a class="button secondary compact" href="{% url 'utility-bills-excel' %}?{{ request.GET.urlencode }}">خروجی رسمی اکسل</a>
+    <a class="button secondary compact" href="{% url 'utility-bills-pdf' %}?{{ request.GET.urlencode }}">خروجی رسمی PDF</a>
   </div>
 </div>
 
