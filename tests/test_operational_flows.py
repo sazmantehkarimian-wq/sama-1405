@@ -132,7 +132,7 @@ def test_auction_workspace_evaluates_and_adds_candidate_to_draft_period(client):
 @pytest.mark.django_db
 def test_post_go_live_contract_appraisal_amendment_and_alert_are_typed_and_audited(client):
  from domains.contracts.models import Contract,Beneficiary,BeneficiaryAssignment,ContractAmendment
- from domains.operations.models import Appraisal,Alert,TimelineEvent
+ from domains.operations.models import Appraiser,Appraisal,Alert,TimelineEvent
  user=get_user_model().objects.create_user('daily-operator',password='A-very-safe-password')
  space=CommercialSpace.objects.create(code='9401',name='فضا',status='ACTIVE')
  beneficiary=Beneficiary.objects.create(kind='NATURAL',name='بهره‌بردار واقعی',first_name='بهره‌بردار',last_name='واقعی',created_by=user)
@@ -143,7 +143,8 @@ def test_post_go_live_contract_appraisal_amendment_and_alert_are_typed_and_audit
  assert BeneficiaryAssignment.objects.filter(space=space,beneficiary=contract.beneficiary,created_by=user).exists()
  assert client.post(f'/contracts/{contract.pk}/amendments/',{'number':'A-1','effective_date':'1405/08/01','amount_change_rial':'100000','description':'تمدید تعهد'}).status_code==302
  assert ContractAmendment.objects.filter(contract=contract,number='A-1').exists()
- assert client.post('/spaces/9401/appraisals/',{'appraiser':'کارشناس رسمی','appraisal_date':'1405/07/03','amount_rial':'2000000','reference':'نامه ۱','status':'معتبر'}).status_code==302
+ appraiser=Appraiser.objects.create(first_name='کارشناس',last_name='رسمی',created_by=user)
+ assert client.post('/spaces/9401/appraisals/new/',{'appraiser':appraiser.pk,'appraisal_date':'1405/07/03','amount_rial':'2000000','reference':'نامه ۱','status':'معتبر','is_current':'on'}).status_code==302
  assert Appraisal.objects.filter(space=space,created_by=user).exists()
  assert client.post('/spaces/9401/alerts/',{'subject':'پیگیری امضا','reason':'نسخه امضاشده دریافت شود','due_date':'1405/07/20'}).status_code==302
  assert Alert.objects.filter(space=space,status='OPEN').exists()
