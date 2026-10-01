@@ -434,7 +434,7 @@ def domain_excel(request,domain):
 
 @login_required
 def document_download(request,document_id):
- document=get_object_or_404(Document,pk=document_id,archived_at__isnull=True)
+ document=get_object_or_404(Document,pk=document_id)
  return FileResponse(document.file.open('rb'),content_type=document.content_type,as_attachment=True,filename=document.original_filename)
 
 @login_required
