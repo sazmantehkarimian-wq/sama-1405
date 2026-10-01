@@ -692,7 +692,7 @@ def electricity_bill_detail(request, bill_id):
         .prefetch_related("allocations__space", "allocations__measurement", "allocations__category", "snapshots"),
         pk=bill_id,
     )
-    allocation_form = ElectricityAllocationForm(bill=bill)
+    allocation_form = ElectricityAllocationForm(bill=bill, actor=request.user)
     return render(
         request,
         "ui/electricity_bill_detail.html",
@@ -742,7 +742,7 @@ def utility_measurement_create(request, code):
 def electricity_allocation_save(request, bill_id):
     from django.core.exceptions import ValidationError
     bill = get_object_or_404(ElectricityBill, pk=bill_id)
-    form = ElectricityAllocationForm(request.POST or None, bill=bill)
+    form = ElectricityAllocationForm(request.POST or None, bill=bill, actor=request.user)
     if request.method != "POST":
         return redirect("electricity-bill-detail", bill_id=bill.pk)
     if form.is_valid():
