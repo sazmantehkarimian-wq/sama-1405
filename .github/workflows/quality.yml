@@ -20,7 +20,11 @@ jobs:
           import os
           os.environ.setdefault('DJANGO_SETTINGS_MODULE','sama.settings')
           import django; django.setup()
-          from domains.properties.models import MotherProperty, CommercialSpace
+          from domains.properties.models import (
+            MotherProperty, MotherPropertyCorrespondence, MotherPropertyNote,
+            MotherPropertyOwnership, MotherPropertyOwnershipDocument,
+            MotherPropertyUsageHistory, CommercialSpace,
+          )
           from domains.contracts.models import Contract, Beneficiary
           from domains.operations.models import (
             Appraisal, AppraisalFee, ExpertFeePaymentBatch, ExpertFeeBatchItem,
@@ -31,6 +35,11 @@ jobs:
           )
           checks={
             'mother_properties':MotherProperty.objects.count(),
+            'mother_property_ownership':MotherPropertyOwnership.objects.count(),
+            'mother_property_ownership_documents':MotherPropertyOwnershipDocument.objects.count(),
+            'mother_property_usage':MotherPropertyUsageHistory.objects.count(),
+            'mother_property_correspondence':MotherPropertyCorrespondence.objects.count(),
+            'mother_property_notes':MotherPropertyNote.objects.count(),
             'commercial_spaces':CommercialSpace.objects.count(),
             'contracts':Contract.objects.count(),
             'beneficiaries':Beneficiary.objects.count(),
