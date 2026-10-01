@@ -161,9 +161,103 @@ class AuctionParticipant(models.Model):
  period=models.ForeignKey(AuctionPeriod,on_delete=models.PROTECT,related_name='participants'); name=models.CharField(max_length=255); identity_number=models.CharField(max_length=30,blank=True); contact=models.CharField(max_length=120,blank=True)
 class AuctionProposal(models.Model):
  lot=models.ForeignKey(AuctionLot,on_delete=models.PROTECT,related_name='proposals'); participant=models.ForeignKey(AuctionParticipant,on_delete=models.PROTECT,related_name='proposals'); received_at=models.DateTimeField(); envelope_a_received=models.BooleanField(default=False); envelope_b_received=models.BooleanField(default=False); envelope_c_received=models.BooleanField(default=False); offered_amount_rial=models.DecimalField(max_digits=24,decimal_places=0,null=True); status=models.CharField(max_length=30); document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT)
+class CommissionMember(models.Model):
+ class Status(models.TextChoices): ACTIVE='ACTIVE','فعال';INACTIVE='INACTIVE','غیرفعال'
+ name=models.CharField(max_length=255); position=models.CharField(max_length=255,blank=True); role=models.CharField(max_length=120,blank=True)
+ sign_order=models.PositiveSmallIntegerField(default=1); start_date=models.CharField(max_length=10,blank=True); end_date=models.CharField(max_length=10,blank=True)
+ status=models.CharField(max_length=20,choices=Status.choices,default=Status.ACTIVE); notes=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='created_commission_members')
+ created_at=models.DateTimeField(auto_now_add=True);updated_at=models.DateTimeField(auto_now=True)
+ class Meta: ordering=['sign_order','name','pk']
+ @property
+ def sama_code(self): return f'COM-MEM-{self.pk:06d}' if self.pk else '—'
+ def __str__(self): return f'{self.name} — {self.position}'.strip(' —')
+
+
+class CommissionSession(models.Model):
+ class Status(models.TextChoices): DRAFT='DRAFT','پیش‌نویس';HELD='HELD','برگزارشده';CLOSED='CLOSED','مختومه';CANCELLED='CANCELLED','لغوشده'
+ number=models.CharField(max_length=120,blank=True);session_date=models.CharField(max_length=10);session_time=models.CharField(max_length=5,blank=True)
+ location=models.CharField(max_length=255,blank=True);title=models.CharField(max_length=255);description=models.TextField(blank=True)
+ status=models.CharField(max_length=20,choices=Status.choices,default=Status.DRAFT);notes=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,related_name='created_commission_sessions')
+ created_at=models.DateTimeField(auto_now_add=True);updated_at=models.DateTimeField(auto_now=True)
+ class Meta: ordering=['-session_date','-id']
+ @property
+ def sama_code(self): return f'COM-SES-{self.pk:06d}' if self.pk else '—'
+ def __str__(self): return f'{self.sama_code} — {self.title}'
+
+
+class CommissionSessionMember(models.Model):
+ session=models.ForeignKey(CommissionSession,on_delete=models.PROTECT,related_name='member_snapshots')
+ member=models.ForeignKey(CommissionMember,null=True,blank=True,on_delete=models.PROTECT,related_name='session_snapshots')
+ name=models.CharField(max_length=255);position=models.CharField(max_length=255,blank=True);role=models.CharField(max_length=120,blank=True)
+ present=models.BooleanField(default=True);sign_order=models.PositiveSmallIntegerField(default=1);notes=models.TextField(blank=True)
+ class Meta:
+  ordering=['sign_order','pk']
+  constraints=[models.UniqueConstraint(fields=['session','name','position'],name='uniq_commission_session_member_snapshot')]
+
+
+class CommissionCase(models.Model):
+ class Status(models.TextChoices): OPEN='OPEN','باز';UNDER_REVIEW='UNDER_REVIEW','در حال بررسی';DECIDED='DECIDED','تصمیم‌گیری‌شده';CLOSED='CLOSED','مختومه';CANCELLED='CANCELLED','باطل'
+ session=models.ForeignKey(CommissionSession,on_delete=models.PROTECT,related_name='cases')
+ title=models.CharField(max_length=255);description=models.TextField(blank=True);reason=models.TextField(blank=True)
+ case_type=models.CharField(max_length=120,blank=True);referral_reference=models.CharField(max_length=255,blank=True)
+ status=models.CharField(max_length=30,choices=Status.choices,default=Status.OPEN)
+ responsible=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='commission_cases')
+ follow_up_due_date=models.CharField(max_length=10,blank=True);notes=models.TextField(blank=True)
+ spaces=models.ManyToManyField('properties.CommercialSpace',blank=True,related_name='commission_cases')
+ contracts=models.ManyToManyField('contracts.Contract',blank=True,related_name='commission_cases')
+ beneficiaries=models.ManyToManyField('contracts.Beneficiary',blank=True,related_name='commission_cases')
+ auction_periods=models.ManyToManyField('operations.AuctionPeriod',blank=True,related_name='commission_cases')
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,related_name='created_commission_cases')
+ created_at=models.DateTimeField(auto_now_add=True);updated_at=models.DateTimeField(auto_now=True)
+ class Meta: ordering=['session','id']
+ @property
+ def sama_code(self): return f'COM-CASE-{self.pk:06d}' if self.pk else '—'
+ @property
+ def completeness_status(self):
+  if not self.title or not self.session_id:return 'نیازمند تکمیل'
+  if not self.decisions.exists():return 'نیازمند تکمیل'
+  if self.decisions.filter(execution_status__in=['ACTION_REQUIRED','IN_PROGRESS']).filter(responsible__isnull=True).exists():return 'نیازمند تکمیل'
+  return 'کامل'
+ def __str__(self): return f'{self.sama_code} — {self.title}'
+
+
 class CommissionDecision(models.Model):
  class State(models.TextChoices): DRAFT='DRAFT','پیش‌نویس'; APPROVED='APPROVED','تصویب‌شده'; CLOSED='CLOSED','مختومه'; CANCELLED='CANCELLED','لغوشده'
- identity=models.CharField(max_length=120); decision_date=models.CharField(max_length=10); subject=models.CharField(max_length=255); decision=models.TextField(); subsequent_action=models.TextField(blank=True); participants=models.TextField(blank=True); state=models.CharField(max_length=20,choices=State.choices,default=State.DRAFT); document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='commission_decisions'); spaces=models.ManyToManyField('properties.CommercialSpace',related_name='commission_decisions')
+ class ExecutionStatus(models.TextChoices): ACTION_REQUIRED='ACTION_REQUIRED','نیازمند اقدام';IN_PROGRESS='IN_PROGRESS','در دست اقدام';DONE='DONE','انجام‌شده';CLOSED='CLOSED','مختومه';REVIEW_REQUIRED='REVIEW_REQUIRED','نیازمند بررسی'
+ identity=models.CharField(max_length=120); decision_date=models.CharField(max_length=10); subject=models.CharField(max_length=255); decision=models.TextField()
+ decision_type=models.CharField(max_length=120,blank=True);result=models.CharField(max_length=255,blank=True)
+ case=models.ForeignKey(CommissionCase,null=True,blank=True,on_delete=models.PROTECT,related_name='decisions')
+ responsible=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='commission_decisions')
+ due_date=models.CharField(max_length=10,blank=True);execution_status=models.CharField(max_length=30,choices=ExecutionStatus.choices,default=ExecutionStatus.ACTION_REQUIRED)
+ subsequent_action=models.TextField(blank=True); participants=models.TextField(blank=True); state=models.CharField(max_length=20,choices=State.choices,default=State.DRAFT)
+ document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='commission_decisions')
+ spaces=models.ManyToManyField('properties.CommercialSpace',related_name='commission_decisions')
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='created_commission_decisions')
+ created_at=models.DateTimeField(auto_now_add=True,null=True);updated_at=models.DateTimeField(auto_now=True)
+ class Meta: ordering=['-decision_date','-id']
+ @property
+ def sama_code(self): return f'COM-DEC-{self.pk:06d}' if self.pk else '—'
+
+
+class CommissionFollowUp(models.Model):
+ decision=models.ForeignKey(CommissionDecision,on_delete=models.PROTECT,related_name='followups')
+ required_action=models.TextField();responsible=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='commission_followups')
+ responsible_unit=models.CharField(max_length=255,blank=True);referred_date=models.CharField(max_length=10,blank=True);due_date=models.CharField(max_length=10,blank=True)
+ status=models.CharField(max_length=30,choices=CommissionDecision.ExecutionStatus.choices,default=CommissionDecision.ExecutionStatus.ACTION_REQUIRED)
+ completed_date=models.CharField(max_length=10,blank=True);result=models.TextField(blank=True);notes=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,related_name='created_commission_followups')
+ created_at=models.DateTimeField(auto_now_add=True);updated_at=models.DateTimeField(auto_now=True)
+ class Meta: ordering=['-created_at','-id']
+
+
+class CommissionFollowUpHistory(models.Model):
+ followup=models.ForeignKey(CommissionFollowUp,on_delete=models.PROTECT,related_name='history')
+ previous_status=models.CharField(max_length=30,blank=True);new_status=models.CharField(max_length=30,choices=CommissionDecision.ExecutionStatus.choices)
+ note=models.TextField(blank=True);changed_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+ changed_at=models.DateTimeField(auto_now_add=True)
+ class Meta: ordering=['-changed_at','-id']
 class UtilityRecord(models.Model):
  class Type(models.TextChoices): ELECTRICITY='ELECTRICITY','برق'; WATER='WATER','آب'; GAS='GAS','گاز'; OTHER='OTHER','سایر'
  space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='utilities'); utility_type=models.CharField(max_length=20,choices=Type.choices); account_number=models.CharField(max_length=100); period_start=models.CharField(max_length=10); period_end=models.CharField(max_length=10); consumption=models.DecimalField(max_digits=18,decimal_places=3,null=True); bill_amount_rial=models.DecimalField(max_digits=24,decimal_places=0); organization_share_rial=models.DecimalField(max_digits=24,decimal_places=0); beneficiary_share_rial=models.DecimalField(max_digits=24,decimal_places=0); calculation_basis=models.TextField(); overridden=models.BooleanField(default=False); override_reason=models.TextField(blank=True); payment_status=models.CharField(max_length=30); payment_date=models.CharField(max_length=10,blank=True); supporting_document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='utility_records')
