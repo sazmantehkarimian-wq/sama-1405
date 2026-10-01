@@ -167,6 +167,17 @@ def create_contract(*, space, beneficiary, actor, values, ip_address=None):
             f"این کد فضا در بازه انتخاب‌شده دارای قرارداد دیگری است: {conflict.number}"
         )
 
+    assignment_at_start = (
+        BeneficiaryAssignment.objects.filter(space=space, start_date__lte=start)
+        .filter(Q(end_date="") | Q(end_date__gte=start))
+        .order_by("-start_date", "-pk")
+        .first()
+    )
+    if assignment_at_start and assignment_at_start.beneficiary_id != beneficiary.pk:
+        raise ValidationError(
+            "بهره‌بردار جاری فضا با قرارداد جدید متفاوت است؛ ابتدا تغییر بهره‌بردار را در پرونده فضا ثبت کنید."
+        )
+
     record = Contract.objects.create(
         space=space,
         beneficiary=beneficiary,
@@ -183,16 +194,17 @@ def create_contract(*, space, beneficiary, actor, values, ip_address=None):
         is_historical=False,
         created_by=actor,
     )
-    BeneficiaryAssignment.objects.create(
-        space=space,
-        beneficiary=beneficiary,
-        role="بهره‌بردار قرارداد",
-        start_date=start,
-        end_date=end,
-        status=BeneficiaryAssignment.Status.ACTIVE,
-        basis=f"قرارداد {number}",
-        created_by=actor,
-    )
+    if assignment_at_start is None:
+        BeneficiaryAssignment.objects.create(
+            space=space,
+            beneficiary=beneficiary,
+            role="بهره‌بردار قرارداد",
+            start_date=start,
+            end_date=end,
+            status=BeneficiaryAssignment.Status.ACTIVE,
+            basis=f"قرارداد {number}",
+            created_by=actor,
+        )
     AuditEvent.objects.create(
         actor=actor,
         action="CONTRACT_CREATE",
