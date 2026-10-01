@@ -9,7 +9,7 @@ from services.money import format_rial
 @pytest.mark.django_db
 def test_current_holder_is_derived_from_open_movement():
  u=get_user_model().objects.create_user('operator',password='A-very-safe-password')
- s=CommercialSpace.objects.create(code='T-1',name='Test',status='ACTIVE',source_row=1,source_classification='test')
+ s=CommercialSpace.objects.create(code='7001',name='Test',status='ACTIVE')
  FileMovement.objects.create(space=s,location='بایگانی',holder='کارشناس',delivered_by='الف',received_by='ب',handover_at=timezone.now(),signature_state='امضاء شده',direction='OUT',created_by=u)
  assert current_holder(s).holder=='کارشناس'
 def test_jalali_and_money_services():
