@@ -1,0 +1,23 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}کارشناس {{ appraiser.sama_code }}{% endblock %}
+{% block section_class %}section-appraisals{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p><a href="{% url 'domain-list' 'appraisers' %}">کارشناسان</a> / پرونده</p><h1>{{ appraiser.full_name }}</h1><p>{{ appraiser.sama_code }}</p></div>
+  <div class="button-row"><a class="button secondary compact" href="{% url 'appraiser-edit' appraiser.pk %}">ویرایش اطلاعات</a><span class="badge">{{ appraiser.get_collaboration_status_display }}</span></div>
+</div>
+<section class="card dossier-section"><h2>شناسنامه حرفه‌ای</h2><div class="detail-grid">
+<div><small>کد ملی</small><strong>{{ appraiser.national_id|default:'ثبت نشده' }}</strong></div>
+<div><small>شماره پروانه</small><strong>{{ appraiser.license_number|default:'ثبت نشده' }}</strong></div>
+<div><small>رشته / صلاحیت</small><strong>{{ appraiser.specialty|default:'ثبت نشده' }}</strong></div>
+<div><small>مرجع حرفه‌ای</small><strong>{{ appraiser.professional_authority|default:'ثبت نشده' }}</strong></div>
+<div><small>همراه</small><strong>{{ appraiser.mobile|default:'ثبت نشده' }}</strong></div>
+<div><small>تلفن</small><strong>{{ appraiser.phone|default:'ثبت نشده' }}</strong></div>
+<div><small>ایمیل</small><strong>{{ appraiser.email|default:'ثبت نشده' }}</strong></div>
+<div><small>نشانی</small><strong>{{ appraiser.address|default:'ثبت نشده' }}</strong></div>
+</div></section>
+<section class="card dossier-section"><h2>سوابق کارشناسی</h2><div class="table-wrap"><table><thead><tr><th>کد کارشناسی</th><th>کد فضا</th><th>تاریخ کارشناسی</th><th>مبلغ</th><th>وضعیت</th><th>مرجع جاری</th></tr></thead><tbody>
+{% for item in appraisals %}<tr><td>{{ item.sama_code }}</td><td><a href="{% url 'space-detail' item.space.code %}">{{ item.space.code }}</a></td><td>{{ item.appraisal_date|default:'—' }}</td><td>{{ item.amount_rial|rial }}</td><td>{{ item.status|default:'ثبت نشده' }}</td><td>{% if item.is_current %}بله{% else %}خیر{% endif %}</td></tr>{% empty %}<tr><td colspan="6">هنوز کارشناسی ثبت نشده است.</td></tr>{% endfor %}
+</tbody></table></div></section>
+<section class="card dossier-section"><h2>Audit Trail</h2><div class="timeline">{% for e in audit_events %}<article><time>{{ e.created_at }}</time><h3>{{ e.action }}</h3><p>{{ e.reason|default:'—' }}</p></article>{% empty %}<p class="empty">رویداد ممیزی ثبت نشده است.</p>{% endfor %}</div></section>
+{% endblock %}

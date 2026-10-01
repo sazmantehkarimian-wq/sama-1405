@@ -14,7 +14,7 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
 
     user = get_user_model().objects.create_user("browser-user", password="A-very-safe-password", is_staff=True)
     profile = UserProfile.objects.create(user=user, display_name="کاربر آزمون پذیرش", must_change_password=True)
-    CommercialSpace.objects.create(code="BROWSER-501", name="فضای آزمون مرورگر", status="ACTIVE", current_usage="فرهنگی", source_row=2, source_classification="authority")
+    CommercialSpace.objects.create(code="9501", name="فضای آزمون مرورگر", status="ACTIVE", current_usage="فرهنگی")
     manager = None
     try:
         manager = sync_playwright().start();browser = manager.chromium.launch(headless=True)
@@ -34,7 +34,7 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
         page.screenshot(path=evidence / "password-change-1366.png", full_page=True)
         page.get_by_label("گذرواژه فعلی").fill("A-very-safe-password");page.get_by_label("گذرواژه جدید", exact=True).fill("A-different-very-safe-password");page.get_by_label("تکرار گذرواژه جدید").fill("A-different-very-safe-password");page.get_by_role("button",name="ذخیره گذرواژه").click()
         assert page.url.rstrip("/")==live_server.url
-        routes=[("dashboard","/"),("active-spaces","/spaces/?status=ACTIVE"),("out-of-cycle","/spaces/?status=OUT_OF_CYCLE"),("dossier","/spaces/BROWSER-501/"),("contracts","/records/contracts/"),("beneficiaries","/records/beneficiaries/"),("appraisals","/records/appraisals/"),("fees","/records/fees/"),("auction","/auctions/"),("commission","/commissions/"),("utilities","/records/utilities/"),("workflows","/records/workflows/"),("documents","/records/documents/"),("alerts","/records/alerts/"),("reports","/reports/"),("users","/users/")]
+        routes=[("dashboard","/"),("active-spaces","/spaces/?status=ACTIVE"),("out-of-cycle","/spaces/?status=OUT_OF_CYCLE"),("dossier","/spaces/9501/"),("contracts","/records/contracts/"),("beneficiaries","/records/beneficiaries/"),("appraisals","/records/appraisals/"),("fees","/records/fees/"),("auction","/auctions/"),("commission","/commissions/"),("utilities","/records/utilities/"),("workflows","/records/workflows/"),("documents","/records/documents/"),("alerts","/records/alerts/"),("reports","/reports/"),("users","/users/")]
         for width,height in ((1366,768),(1920,1080)):
             page.set_viewport_size({"width":width,"height":height})
             for name,path in routes:
@@ -46,7 +46,7 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
                 assert not any(raw in page.locator("body").inner_text() for raw in ("PERSON","OPEN","MEDIUM","Legacy"))
                 assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
                 page.screenshot(path=evidence / f"{name}-{width}.png", full_page=True)
-        page.goto(f"{live_server.url}/spaces/");page.get_by_label("جست‌وجوی سراسری").fill("BROWSER-501");page.get_by_role("button",name="جست‌وجو").click();page.get_by_role("link",name="مشاهده پرونده").click()
-        assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()
+        page.goto(f"{live_server.url}/spaces/");page.get_by_label("جست‌وجوی سراسری").fill("9501");page.get_by_role("button",name="جست‌وجو").click();page.get_by_role("link",name="مشاهده پرونده").click()
+        assert "پرونده فضای 9501" in page.locator("h1").inner_text()
     finally:
         browser.close();manager.stop()

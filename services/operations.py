@@ -8,7 +8,7 @@ from django.utils import timezone
 from domains.identity.models import AuditEvent
 from domains.documents.models import Document
 from domains.operations.models import (
-    Alert, Appraisal, AppraisalFee, CommissionDecision, OperationalHistory,
+    Alert, Appraisal, AppraisalFee, AppraisalNotification, CommissionDecision, OperationalHistory,
     TimelineEvent, UtilityRecord, WorkflowInstance,
 )
 from services.dates import normalize_jalali
@@ -217,13 +217,83 @@ def create_commission_decision(*, identity: str, decision_date: str, subject: st
 
 @retry_locked
 @transaction.atomic
-def create_appraisal(*, space, actor, values, document=None, ip_address=None):
-    appraiser=values.get('appraiser','').strip()
-    if not appraiser:raise ValidationError('نام کارشناس الزامی است.')
-    date=_date(values.get('appraisal_date',''),required=True)
-    appraisal=Appraisal.objects.create(space=space,year=date[:4],sequence=values.get('sequence','').strip(),amount_rial=_money(values.get('amount_rial',''),'مبلغ کارشناسی'),appraiser=appraiser,reference=values.get('reference','').strip(),appraisal_date=date,status=values.get('status','').strip(),created_by=actor)
-    AuditEvent.objects.create(actor=actor,action='APPRAISAL_CREATE',entity_type='Appraisal',entity_id=str(appraisal.pk),after={'space':space.code,'amount_rial':str(appraisal.amount_rial)},ip_address=ip_address)
-    TimelineEvent.objects.create(space=space,event_type='APPRAISAL_CREATE',jalali_date=date,source_entity='Appraisal',source_entity_id=str(appraisal.pk),title='ثبت کارشناسی جدید',description=appraisal.reference,responsible_person=actor.get_full_name() or actor.username,document=document,provenance='عملیات پس از شروع بهره‌برداری',target_url=f'/spaces/{space.code}/')
+def create_appraisal(*, space, appraiser, actor, values, document=None, ip_address=None):
+    if appraiser is None:
+        raise ValidationError("انتخاب کارشناس ثبت‌شده الزامی است.")
+
+    appraisal_date = _date(values.get("appraisal_date", ""))
+    response_date = _date(values.get("response_date", ""))
+    amount_value = values.get("amount_rial", "")
+    amount = _money(amount_value, "مبلغ کارشناسی") if amount_value not in (None, "") else None
+
+    is_current = values.get("is_current") in (True, "on", "1")
+    if is_current and (not appraisal_date or amount is None):
+        raise ValidationError("کارشناسی مرجع باید تاریخ خود کارشناسی و مبلغ کارشناسی داشته باشد.")
+    if is_current:
+        Appraisal.objects.filter(space=space, is_current=True).update(is_current=False)
+
+    appraisal = Appraisal.objects.create(
+        space=space,
+        appraiser=appraiser.full_name,
+        appraiser_ref=appraiser,
+        year=appraisal_date[:4] if appraisal_date else "",
+        sequence=str(values.get("sequence", "") or "").strip(),
+        amount_rial=amount,
+        reference=str(values.get("reference", "") or "").strip(),
+        response_number=str(values.get("response_number", "") or "").strip(),
+        response_date=response_date,
+        appraisal_date=appraisal_date,
+        status=str(values.get("status", "") or "").strip(),
+        is_current=is_current,
+        notes=str(values.get("notes", "") or "").strip(),
+        created_by=actor,
+    )
+
+    notification_date = _date(values.get("notification_date", ""))
+    notification_recipient = values.get("notification_recipient", "")
+    notification_number = str(values.get("notification_number", "") or "").strip()
+    if any((notification_date, notification_recipient, notification_number)):
+        if not notification_date or notification_recipient not in AppraisalNotification.Recipient.values:
+            raise ValidationError("برای ثبت ابلاغ، تاریخ و مخاطب معتبر الزامی است.")
+        AppraisalNotification.objects.create(
+            appraisal=appraisal,
+            number=notification_number,
+            notification_date=notification_date,
+            recipient=notification_recipient,
+            recipient_detail=str(values.get("notification_recipient_detail", "") or "").strip(),
+            notes=str(values.get("notification_notes", "") or "").strip(),
+            document=document,
+            created_by=actor,
+        )
+
+    AuditEvent.objects.create(
+        actor=actor,
+        action="APPRAISAL_CREATE",
+        entity_type="Appraisal",
+        entity_id=str(appraisal.pk),
+        after={
+            "space": space.code,
+            "appraisal_code": appraisal.sama_code,
+            "appraiser_id": appraiser.pk,
+            "appraisal_date": appraisal.appraisal_date,
+            "amount_rial": str(appraisal.amount_rial) if appraisal.amount_rial is not None else None,
+            "is_current": appraisal.is_current,
+        },
+        ip_address=ip_address,
+    )
+    TimelineEvent.objects.create(
+        space=space,
+        event_type="APPRAISAL_CREATE",
+        jalali_date=appraisal.appraisal_date or response_date or notification_date,
+        source_entity="Appraisal",
+        source_entity_id=str(appraisal.pk),
+        title=f"ثبت کارشناسی {appraisal.sama_code}",
+        description=f"کارشناس: {appraiser.full_name}",
+        responsible_person=actor.get_full_name() or actor.username,
+        document=document,
+        provenance="ثبت دستی کنترل‌شده در سما",
+        target_url=f"/spaces/{space.code}/",
+    )
     return appraisal
 
 

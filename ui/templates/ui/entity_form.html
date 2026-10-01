@@ -1,0 +1,41 @@
+{% extends 'ui/base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block section_class %}section-spaces{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>{{ title }}</h1>{% if subtitle %}<p>{{ subtitle }}</p>{% endif %}</div>
+</div>
+<form method="post" class="card entity-form" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="notice error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="form-grid">
+    {% for field in form %}
+      <label class="field{% if field.errors %} field-error{% endif %}">
+        <span>{{ field.label }}{% if field.field.required %}<strong aria-hidden="true"> *</strong>{% endif %}</span>
+        {{ field }}
+        {% if field.help_text %}<small class="helper">{{ field.help_text }}</small>{% endif %}
+        {% for error in field.errors %}<small class="error-text">{{ error }}</small>{% endfor %}
+      </label>
+    {% endfor %}
+    {% if show_change_reason %}
+      <label class="field full">
+        <span>علت / توضیح تغییر</span>
+        <textarea name="change_reason" rows="2">{{ request.POST.change_reason }}</textarea>
+      </label>
+    {% endif %}
+  </div>
+  <div class="button-row">
+    <button class="emphasized" type="submit">ثبت اطلاعات</button>
+    {% if secondary_action_url %}<a class="button tertiary" href="{% url secondary_action_url %}">{{ secondary_action_label }}</a>{% endif %}
+    {% if cancel_url == 'space-detail' %}
+      <a class="button secondary" href="{% url cancel_url code=cancel_kwargs.code %}">انصراف</a>
+    {% elif cancel_url == 'domain-list' %}
+      <a class="button secondary" href="{% url cancel_url domain=cancel_kwargs.domain %}">انصراف</a>
+    {% elif cancel_url == 'beneficiary-detail' or cancel_url == 'appraiser-detail' %}
+      <a class="button secondary" href="{% url cancel_url pk=cancel_kwargs.pk %}">انصراف</a>
+    {% else %}
+      <a class="button secondary" href="{% url cancel_url %}">انصراف</a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

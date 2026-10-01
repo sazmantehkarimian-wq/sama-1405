@@ -20,26 +20,11 @@ jobs:
           cache: pip
       - name: Install build dependencies
         run: python -m pip install -e ".[test]"
-      - name: Verify immutable authorities
-        shell: pwsh
-        run: |
-          Push-Location "authority/inputs/1405-07-06"
-          $lines = Get-Content SHA256SUMS.txt -Encoding utf8
-          foreach ($line in $lines) {
-            if (-not $line.Trim()) { continue }
-            $parts = $line -split '\s+', 2
-            $actual = (Get-FileHash $parts[1] -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($actual -ne $parts[0].ToLowerInvariant()) { throw "Authority SHA mismatch: $($parts[1])" }
-          }
-          Pop-Location
-          python -m import_pipeline.cli verify authority/inputs/1405-07-06
-          python -m import_pipeline.cli inspect "authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip"
-      - name: Build canonical database from actual workbooks
+      - name: Build zero-data database
         shell: pwsh
         run: |
           if (Test-Path data) { Remove-Item data -Recurse -Force }
           python manage.py migrate --noinput
-          python -m import_pipeline.cli import "authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip"
           python manage.py collectstatic --noinput
       - name: Regression and deployment checks
         shell: pwsh
@@ -52,9 +37,8 @@ jobs:
           c=sqlite3.connect('data/sama.sqlite3')
           assert c.execute('pragma integrity_check').fetchone()[0]=='ok'
           assert not c.execute('pragma foreign_key_check').fetchall()
-          assert c.execute('select count(*) from properties_motherproperty').fetchone()[0]==225
-          assert c.execute("select count(*) from properties_commercialspace where status='ACTIVE'").fetchone()[0]==350
-          assert c.execute("select count(*) from properties_commercialspace where status='OUT_OF_CYCLE'").fetchone()[0]==151
+          assert c.execute('select count(*) from properties_motherproperty').fetchone()[0]==0
+          assert c.execute('select count(*) from properties_commercialspace').fetchone()[0]==0
           '@ | python -
       - name: Build self-contained Windows package
         shell: pwsh

@@ -13,7 +13,7 @@ from domains.identity.models import AuditEvent
 def test_document_and_file_movement_are_server_side_audited(client,tmp_path,settings):
  settings.MEDIA_ROOT=tmp_path
  user=get_user_model().objects.create_user('operator',password='A-very-safe-password')
- space=CommercialSpace.objects.create(code='501',name='فضا',status='ACTIVE',source_row=5,source_classification='authority')
+ space=CommercialSpace.objects.create(code='501',name='فضا',status='ACTIVE')
  client.force_login(user)
  response=client.post('/spaces/501/movement/',{'location':'بایگانی','holder':'کارشناس','delivered_by':'الف','received_by':'ب','signature_state':'امضاء شد','direction':'OUT','due_date':'۱۴۰۵/۰۷/۰۱'})
  assert response.status_code==302 and FileMovement.objects.filter(space=space,holder='کارشناس').exists()
@@ -31,7 +31,7 @@ def test_document_and_file_movement_are_server_side_audited(client,tmp_path,sett
 @pytest.mark.django_db(transaction=True)
 def test_five_authenticated_users_can_read_search_and_generate_reports():
  users=[get_user_model().objects.create_user(f'user{i}',password='A-very-safe-password') for i in range(5)]
- for i in range(20):CommercialSpace.objects.create(code=str(i+1),name=f'فضای {i+1}',status='ACTIVE',source_row=i+5,source_classification='authority')
+ for i in range(20):CommercialSpace.objects.create(code=str(i+1),name=f'فضای {i+1}',status='ACTIVE')
  clients=[]
  for user in users:
   client=Client();client.force_login(user);clients.append(client)
@@ -45,7 +45,7 @@ def test_five_authenticated_users_can_read_search_and_generate_reports():
 @pytest.mark.django_db(transaction=True)
 def test_five_authenticated_users_can_commit_independent_operational_writes():
  users=[get_user_model().objects.create_user(f'writer{i}',password='A-very-safe-password') for i in range(5)]
- spaces=[CommercialSpace.objects.create(code=f'WRITE-{i}',name='فضا',status='ACTIVE',source_row=i+1,source_classification='authority') for i in range(5)]
+ spaces=[CommercialSpace.objects.create(code=str(9100+i),name='فضا',status='ACTIVE') for i in range(5)]
  clients=[]
  for user in users:
   client=Client();client.force_login(user);clients.append(client)
@@ -60,13 +60,10 @@ def test_five_authenticated_users_can_commit_independent_operational_writes():
 @pytest.mark.django_db
 def test_fee_utility_and_workflow_commands_validate_and_audit(client):
  from domains.operations.models import Appraisal,AppraisalFee,UtilityRecord,WorkflowInstance,TimelineEvent
- from domains.registry.models import ImportBatch,SourceFile
  user=get_user_model().objects.create_user('operator2',password='A-very-safe-password')
  client.force_login(user)
- batch=ImportBatch.objects.create(source_package='test.zip',package_sha256='a'*64)
- source=SourceFile.objects.create(batch=batch,filename='source.xlsx',sha256='b'*64,byte_size=1)
- space=CommercialSpace.objects.create(code='502',name='فضا',status='ACTIVE',source_row=2,source_classification='authority')
- appraisal=Appraisal.objects.create(space=space,amount_rial=100,source_file=source,source_row=3)
+ space=CommercialSpace.objects.create(code='502',name='فضا',status='ACTIVE')
+ appraisal=Appraisal.objects.create(space=space,amount_rial=100)
  response=client.post(f'/appraisals/{appraisal.pk}/fee/',{'amount_rial':'1200000','payment_status':'PENDING','follow_up_date':'1405/07/20'})
  assert response.status_code==302 and AppraisalFee.objects.get(appraisal=appraisal).amount_rial==1200000
  payload={'utility_type':'WATER','account_number':'123','period_start':'1405/07/01','period_end':'1405/07/30','bill_amount_rial':'1000','organization_share_rial':'400','beneficiary_share_rial':'500','calculation_basis':'قرائت کنتور','payment_status':'UNPAID'}
@@ -89,7 +86,7 @@ def test_fee_utility_and_workflow_commands_validate_and_audit(client):
 def test_operational_workflow_commission_and_alert_lifecycles(client):
  from domains.operations.models import Alert, CommissionDecision, WorkflowInstance, TimelineEvent
  user=get_user_model().objects.create_user('operator3',password='A-very-safe-password')
- space=CommercialSpace.objects.create(code='503',name='فضا',status='ACTIVE',source_row=2,source_classification='authority')
+ space=CommercialSpace.objects.create(code='503',name='فضا',status='ACTIVE')
  client.force_login(user)
  response=client.post('/spaces/503/workflows/',{'process_type':'APPRAISAL','title':'کارشناسی جدید','next_action':'ارجاع به کارشناس','due_date':'1405/08/01'})
  assert response.status_code==302 and WorkflowInstance.objects.filter(space=space,process_type='APPRAISAL').exists()
@@ -106,9 +103,9 @@ def test_operational_workflow_commission_and_alert_lifecycles(client):
 @pytest.mark.django_db
 def test_commission_workspace_creates_linked_audited_decision(client):
  user=get_user_model().objects.create_user('commission-operator',password='A-very-safe-password')
- spaces=[CommercialSpace.objects.create(code=f'C-{i}',name='فضا',status='ACTIVE',source_row=i,source_classification='authority') for i in (1,2)]
+ spaces=[CommercialSpace.objects.create(code=str(9200+i),name='فضا',status='ACTIVE') for i in (1,2)]
  client.force_login(user)
- response=client.post('/commissions/create/',{'identity':'جلسه-۱۴۰۵-۱','decision_date':'۱۴۰۵/۰۷/۰۸','subject':'واگذاری','space_codes':'C-1، C-2','participants':'الف، ب','decision':'تصویب شد','subsequent_action':'ابلاغ'})
+ response=client.post('/commissions/create/',{'identity':'جلسه-۱۴۰۵-۱','decision_date':'۱۴۰۵/۰۷/۰۸','subject':'واگذاری','space_codes':'9201، 9202','participants':'الف، ب','decision':'تصویب شد','subsequent_action':'ابلاغ'})
  from domains.operations.models import CommissionDecision
  record=CommissionDecision.objects.get(identity='جلسه-۱۴۰۵-۱')
  assert response.status_code==302 and set(record.spaces.all())==set(spaces)
@@ -118,15 +115,12 @@ def test_commission_workspace_creates_linked_audited_decision(client):
 @pytest.mark.django_db
 def test_auction_workspace_evaluates_and_adds_candidate_to_draft_period(client):
  from domains.operations.models import Appraisal,AuctionRule,AuctionPeriod,AuctionLot,TimelineEvent
- from domains.registry.models import ImportBatch,SourceFile
  user=get_user_model().objects.create_user('auction-operator',password='A-very-safe-password')
  client.force_login(user)
- space=CommercialSpace.objects.create(code='A-1',name='فضا',status='ACTIVE',source_row=1,source_classification='authority')
- batch=ImportBatch.objects.create(source_package='test.zip',package_sha256='a'*64)
- source=SourceFile.objects.create(batch=batch,filename='source.xlsx',sha256='b'*64,byte_size=1)
- Appraisal.objects.create(space=space,amount_rial=500000,appraisal_date='1405/06/01',source_file=source,source_row=2)
+ space=CommercialSpace.objects.create(code='9301',name='فضا',status='ACTIVE')
+ Appraisal.objects.create(space=space,amount_rial=500000,appraisal_date='1405/06/01')
  AuctionRule.objects.create(version='clean-1',effective_year=1405,minor_ceiling_rial=100000,medium_ceiling_rial=1000000,active=True,change_reason='مصوب',approved_by=user)
- assert client.post('/auctions/evaluate/',{'space_code':'A-1','on_date':'1405/07/01','auction_date':'1405/08/01'}).status_code==302
+ assert client.post('/auctions/evaluate/',{'space_code':'9301','on_date':'1405/07/01','auction_date':'1405/08/01'}).status_code==302
  evaluation=space.auction_evaluations.get(); assert evaluation.decision=='CANDIDATE'
  assert client.post('/auctions/periods/create/',{'identity':'P-1','title':'دوره اول','planned_date':'1405/08/01'}).status_code==302
  period=AuctionPeriod.objects.get(identity='P-1')
@@ -137,24 +131,26 @@ def test_auction_workspace_evaluates_and_adds_candidate_to_draft_period(client):
 
 @pytest.mark.django_db
 def test_post_go_live_contract_appraisal_amendment_and_alert_are_typed_and_audited(client):
- from domains.contracts.models import Contract,BeneficiaryAssignment,ContractAmendment
- from domains.operations.models import Appraisal,Alert,TimelineEvent
+ from domains.contracts.models import Contract,Beneficiary,BeneficiaryAssignment,ContractAmendment
+ from domains.operations.models import Appraiser,Appraisal,Alert,TimelineEvent
  user=get_user_model().objects.create_user('daily-operator',password='A-very-safe-password')
- space=CommercialSpace.objects.create(code='OPS-1',name='فضا',status='ACTIVE',source_row=1,source_classification='authority')
+ space=CommercialSpace.objects.create(code='9401',name='فضا',status='ACTIVE')
+ beneficiary=Beneficiary.objects.create(kind='NATURAL',name='بهره‌بردار واقعی',first_name='بهره‌بردار',last_name='واقعی',created_by=user)
  client.force_login(user)
- contract_payload={'number':'C-1405-1','beneficiary':'بهره‌بردار واقعی','signed_date':'1405/07/02','start_date':'1405/07/01','end_date':'1406/06/31','amount_rial':'1,200,000','status':'فعال','signed_state':'امضاءشده'}
- assert client.post('/spaces/OPS-1/contracts/',contract_payload).status_code==302
+ contract_payload={'number':'C-1405-1','beneficiary':beneficiary.pk,'signed_date':'1405/07/02','start_date':'1405/07/01','end_date':'1406/06/31','amount_rial':'1200000','status':'فعال','signed_state':'امضاءشده'}
+ assert client.post('/spaces/9401/contracts/new/',contract_payload).status_code==302
  contract=Contract.objects.get(number='C-1405-1');assert not contract.is_historical and contract.created_by==user
  assert BeneficiaryAssignment.objects.filter(space=space,beneficiary=contract.beneficiary,created_by=user).exists()
  assert client.post(f'/contracts/{contract.pk}/amendments/',{'number':'A-1','effective_date':'1405/08/01','amount_change_rial':'100000','description':'تمدید تعهد'}).status_code==302
  assert ContractAmendment.objects.filter(contract=contract,number='A-1').exists()
- assert client.post('/spaces/OPS-1/appraisals/',{'appraiser':'کارشناس رسمی','appraisal_date':'1405/07/03','amount_rial':'2000000','reference':'نامه ۱','status':'معتبر'}).status_code==302
- assert Appraisal.objects.filter(space=space,created_by=user,source_file__isnull=True).exists()
- assert client.post('/spaces/OPS-1/alerts/',{'subject':'پیگیری امضا','reason':'نسخه امضاشده دریافت شود','due_date':'1405/07/20'}).status_code==302
+ appraiser=Appraiser.objects.create(first_name='کارشناس',last_name='رسمی',created_by=user)
+ assert client.post('/spaces/9401/appraisals/new/',{'appraiser':appraiser.pk,'appraisal_date':'1405/07/03','amount_rial':'2000000','reference':'نامه ۱','status':'معتبر','is_current':'on'}).status_code==302
+ assert Appraisal.objects.filter(space=space,created_by=user).exists()
+ assert client.post('/spaces/9401/alerts/',{'subject':'پیگیری امضا','reason':'نسخه امضاشده دریافت شود','due_date':'1405/07/20'}).status_code==302
  assert Alert.objects.filter(space=space,status='OPEN').exists()
  assert set(AuditEvent.objects.values_list('action',flat=True)) >= {'CONTRACT_CREATE','CONTRACT_AMENDMENT_CREATE','APPRAISAL_CREATE','ALERT_CREATE'}
  assert TimelineEvent.objects.filter(space=space,event_type='CONTRACT_CREATE').exists()
- assert client.post('/spaces/OPS-1/status/',{'new_state':'OUT_OF_CYCLE','effective_date':'1405/09/01','reason':'تصمیم مصوب'}).status_code==302
+ assert client.post('/spaces/9401/status/',{'new_state':'OUT_OF_CYCLE','effective_date':'1405/09/01','reason':'تصمیم مصوب'}).status_code==302
  space.refresh_from_db();assert space.status=='OUT_OF_CYCLE'
  history=space.status_history.latest('id');assert history.previous_state=='ACTIVE' and history.responsible_user==user
  assert TimelineEvent.objects.filter(space=space,event_type='SPACE_STATUS_TRANSITION',previous_state='ACTIVE',new_state='OUT_OF_CYCLE').exists()

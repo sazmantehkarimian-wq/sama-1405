@@ -10,7 +10,7 @@ from domains.properties.models import CommercialSpace,Region,Center,MotherProper
 from domains.registry.models import Discrepancy
 from domains.identity.models import UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
 from domains.contracts.models import Contract, Beneficiary
-from domains.operations.models import Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
+from domains.operations.models import Appraiser, Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
 from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from services.file_movement import current_holder
@@ -26,15 +26,24 @@ def dashboard(request):
  context={'space_count':spaces.count(),'active_count':active.count(),'inactive_count':spaces.filter(status='OUT_OF_CYCLE').count(),'property_count':MotherProperty.objects.count(),'discrepancy_count':Discrepancy.objects.exclude(status='RESOLVED').count(),'contract_count':Contract.objects.count(),'appraisal_count':Appraisal.objects.count(),'alert_count':Alert.objects.exclude(status='RESOLVED').count(),'without_contract_count':active.filter(contracts__isnull=True).count(),'without_appraisal_count':active.filter(appraisals__isnull=True).count(),'open_workflow_count':WorkflowInstance.objects.filter(state='OPEN').count(),'region_rows':region_rows}
  return render(request,'ui/dashboard.html',context)
 @login_required
-def space_list(request):
- qs=filter_spaces(request.GET);page=Paginator(qs,25).get_page(request.GET.get('page'))
- allowed_columns={'name','status','region','usage','area'}
+def space_list(request,status_scope=None):
+ qs=filter_spaces(request.GET)
+ if status_scope in CommercialSpace.Status.values: qs=qs.filter(status=status_scope)
+ page=Paginator(qs,25).get_page(request.GET.get('page'))
+ allowed_columns={'name','status','region','usage','area','beneficiary','contract','contract_end'}
  requested=set(request.GET.getlist('column')) & allowed_columns
  visible=requested or allowed_columns
- return render(request,'ui/space_list.html',{'page':page,'regions':Region.objects.all(),'centers':Center.objects.filter(is_special=True),'total':qs.count(),'dataset_total':CommercialSpace.objects.count(),'saved_filters':SavedFilter.objects.filter(owner=request.user,domain='spaces'),'visible_columns':visible})
+ opposite=None
+ candidate=(request.GET.get('code') or request.GET.get('q') or '').strip()
+ if status_scope and candidate.isdigit() and not qs.filter(code=candidate).exists():
+  opposite=CommercialSpace.objects.filter(code=candidate).exclude(status=status_scope).first()
+ title='فضاهای تجاری'
+ if status_scope=='ACTIVE': title='فضاهای تجاری فعال'
+ elif status_scope=='OUT_OF_CYCLE': title='فضاهای تجاری از دور خارج‌شده'
+ return render(request,'ui/space_list.html',{'page':page,'regions':Region.objects.all(),'centers':Center.objects.filter(is_special=True),'total':qs.count(),'dataset_total':CommercialSpace.objects.filter(status=status_scope).count() if status_scope else CommercialSpace.objects.count(),'saved_filters':SavedFilter.objects.filter(owner=request.user,domain='spaces'),'visible_columns':visible,'status_scope':status_scope,'page_title':title,'opposite_space':opposite})
 @login_required
 def space_detail(request,code):
- s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','contracts__beneficiary','beneficiary_assignments__beneficiary','appraisals__fee__supporting_document','auctions','utilities__supporting_document','utility_obligations','decisions','commission_decisions__spaces','timeline__document','alerts__assigned_to','file_movements','workflows','source_documents','property_links__mother_property'),code=code)
+ s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','contracts__beneficiary','beneficiary_assignments__beneficiary','appraisals__fee__supporting_document','auctions','utilities__supporting_document','utility_obligations','decisions','commission_decisions__spaces','timeline__document','alerts__assigned_to','file_movements','workflows','source_documents'),code=code)
  timeline=s.timeline.all();event_type=request.GET.get('event_type','').strip()
  if event_type:timeline=timeline.filter(event_type=event_type)
  event_types=s.timeline.order_by().values_list('event_type',flat=True).distinct()
@@ -74,10 +83,11 @@ def delete_space_filter(request,filter_id):
 
 DOMAIN_LISTS={
  'properties':('املاک مادر',MotherProperty.objects.select_related('region'),(('identifier','شناسه ملک'),('name','نام'),('region.name','منطقه'),('primary_usage','کاربری'),('area','مساحت'))),
- 'discrepancies':('بررسی مغایرت‌های داده',Discrepancy.objects.select_related('source_file','assigned_to'),(('entity_key','شناسه رکورد'),('field_key','فیلد'),('observed_value','مقدار موجود'),('expected_value','مقدار مورد انتظار'),('reason','علت'),('severity','اهمیت'),('status','وضعیت'))),
- 'contracts':('قراردادها',Contract.objects.select_related('space'),(('number','شماره'),('space.code','کد فضا'),('start_date','شروع'),('end_date','پایان'),('status','وضعیت'))),
- 'beneficiaries':('بهره‌برداران',Beneficiary.objects.all(),(('name','نام'),('identity_number','شناسه'),('kind','نوع'),('contact','تماس'))),
- 'appraisals':('کارشناسی',Appraisal.objects.select_related('space'),(('space.code','کد فضا'),('appraisal_date','تاریخ'),('appraiser','کارشناس'),('amount_rial','مبلغ (ریال)'),('status','وضعیت'))),
+ 'discrepancies':('بررسی مغایرت‌های داده',Discrepancy.objects.select_related('assigned_to'),(('entity_key','شناسه رکورد'),('field_key','فیلد'),('observed_value','مقدار موجود'),('expected_value','مقدار مورد انتظار'),('reason','علت'),('severity','اهمیت'),('status','وضعیت'))),
+ 'contracts':('قراردادها',Contract.objects.select_related('space','beneficiary'),(('number','شماره'),('space.code','کد فضا'),('beneficiary.name','بهره‌بردار'),('start_date','شروع'),('end_date','پایان'),('status','وضعیت حقوقی'))),
+ 'beneficiaries':('بهره‌برداران',Beneficiary.objects.all(),(('sama_code','کد بهره‌بردار'),('name','نام / عنوان'),('identity_number','کد ملی / شناسه ملی'),('kind','نوع'),('completeness_status','وضعیت تکمیل'))),
+ 'appraisers':('کارشناسان',Appraiser.objects.all(),(('sama_code','کد کارشناس'),('full_name','نام کارشناس'),('license_number','شماره پروانه'),('specialty','رشته / صلاحیت'),('collaboration_status','وضعیت همکاری'))),
+ 'appraisals':('کارشناسی',Appraisal.objects.select_related('space','appraiser_ref'),(('sama_code','کد کارشناسی'),('space.code','کد فضا'),('appraiser_display','کارشناس'),('response_number','شماره جواب'),('response_date','تاریخ جواب'),('appraisal_date','تاریخ کارشناسی'),('amount_rial','مبلغ (ریال)'),('status','وضعیت'))),
  'fees':('حق‌الزحمه کارشناسی',AppraisalFee.objects.select_related('appraisal__space'),(('appraisal.space.code','کد فضا'),('amount_rial','مبلغ (ریال)'),('payment_status','پرداخت'),('payment_date','تاریخ پرداخت'),('follow_up_date','پیگیری'))),
  'auctions':('مزایده‌ها',Auction.objects.select_related('space'),(('space.code','کد فضا'),('year','سال'),('sequence','نوبت'),('stage','مرحله'),('result','نتیجه'))),
  'commissions':('کمیسیون معاملات',CommissionDecision.objects.all(),(('identity','شناسه'),('decision_date','تاریخ'),('subject','موضوع'),('decision','تصمیم'))),
@@ -98,11 +108,12 @@ def _value(obj,path):
  return obj
 def _search_domain(qs,domain,q):
  if not q:return qs
- if domain=='contracts':return qs.filter(Q(number__icontains=q)|Q(space__code__iexact=q))
+ if domain=='contracts':return qs.filter(Q(number__icontains=q)|Q(space__code__iexact=q)|Q(beneficiary__name__icontains=q)|Q(beneficiary__identity_number__iexact=q))
+ if domain=='appraisers':return qs.filter(Q(first_name__icontains=q)|Q(last_name__icontains=q)|Q(national_id__iexact=q)|Q(license_number__icontains=q)|Q(specialty__icontains=q))
  if domain in {'appraisals','fees','auctions','utilities','workflows','alerts'}:
   field='appraisal__space__code__iexact' if domain=='fees' else 'space__code__iexact'
   return qs.filter(**{field:q})
- if domain=='beneficiaries':return qs.filter(name__icontains=q)
+ if domain=='beneficiaries':return qs.filter(Q(name__icontains=q)|Q(identity_number__iexact=q))
  return qs
 @login_required
 def domain_list(request,domain):
@@ -298,7 +309,8 @@ def add_contract(request,code):
  from django.core.exceptions import ValidationError
  from services.contracts import create_contract
  space=get_object_or_404(CommercialSpace,code=code)
- try:create_contract(space=space,actor=request.user,values=request.POST,ip_address=request.META.get('REMOTE_ADDR'))
+ beneficiary=get_object_or_404(Beneficiary,pk=request.POST.get('beneficiary_id'),archived_at__isnull=True)
+ try:create_contract(space=space,beneficiary=beneficiary,actor=request.user,values=request.POST,ip_address=request.META.get('REMOTE_ADDR'))
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
  else:messages.success(request,'قرارداد عملیاتی و سابقه بهره‌بردار ثبت شد.')
  return redirect('space-detail',code=code)
@@ -320,7 +332,8 @@ def add_appraisal(request,code):
  from django.core.exceptions import ValidationError
  from services.operations import create_appraisal
  space=get_object_or_404(CommercialSpace,code=code);document=_owned_document(request.POST.get('document_id'),space)
- try:create_appraisal(space=space,actor=request.user,values=request.POST,document=document,ip_address=request.META.get('REMOTE_ADDR'))
+ appraiser=get_object_or_404(Appraiser,pk=request.POST.get('appraiser_id'),archived_at__isnull=True)
+ try:create_appraisal(space=space,appraiser=appraiser,actor=request.user,values=request.POST,document=document,ip_address=request.META.get('REMOTE_ADDR'))
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
  else:messages.success(request,'کارشناسی عملیاتی با خط زمانی ثبت شد.')
  return redirect('space-detail',code=code)

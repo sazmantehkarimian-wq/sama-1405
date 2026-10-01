@@ -1,3 +1,13 @@
 # مدل دامنه
 
-مدل‌های typed شامل `MotherProperty`, `CommercialSpace`, `CommercialSpaceStatusHistory`, evidence link، beneficiary assignment، contract/amendment، appraisal/fee، auction، commission decision، utility، file movement، timeline، alert، document، audit، saved filter/report/snapshot و discrepancy هستند. شناسه ملک مادر هرگز از شباهت عددی به کد فضا استنتاج نمی‌شود.
+## فضای تجاری
+
+`CommercialSpace.code` کلید کسب‌وکاری اصلی، یکتا و پس از ایجاد غیرقابل تغییر است. قرارداد، بهره‌بردار، کارشناسی، مزایده، انشعاب، سند، گردش پرونده، هشدار و Timeline به پرونده فضای تجاری متصل می‌شوند.
+
+## املاک مادر
+
+`MotherProperty` دامنه‌ای مستقل با شناسه مخصوص خود است. در مدل پایه هیچ رابطه اجباری با `CommercialSpace` وجود ندارد. هیچ ارتباطی از تشابه عدد، نام، مرکز یا نشانی استنتاج نمی‌شود.
+
+## ورود و سابقه
+
+همه رکوردها به‌صورت دستی و کنترل‌شده ایجاد می‌شوند. فیلدهای provenance مربوط به Import منبع داده عملیاتی نیستند. هر تغییر مهم باید Audit/Operational History مناسب ایجاد کند.

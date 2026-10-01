@@ -1,7 +1,7 @@
-name: SAMA Next quality
+name: SAMA Zero-Data quality
 on:
   push:
-    branches: [clean/sama-next]
+    branches: [work/zero-data-foundation]
   pull_request:
 permissions:
   contents: read
@@ -13,22 +13,30 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.11', cache: pip}
       - run: python -m pip install -e '.[test]'
-      - run: sha256sum -c SHA256SUMS.txt
-        working-directory: authority/inputs/1405-07-06
       - run: python manage.py migrate --noinput
-      - run: python -m import_pipeline.cli verify authority/inputs/1405-07-06
-      - run: python -m import_pipeline.cli inspect authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip
-      - run: python -m import_pipeline.cli import authority/inputs/1405-07-06/بسته_به_روزرسانی_سه_اکسل_سما_6مهر.zip
+      - name: Verify zero operational data after migrations
+        run: |
+          python - <<'PY'
+          import os
+          os.environ.setdefault('DJANGO_SETTINGS_MODULE','sama.settings')
+          import django; django.setup()
+          from domains.properties.models import MotherProperty, CommercialSpace
+          from domains.contracts.models import Contract, Beneficiary
+          from domains.operations.models import Appraisal, Auction, UtilityRecord, FileMovement, TimelineEvent
+          checks={
+            'mother_properties':MotherProperty.objects.count(),
+            'commercial_spaces':CommercialSpace.objects.count(),
+            'contracts':Contract.objects.count(),
+            'beneficiaries':Beneficiary.objects.count(),
+            'appraisals':Appraisal.objects.count(),
+            'auctions':Auction.objects.count(),
+            'utilities':UtilityRecord.objects.count(),
+            'movements':FileMovement.objects.count(),
+            'timeline':TimelineEvent.objects.count(),
+          }
+          assert all(v==0 for v in checks.values()), checks
+          print(checks)
+          PY
       - run: pytest -q
-      - run: python -m playwright install --with-deps chromium
-      - run: pytest -q tests/test_browser.py
-        env:
-          SAMA_REQUIRE_BROWSER: '1'
-          SAMA_BROWSER_SCREENSHOT: artifacts/browser/space-dossier.png
       - run: python manage.py check --deploy
         env: {SAMA_HTTPS: '1'}
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: browser-evidence
-          path: artifacts/browser/
