@@ -10,12 +10,17 @@ from domains.operations.models import (
     CommissionMember, CommissionSession, ElectricityBill, ElectricityConsumptionCategory,
     UtilityBill, UtilityConnection, UtilityMeasurement, UtilityParameterRule, UtilityUnit,
 )
-from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
+from domains.properties.models import (
+    Center, CommercialSpace, MotherProperty, MotherPropertyCorrespondence,
+    MotherPropertyNote, MotherPropertyOwnership, MotherPropertyOwnershipDocument,
+    MotherPropertyUsageHistory, PropertyReferenceValue, Region,
+)
 from services.auctions import create_instruction
 from services.commission import (
     create_case, create_case_decision, create_followup, create_session, transition_followup,
 )
 from services.contracts import assign_beneficiary, create_contract
+from services.mother_properties import change_mother_property_usage
 from services.electricity import (
     create_electricity_bill, electricity_bill_issues, finalize_electricity_bill,
     record_measurement, recalculate_electricity_bill, reopen_electricity_bill, update_electricity_bill,
@@ -95,7 +100,9 @@ def commercial_space_edit(request, code):
     }
     form = CommercialSpaceForm(request.POST or None, instance=space)
     if request.method == "POST" and form.is_valid():
-        updated = form.save()
+        updated = form.save(commit=False)
+        updated.updated_by = request.user
+        updated.save()
         after = {
             "name": updated.name,
             "status": updated.status,
@@ -141,7 +148,10 @@ def commercial_space_edit(request, code):
 def mother_property_create(request):
     form = MotherPropertyForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        item = form.save()
+        item = form.save(commit=False)
+        item.created_by = request.user
+        item.updated_by = request.user
+        item.save()
         AuditEvent.objects.create(
             actor=request.user,
             action="MOTHER_PROPERTY_CREATE",
@@ -159,7 +169,7 @@ def mother_property_create(request):
             ip_address=_ip(request),
         )
         messages.success(request, f"ملک مادر {item.identifier} ایجاد شد.")
-        return redirect("domain-list", domain="properties")
+        return redirect("mother-property-detail", pk=item.pk)
     return render(
         request,
         "ui/entity_form.html",
@@ -211,7 +221,7 @@ def mother_property_edit(request, pk):
             ip_address=_ip(request),
         )
         messages.success(request, "اطلاعات ملک مادر به‌روزرسانی شد.")
-        return redirect("domain-list", domain="properties")
+        return redirect("mother-property-detail", pk=updated.pk)
     return render(
         request,
         "ui/entity_form.html",
@@ -224,6 +234,229 @@ def mother_property_edit(request, pk):
             "show_change_reason": True,
         },
     )
+
+
+@login_required
+def mother_property_detail(request, pk):
+    item = get_object_or_404(
+        MotherProperty.objects.select_related("region", "created_by", "updated_by")
+        .prefetch_related(
+            "ownership_history", "ownership_documents__document", "usage_history__document",
+            "correspondence__document", "correspondence__responsible", "internal_notes",
+        ),
+        pk=pk,
+    )
+    from domains.documents.models import Document
+    documents = Document.objects.filter(
+        entity_type="MotherProperty", entity_id=item.identifier
+    ).order_by("-uploaded_at", "-pk")
+    audit = AuditEvent.objects.filter(
+        entity_type="MotherProperty", entity_id=item.identifier
+    ).select_related("actor").order_by("-created_at", "-pk")[:200]
+    return render(request, "ui/mother_property_detail.html", {
+        "item": item,
+        "documents": documents,
+        "active_documents": documents.filter(archived_at__isnull=True),
+        "audit_events": audit,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def property_reference_settings(request):
+    form = PropertyReferenceValueForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        record = form.save()
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="PROPERTY_REFERENCE_CREATE",
+            entity_type="PropertyReferenceValue",
+            entity_id=str(record.pk),
+            after={"category": record.category, "value": record.value, "active": record.active},
+            ip_address=_ip(request),
+        )
+        messages.success(request, "داده مرجع ملک مادر ثبت شد.")
+        return redirect("property-reference-settings")
+    return render(request, "ui/property_reference_settings.html", {
+        "form": form,
+        "values": PropertyReferenceValue.objects.all(),
+    })
+
+
+@login_required
+@transaction.atomic
+def mother_property_ownership_create(request, pk):
+    item = get_object_or_404(MotherProperty, pk=pk)
+    form = MotherPropertyOwnershipForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        record = form.save(commit=False)
+        record.property = item
+        record.created_by = request.user
+        record.save()
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="MOTHER_PROPERTY_OWNERSHIP_CREATE",
+            entity_type="MotherProperty",
+            entity_id=item.identifier,
+            after={
+                "ownership_id": record.pk,
+                "owner_name": record.owner_name,
+                "owner_type": record.owner_type,
+                "share_percent": str(record.share_percent) if record.share_percent is not None else None,
+                "start_date": record.start_date,
+                "end_date": record.end_date,
+            },
+            ip_address=_ip(request),
+        )
+        messages.success(request, "سابقه مالکیت ثبت شد.")
+        return redirect("mother-property-detail", pk=item.pk)
+    return render(request, "ui/entity_form.html", {
+        "form": form, "title": f"ثبت مالکیت — {item.identifier}",
+        "subtitle": "مالک جدید رکورد مستقل است و مالکیت‌های قبلی overwrite نمی‌شوند.",
+        "cancel_url": "mother-property-detail", "cancel_kwargs": {"pk": item.pk},
+    })
+
+
+@login_required
+@transaction.atomic
+def mother_property_ownership_document_create(request, pk):
+    item = get_object_or_404(MotherProperty, pk=pk)
+    form = MotherPropertyOwnershipDocumentForm(request.POST or None, property=item)
+    if request.method == "POST" and form.is_valid():
+        record = form.save(commit=False)
+        record.property = item
+        record.created_by = request.user
+        record.save()
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="MOTHER_PROPERTY_OWNERSHIP_DOCUMENT_CREATE",
+            entity_type="MotherProperty",
+            entity_id=item.identifier,
+            after={
+                "record_id": record.pk, "document_type": record.document_type,
+                "document_number": record.document_number, "document_date": record.document_date,
+                "document_id": record.document_id,
+            },
+            ip_address=_ip(request),
+        )
+        messages.success(request, "مدرک مالکیت ثبت شد.")
+        return redirect("mother-property-detail", pk=item.pk)
+    return render(request, "ui/entity_form.html", {
+        "form": form, "title": f"ثبت مدرک مالکیت — {item.identifier}",
+        "subtitle": "مساحت مندرج در سند مستقل از مساحت عرصه و اعیان ملک است.",
+        "cancel_url": "mother-property-detail", "cancel_kwargs": {"pk": item.pk},
+    })
+
+
+@login_required
+@transaction.atomic
+def mother_property_usage_change(request, pk):
+    item = get_object_or_404(MotherProperty, pk=pk)
+    form = MotherPropertyUsageForm(request.POST or None, property=item)
+    if request.method == "POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            change_mother_property_usage(
+                property=item, actor=request.user, values=form.cleaned_data,
+                ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None, " ".join(exc.messages))
+        else:
+            messages.success(request, "سابقه بهره‌برداری جدید ثبت شد و سابقه جاری قبلی حفظ شد.")
+            return redirect("mother-property-detail", pk=item.pk)
+    return render(request, "ui/entity_form.html", {
+        "form": form, "title": f"ثبت / تغییر بهره‌برداری — {item.identifier}",
+        "subtitle": "مالک، واحد در اختیارگیرنده، بهره‌بردار و طرف قرارداد مفاهیم مستقل هستند.",
+        "cancel_url": "mother-property-detail", "cancel_kwargs": {"pk": item.pk},
+    })
+
+
+@login_required
+@transaction.atomic
+def mother_property_correspondence_create(request, pk):
+    item = get_object_or_404(MotherProperty, pk=pk)
+    form = MotherPropertyCorrespondenceForm(request.POST or None, property=item)
+    if request.method == "POST" and form.is_valid():
+        record = form.save(commit=False)
+        record.property = item
+        record.created_by = request.user
+        record.save()
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="MOTHER_PROPERTY_CORRESPONDENCE_CREATE",
+            entity_type="MotherProperty",
+            entity_id=item.identifier,
+            after={
+                "record_id": record.pk, "document_type": record.document_type,
+                "number": record.number, "document_date": record.document_date,
+                "subject": record.subject, "needs_follow_up": record.needs_follow_up,
+                "follow_up_status": record.follow_up_status,
+            },
+            ip_address=_ip(request),
+        )
+        messages.success(request, "مکاتبه ملک ثبت شد.")
+        return redirect("mother-property-detail", pk=item.pk)
+    return render(request, "ui/entity_form.html", {
+        "form": form, "title": f"ثبت مکاتبه — {item.identifier}",
+        "subtitle": "اسناد مالکیت در بخش مالکیت ثبت می‌شوند؛ این بخش برای مکاتبات اداری خود ملک است.",
+        "cancel_url": "mother-property-detail", "cancel_kwargs": {"pk": item.pk},
+    })
+
+
+@login_required
+@transaction.atomic
+def mother_property_note_create(request, pk):
+    item = get_object_or_404(MotherProperty, pk=pk)
+    form = MotherPropertyNoteForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        record = form.save(commit=False)
+        record.property = item
+        record.created_by = request.user
+        record.save()
+        AuditEvent.objects.create(
+            actor=request.user, action="MOTHER_PROPERTY_NOTE_CREATE",
+            entity_type="MotherProperty", entity_id=item.identifier,
+            after={"note_id": record.pk, "subject": record.subject, "active": record.active},
+            ip_address=_ip(request),
+        )
+        messages.success(request, "یادداشت جدید بدون بازنویسی یادداشت‌های قبلی ثبت شد.")
+        return redirect("mother-property-detail", pk=item.pk)
+    return render(request, "ui/entity_form.html", {
+        "form": form, "title": f"یادداشت داخلی — {item.identifier}",
+        "subtitle": "هر یادداشت رکورد مستقل است و متن قبلی overwrite نمی‌شود.",
+        "cancel_url": "mother-property-detail", "cancel_kwargs": {"pk": item.pk},
+    })
+
+
+@login_required
+@transaction.atomic
+def mother_property_document_upload(request, pk):
+    from django.core.exceptions import ValidationError
+    from services.documents import store_document
+    item = get_object_or_404(MotherProperty, pk=pk)
+    uploaded = request.FILES.get("file")
+    if not uploaded:
+        messages.error(request, "فایل انتخاب نشده است.")
+        return redirect("mother-property-detail", pk=item.pk)
+    try:
+        store_document(
+            uploaded=uploaded,
+            title=request.POST.get("title", "").strip() or uploaded.name,
+            document_type=request.POST.get("document_type", "سایر").strip(),
+            entity_type="MotherProperty",
+            entity_id=item.identifier,
+            user=request.user,
+            reference=request.POST.get("reference", ""),
+            document_date=request.POST.get("document_date", ""),
+            notes=request.POST.get("notes", ""),
+            ip_address=_ip(request),
+        )
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+    else:
+        messages.success(request, "سند ملک مادر با checksum ثبت شد.")
+    return redirect("mother-property-detail", pk=item.pk)
 
 
 @login_required
