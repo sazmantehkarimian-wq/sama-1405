@@ -1,0 +1,22 @@
+{% extends 'ui/base.html' %}
+{% block title %}تعاریف پایه مکانی{% endblock %}
+{% block section_class %}section-spaces{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>تعاریف پایه مکانی</h1><p>این مقادیر برای جلوگیری از ورود نام‌های ناسازگار در فرم‌های عملیاتی استفاده می‌شوند.</p></div></div>
+<div class="two-column">
+  <form method="post" class="card entity-form">
+    {% csrf_token %}<input type="hidden" name="action" value="region">
+    <h2>ثبت منطقه</h2>
+    {% for field in region_form %}<label class="field"><span>{{ field.label }}</span>{{ field }}{% for e in field.errors %}<small class="error-text">{{ e }}</small>{% endfor %}</label>{% endfor %}
+    <button type="submit">ثبت منطقه</button>
+  </form>
+  <form method="post" class="card entity-form">
+    {% csrf_token %}<input type="hidden" name="action" value="center">
+    <h2>ثبت مرکز</h2>
+    {% for field in center_form %}<label class="field"><span>{{ field.label }}</span>{{ field }}{% for e in field.errors %}<small class="error-text">{{ e }}</small>{% endfor %}</label>{% endfor %}
+    <button type="submit">ثبت مرکز</button>
+  </form>
+</div>
+<div class="table-wrap card"><table><thead><tr><th>کد منطقه</th><th>نام منطقه</th></tr></thead><tbody>{% for r in regions %}<tr><td>{{ r.code }}</td><td>{{ r.name }}</td></tr>{% empty %}<tr><td colspan="2">هنوز منطقه‌ای ثبت نشده است.</td></tr>{% endfor %}</tbody></table></div>
+<div class="table-wrap card"><table><thead><tr><th>مرکز</th><th>منطقه</th><th>نوع</th></tr></thead><tbody>{% for c in centers %}<tr><td>{{ c.name }}</td><td>{{ c.region.name|default:'—' }}</td><td>{% if c.is_special %}خاص{% else %}عادی{% endif %}</td></tr>{% empty %}<tr><td colspan="3">هنوز مرکزی ثبت نشده است.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}
