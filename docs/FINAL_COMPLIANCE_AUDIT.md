@@ -22,7 +22,8 @@
 | Search / Filter | PARTIAL | جست‌وجوی کلیدهای اصلی توسعه یافته؛ فیلتر تخصصی همه ماژول‌ها کامل نیست. |
 | FileMovement / current holder | PASS | one-open-custody constraint، handover/return تراکنشی، Audit/Timeline و نمایش «الان دست کیه» در پرونده فضا تست شده‌اند. |
 | Documents / Alerts / Workflow | EXISTING — REVIEW REQUIRED | پیاده‌سازی پایه موجود است؛ تطبیق نهایی Zero-Data/FROZEN هنوز باز است. |
-| Auction / Commission | EXISTING — REVIEW REQUIRED | موتور و گردش پایه وجود دارد؛ Gate نهایی بعد از تکمیل دامنه‌های وابسته لازم است. |
+| Auction candidate/selection core | PASS | Engine deterministic/fail-safe، Rule سالانه، current appraisal، planned-date validity، reason/snapshot، دستورات رسمی هم‌تراز، manual include/exclude، open-period conflict و انتخاب دستی Auditدار تست شده‌اند. Golden Master اسناد رسمی و Readiness کامل Lot هنوز باز است. |
+| Commission operational core | PASS | اعضا و Snapshot جلسه، Case linkage، Decision، Follow-up append-only، مسئول/مهلت، Audit/Timeline و Drill-down عملیاتی تست شده‌اند. صورتجلسه/اسناد رسمی تخصصی هنوز باز است. |
 | Electricity core | PASS | Bill/Allocation/Measurement، اولویت داده واقعی، محاسبه سهم‌ها، Override مجاز، کنترل درصد/ریال، Final/Reopen، Rule Registry و Snapshot نسخه‌دار روی Zero-Data تست شده‌اند. |
 | Water / Gas foundation | PASS | Connection/Bill/Measurement و Audit مستقل از برق پیاده شده‌اند؛ هیچ فرمول برق به آب یا گاز اعمال نمی‌شود. |
 | Water / Gas reporting and advanced filters | PASS | فیلترهای تخصصی، مقایسه دوره‌ای هر اشتراک، سند قبض، Drill-down به پرونده فضا و XLSX رسمی روی Zero-Data تست شده‌اند. |
