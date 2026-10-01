@@ -313,7 +313,8 @@ def space_detail(request,code):
  timeline=s.timeline.all();event_type=request.GET.get('event_type','').strip()
  if event_type:timeline=timeline.filter(event_type=event_type)
  event_types=s.timeline.order_by().values_list('event_type',flat=True).distinct()
- return render(request,'ui/space_detail.html',{'space':s,'holder':current_holder(s),'timeline_events':timeline,'event_types':event_types,'uploaded_documents':Document.objects.filter(entity_type='CommercialSpace',entity_id=s.code,archived_at__isnull=True),'history':__import__('domains.operations.models',fromlist=['OperationalHistory']).OperationalHistory.objects.filter(entity_type__in=['WorkflowInstance','AppraisalFee','UtilityRecord','CommissionDecision','Alert'])[:100]})
+ documents=Document.objects.filter(entity_type='CommercialSpace',entity_id=s.code).order_by('-uploaded_at','-pk')
+ return render(request,'ui/space_detail.html',{'space':s,'holder':current_holder(s),'timeline_events':timeline,'event_types':event_types,'uploaded_documents':documents.filter(archived_at__isnull=True),'document_history':documents,'history':__import__('domains.operations.models',fromlist=['OperationalHistory']).OperationalHistory.objects.filter(entity_type__in=['WorkflowInstance','AppraisalFee','UtilityRecord','CommissionDecision','Alert'])[:100]})
 
 @login_required
 @require_POST
