@@ -10,7 +10,7 @@ from domains.properties.models import CommercialSpace,Region,Center,MotherProper
 from domains.registry.models import Discrepancy
 from domains.identity.models import UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
 from domains.contracts.models import Contract, Beneficiary
-from domains.operations.models import Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
+from domains.operations.models import Appraiser, Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
 from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from services.file_movement import current_holder
@@ -86,7 +86,8 @@ DOMAIN_LISTS={
  'discrepancies':('بررسی مغایرت‌های داده',Discrepancy.objects.select_related('assigned_to'),(('entity_key','شناسه رکورد'),('field_key','فیلد'),('observed_value','مقدار موجود'),('expected_value','مقدار مورد انتظار'),('reason','علت'),('severity','اهمیت'),('status','وضعیت'))),
  'contracts':('قراردادها',Contract.objects.select_related('space','beneficiary'),(('number','شماره'),('space.code','کد فضا'),('beneficiary.name','بهره‌بردار'),('start_date','شروع'),('end_date','پایان'),('status','وضعیت حقوقی'))),
  'beneficiaries':('بهره‌برداران',Beneficiary.objects.all(),(('sama_code','کد بهره‌بردار'),('name','نام / عنوان'),('identity_number','کد ملی / شناسه ملی'),('kind','نوع'),('completeness_status','وضعیت تکمیل'))),
- 'appraisals':('کارشناسی',Appraisal.objects.select_related('space'),(('space.code','کد فضا'),('appraisal_date','تاریخ'),('appraiser','کارشناس'),('amount_rial','مبلغ (ریال)'),('status','وضعیت'))),
+ 'appraisers':('کارشناسان',Appraiser.objects.all(),(('sama_code','کد کارشناس'),('full_name','نام کارشناس'),('license_number','شماره پروانه'),('specialty','رشته / صلاحیت'),('collaboration_status','وضعیت همکاری'))),
+ 'appraisals':('کارشناسی',Appraisal.objects.select_related('space','appraiser_ref'),(('sama_code','کد کارشناسی'),('space.code','کد فضا'),('appraiser_display','کارشناس'),('response_number','شماره جواب'),('response_date','تاریخ جواب'),('appraisal_date','تاریخ کارشناسی'),('amount_rial','مبلغ (ریال)'),('status','وضعیت'))),
  'fees':('حق‌الزحمه کارشناسی',AppraisalFee.objects.select_related('appraisal__space'),(('appraisal.space.code','کد فضا'),('amount_rial','مبلغ (ریال)'),('payment_status','پرداخت'),('payment_date','تاریخ پرداخت'),('follow_up_date','پیگیری'))),
  'auctions':('مزایده‌ها',Auction.objects.select_related('space'),(('space.code','کد فضا'),('year','سال'),('sequence','نوبت'),('stage','مرحله'),('result','نتیجه'))),
  'commissions':('کمیسیون معاملات',CommissionDecision.objects.all(),(('identity','شناسه'),('decision_date','تاریخ'),('subject','موضوع'),('decision','تصمیم'))),
@@ -108,6 +109,7 @@ def _value(obj,path):
 def _search_domain(qs,domain,q):
  if not q:return qs
  if domain=='contracts':return qs.filter(Q(number__icontains=q)|Q(space__code__iexact=q)|Q(beneficiary__name__icontains=q)|Q(beneficiary__identity_number__iexact=q))
+ if domain=='appraisers':return qs.filter(Q(first_name__icontains=q)|Q(last_name__icontains=q)|Q(national_id__iexact=q)|Q(license_number__icontains=q)|Q(specialty__icontains=q))
  if domain in {'appraisals','fees','auctions','utilities','workflows','alerts'}:
   field='appraisal__space__code__iexact' if domain=='fees' else 'space__code__iexact'
   return qs.filter(**{field:q})
@@ -330,7 +332,8 @@ def add_appraisal(request,code):
  from django.core.exceptions import ValidationError
  from services.operations import create_appraisal
  space=get_object_or_404(CommercialSpace,code=code);document=_owned_document(request.POST.get('document_id'),space)
- try:create_appraisal(space=space,actor=request.user,values=request.POST,document=document,ip_address=request.META.get('REMOTE_ADDR'))
+ appraiser=get_object_or_404(Appraiser,pk=request.POST.get('appraiser_id'),archived_at__isnull=True)
+ try:create_appraisal(space=space,appraiser=appraiser,actor=request.user,values=request.POST,document=document,ip_address=request.META.get('REMOTE_ADDR'))
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
  else:messages.success(request,'کارشناسی عملیاتی با خط زمانی ثبت شد.')
  return redirect('space-detail',code=code)
