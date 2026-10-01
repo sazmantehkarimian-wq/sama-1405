@@ -1,4 +1,7 @@
+import io
 import pytest
+from openpyxl import load_workbook
+from pypdf import PdfReader
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -170,3 +173,34 @@ def test_mother_property_notes_are_append_only_and_documents_archive_without_del
     assert Document.objects.filter(pk=document.pk).exists()
     dossier=client.get(f"/properties/{item.pk}/").content.decode()
     assert "بایگانی‌شده" in dossier and "MP-1" in dossier
+
+
+
+@pytest.mark.django_db
+def test_mother_property_official_exports_are_rtl_and_audited(client, property_user, property_refs):
+    client.force_login(property_user)
+    item=MotherProperty.objects.create(
+        identifier="P-0106",name="ملک گزارش",current_status="فعال",
+        primary_usage="فرهنگی",area=450,ownership_document_status="موجود است",
+        electricity_presence="YES",water_presence="YES",gas_presence="NO",
+        created_by=property_user,updated_by=property_user,
+    )
+
+    xlsx=client.get(f"/properties/{item.pk}/export.xlsx")
+    assert xlsx.status_code==200
+    workbook=load_workbook(io.BytesIO(xlsx.content),data_only=True)
+    assert len(workbook.sheetnames)>=5
+    assert all(workbook[name].sheet_view.rightToLeft for name in workbook.sheetnames)
+    values=[cell.value for name in workbook.sheetnames for row in workbook[name].iter_rows() for cell in row if cell.value is not None]
+    assert "سازمان فرهنگی هنری شهرداری تهران" in values
+    assert "P-0106" in [str(v) for v in values]
+    assert "سامانه مدیریت قراردادها" not in values
+
+    pdf=client.get(f"/properties/{item.pk}/export.pdf")
+    assert pdf.status_code==200 and pdf.content.startswith(b"%PDF")
+    reader=PdfReader(io.BytesIO(pdf.content))
+    assert reader.metadata.title=="پرونده ملک مادر P-0106"
+
+    events=AuditEvent.objects.filter(action="MOTHER_PROPERTY_REPORT_EXPORT",entity_type="MotherProperty",entity_id="P-0106")
+    assert events.count()==2
+    assert {event.after["format"] for event in events}=={"XLSX","PDF"}
