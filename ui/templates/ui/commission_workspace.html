@@ -34,8 +34,8 @@
     {% for session in sessions %}
       <tr>
         <td>{{ session.sama_code }}</td><td>{{ session.number|default:'—' }}</td><td>{{ session.session_date }}</td><td>{{ session.title }}</td>
-        <td>{{ session.cases.count|fa_digits }}</td>
-        <td>{{ session.cases.all|length|fa_digits }}</td>
+        <td>{{ session.topic_count|fa_digits }}</td>
+        <td>{{ session.open_decision_count_row|fa_digits }}</td>
         <td>{{ session.get_status_display }}</td>
         <td><a class="button compact" href="{% url 'commission-session-detail' session.pk %}">مشاهده پرونده جلسه</a></td>
       </tr>
