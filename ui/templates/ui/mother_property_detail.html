@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
   <div><p><a href="{% url 'domain-list' 'properties' %}">املاک مادر</a> / پرونده</p><h1>{{ item.name }}</h1><p>{{ item.identifier }}</p></div>
-  <div class="button-row"><a class="button secondary compact" href="{% url 'mother-property-edit' item.pk %}">ویرایش شناسنامه</a><span class="badge">{{ item.completeness_status }}</span></div>
+  <div class="button-row no-print"><a class="button emphasized compact" href="{% url 'mother-property-excel' item.pk %}">Excel پرونده</a><a class="button secondary compact" href="{% url 'mother-property-pdf' item.pk %}">PDF پرونده</a><a class="button secondary compact" href="{% url 'mother-property-edit' item.pk %}">ویرایش شناسنامه</a><span class="badge">{{ item.completeness_status }}</span></div>
 </div>
 
 <nav class="tabs" aria-label="بخش‌های ملک مادر">
