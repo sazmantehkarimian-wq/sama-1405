@@ -7,7 +7,7 @@ from domains.contracts.models import Beneficiary
 from domains.identity.models import AuditEvent
 from domains.operations.models import (
     Appraiser, ElectricityBill, ElectricityConsumptionCategory,
-    UtilityMeasurement, UtilityParameterRule, UtilityUnit,
+    UtilityBill, UtilityConnection, UtilityMeasurement, UtilityParameterRule, UtilityUnit,
 )
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
 from services.contracts import assign_beneficiary, create_contract
@@ -17,11 +17,12 @@ from services.electricity import (
     upsert_electricity_allocation,
 )
 from services.operations import create_appraisal
+from services.utilities import create_utility_bill, create_utility_connection
 from ui.entry_forms import (
     AppraisalEntryForm, AppraiserForm, BeneficiaryAssignmentForm, BeneficiaryForm,
     CenterForm, CommercialSpaceForm, ContractEntryForm, ElectricityAllocationForm,
-    ElectricityBillForm, MotherPropertyForm, RegionForm, UtilityMeasurementForm,
-    UtilityParameterRuleForm, UtilityUnitForm,
+    ElectricityBillForm, MotherPropertyForm, RegionForm, UtilityBillForm,
+    UtilityConnectionForm, UtilityMeasurementForm, UtilityParameterRuleForm, UtilityUnitForm,
 )
 
 
@@ -874,3 +875,46 @@ def utility_rule_create(request):
             for error in errors:
                 messages.error(request, error)
     return redirect("electricity-dashboard")
+
+
+
+@login_required
+@transaction.atomic
+def utility_connection_create(request,code):
+    space=get_object_or_404(CommercialSpace,code=code)
+    form=UtilityConnectionForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            connection=create_utility_connection(space=space,actor=request.user,values=form.cleaned_data,ip_address=_ip(request))
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,f"اشتراک {connection.get_utility_type_display()} ثبت شد.")
+            return redirect("space-detail",code=space.code)
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":f"ثبت انشعاب برای فضای {space.code}",
+        "subtitle":"آب و گاز مستقل از فرمول برق ثبت می‌شوند و سابقه حذف نمی‌شود.",
+        "cancel_url":"space-detail","cancel_kwargs":{"code":space.code},
+    })
+
+
+@login_required
+@transaction.atomic
+def utility_bill_create(request,connection_id):
+    connection=get_object_or_404(UtilityConnection.objects.select_related("space"),pk=connection_id)
+    form=UtilityBillForm(request.POST or None,connection=connection)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            bill=create_utility_bill(connection=connection,actor=request.user,values=form.cleaned_data,ip_address=_ip(request))
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,f"قبض {bill.sama_code} ثبت شد.")
+            return redirect("space-detail",code=connection.space.code)
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":f"ثبت قبض {connection.get_utility_type_display()} — {connection.account_number}",
+        "subtitle":"برای آب و گاز فقط داده واقعی قبض/مصرف/Measurement ثبت می‌شود؛ فرمول برق استفاده نمی‌شود.",
+        "cancel_url":"space-detail","cancel_kwargs":{"code":connection.space.code},
+    })
