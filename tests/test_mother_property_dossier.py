@@ -204,3 +204,37 @@ def test_mother_property_official_exports_are_rtl_and_audited(client, property_u
     events=AuditEvent.objects.filter(action="MOTHER_PROPERTY_REPORT_EXPORT",entity_type="MotherProperty",entity_id="P-0106")
     assert events.count()==2
     assert {event.after["format"] for event in events}=={"XLSX","PDF"}
+
+
+
+@pytest.mark.django_db
+def test_mother_property_quality_review_is_distinct_from_incomplete(property_user):
+    item=MotherProperty.objects.create(
+        identifier="P-0107",name="ملک کنترل کیفیت",current_status="فعال",
+        area=100,ownership_document_status="موجود است",
+        electricity_presence="YES",water_presence="YES",gas_presence="YES",
+        has_utilities="NO",created_by=property_user,
+    )
+    assert item.completeness_status=="نیازمند بررسی"
+    assert any("انشعابات" in reason for reason in item.quality_review_reasons)
+
+
+@pytest.mark.django_db
+def test_mother_property_correspondence_transition_is_audited(client, property_user):
+    client.force_login(property_user)
+    item=MotherProperty.objects.create(identifier="P-0108",name="ملک",created_by=property_user)
+    record=MotherPropertyCorrespondence.objects.create(
+        property=item,document_type="نامه وارده",subject="پیگیری",
+        needs_follow_up=True,responsible=property_user,due_date="1405/10/01",
+        follow_up_status="OPEN",created_by=property_user,
+    )
+    response=client.post(f"/properties/correspondence/{record.pk}/transition/",{
+        "follow_up_status":"DONE","reason":"پاسخ دریافت شد",
+    })
+    assert response.status_code==302
+    record.refresh_from_db()
+    assert record.follow_up_status=="DONE"
+    event=AuditEvent.objects.get(action="MOTHER_PROPERTY_CORRESPONDENCE_TRANSITION",entity_id=item.identifier)
+    assert event.reason=="پاسخ دریافت شد"
+    assert event.before["follow_up_status"]=="OPEN"
+    assert event.after["follow_up_status"]=="DONE"
