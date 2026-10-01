@@ -157,7 +157,23 @@ class MotherProperty(models.Model):
         return reasons
 
     @property
+    def quality_review_reasons(self):
+        reasons = []
+        if self.ownership_documents.exists() and not self.owner_name and not self.ownership_history.exists():
+            reasons.append("مدرک مالکیت ثبت شده ولی مالک مشخص نشده است")
+        if self.ownership_history.exists() and not self.ownership_document_status:
+            reasons.append("مالک ثبت شده ولی وضعیت مستند مالکیت مشخص نشده است")
+        if self.has_utilities == self.Presence.NO and any(
+            value == self.Presence.YES
+            for value in (self.electricity_presence, self.water_presence, self.gas_presence)
+        ):
+            reasons.append("وضعیت کلی انشعابات با نوع انشعاب‌های ثبت‌شده ناسازگار است")
+        return reasons
+
+    @property
     def completeness_status(self):
+        if self.quality_review_reasons:
+            return "نیازمند بررسی"
         return "کامل" if not self.completeness_reasons else "نیازمند تکمیل"
 
     def __str__(self):
