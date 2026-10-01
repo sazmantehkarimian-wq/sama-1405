@@ -309,4 +309,4 @@ def test_bill_share_update_is_authorized_audited_and_recalculates(electricity_co
     assert allocation.payable_amount_rial==Decimal("1400000")
     event=AuditEvent.objects.get(action="ELECTRICITY_BILL_UPDATE",entity_id=str(bill.pk))
     assert event.reason=="نامه اصلاح سهم"
-    assert event.before["beneficiary_share_percent"]=="60.0000"
+    assert Decimal(event.before["beneficiary_share_percent"])==Decimal("60")
