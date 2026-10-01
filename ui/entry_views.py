@@ -20,7 +20,7 @@ from services.commission import (
     create_case, create_case_decision, create_followup, create_session, transition_followup,
 )
 from services.contracts import assign_beneficiary, create_contract
-from services.mother_properties import change_mother_property_usage
+from services.mother_properties import change_mother_property_usage, transition_mother_property_correspondence
 from services.electricity import (
     create_electricity_bill, electricity_bill_issues, finalize_electricity_bill,
     record_measurement, recalculate_electricity_bill, reopen_electricity_bill, update_electricity_bill,
@@ -404,6 +404,26 @@ def mother_property_correspondence_create(request, pk):
         "subtitle": "اسناد مالکیت در بخش مالکیت ثبت می‌شوند؛ این بخش برای مکاتبات اداری خود ملک است.",
         "cancel_url": "mother-property-detail", "cancel_kwargs": {"pk": item.pk},
     })
+
+
+@login_required
+@transaction.atomic
+def mother_property_correspondence_transition(request, record_id):
+    from django.core.exceptions import ValidationError
+    record = get_object_or_404(MotherPropertyCorrespondence.objects.select_related("property"), pk=record_id)
+    if request.method == "POST":
+        try:
+            transition_mother_property_correspondence(
+                record=record, actor=request.user,
+                new_status=request.POST.get("follow_up_status", ""),
+                reason=request.POST.get("reason", ""),
+                ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+        else:
+            messages.success(request, "وضعیت پیگیری مکاتبه ثبت شد.")
+    return redirect("mother-property-detail", pk=record.property_id)
 
 
 @login_required
