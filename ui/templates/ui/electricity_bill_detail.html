@@ -1,0 +1,89 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}{{ bill.sama_code }}{% endblock %}
+{% block section_class %}section-utilities{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p><a href="{% url 'electricity-dashboard' %}">برق</a> / قبض</p><h1>{{ bill.sama_code }}</h1><p>{{ bill.unit.name }} — {{ bill.period_start }} تا {{ bill.period_end }}</p></div>
+  <div class="button-row"><span class="badge">{{ bill.get_status_display }}</span></div>
+</div>
+
+<section class="card dossier-section">
+  <h2>خلاصه قبض</h2>
+  <div class="detail-grid">
+    <div><small>مبلغ قبض</small><strong>{{ bill.amount_rial|rial }}</strong></div>
+    <div><small>سهم بهره‌برداران</small><strong>{{ bill.beneficiary_share_percent|fa_digits }}٪</strong></div>
+    <div><small>سهم سازمان</small><strong>{{ bill.organization_share_percent|fa_digits }}٪</strong></div>
+    <div><small>مبلغ سهم سازمان</small><strong>{{ bill.organization_amount_rial|rial }}</strong></div>
+    <div><small>تاریخ قبض</small><strong>{{ bill.bill_date|default:'ثبت نشده' }}</strong></div>
+    <div><small>وضعیت محاسبه</small><strong>{{ bill.get_status_display }}</strong></div>
+  </div>
+  {% if bill.reopen_reason %}<div class="notice">علت آخرین بازگشایی: {{ bill.reopen_reason }}</div>{% endif %}
+</section>
+
+{% if bill.status != 'FINAL' %}
+<section class="card dossier-section">
+  <h2>افزودن / اصلاح فضای مشمول</h2>
+  <p class="helper">اولویت داده: زیرکنتور / Measurement معتبر ← داده تجهیزات ← مدل مصوب. مبلغ سهم فضا قابل ورود مستقیم نیست.</p>
+  <form method="post" class="entity-form" action="{% url 'electricity-allocation-save' bill.pk %}">
+    {% csrf_token %}
+    <div class="form-grid">
+      {% for field in allocation_form %}
+      <label class="field{% if field.errors %} field-error{% endif %}">
+        <span>{{ field.label }}</span>{{ field }}
+        {% if field.help_text %}<small class="helper">{{ field.help_text }}</small>{% endif %}
+      </label>
+      {% endfor %}
+    </div>
+    <button class="emphasized">ثبت و باز‌محاسبه</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card dossier-section">
+  <div class="page-header">
+    <div><h2>جدول تخصیص</h2><p>مجموع درصد نهایی فضاها باید دقیقاً برابر سهم کل بهره‌برداران باشد.</p></div>
+    {% if bill.status != 'FINAL' %}<form method="post" action="{% url 'electricity-recalculate' bill.pk %}">{% csrf_token %}<button class="secondary">باز‌محاسبه</button></form>{% endif %}
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کد فضا</th><th>نام</th><th>منبع محاسبه</th><th>Measurement</th><th>سهم محاسباتی</th><th>Override</th><th>سهم نهایی</th><th>مبلغ نهایی</th><th>سطح اطمینان</th></tr></thead>
+    <tbody>
+    {% for item in allocations %}
+      <tr>
+        <td><a href="{% url 'space-detail' item.space.code %}">{{ item.space.code }}</a></td>
+        <td>{{ item.space.name }}</td>
+        <td>{{ item.get_calculation_source_display }}</td>
+        <td>{% if item.measurement %}{{ item.measurement.consumption|fa_digits }} {{ item.measurement.measurement_unit }}{% else %}—{% endif %}</td>
+        <td>{% if item.calculated_share_percent is not None %}{{ item.calculated_share_percent|fa_digits }}٪{% else %}—{% endif %}</td>
+        <td>{% if item.manual_override_percent is not None %}{{ item.manual_override_percent|fa_digits }}٪{% else %}—{% endif %}</td>
+        <td>{{ item.final_share_percent|fa_digits }}٪</td>
+        <td>{{ item.payable_amount_rial|rial }}</td>
+        <td>{{ item.get_confidence_level_display }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="9">هنوز فضای مشمولی ثبت نشده است.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<section class="card dossier-section">
+  <h2>کنترل و نهایی‌سازی</h2>
+  {% if bill.status == 'FINAL' %}
+    <p>این دوره نهایی است و مستقیم قابل ویرایش نیست.</p>
+    {% if user.is_staff %}
+    <form class="inline-form" method="post" action="{% url 'electricity-reopen' bill.pk %}">
+      {% csrf_token %}<label>علت بازگشایی<textarea name="reason" required></textarea></label><button class="danger">بازگشایی با ثبت Audit</button>
+    </form>
+    {% endif %}
+  {% else %}
+    <form method="post" action="{% url 'electricity-finalize' bill.pk %}">{% csrf_token %}<button class="emphasized">نهایی‌سازی و ثبت Snapshot</button></form>
+  {% endif %}
+</section>
+
+<section class="card dossier-section">
+  <h2>Snapshotهای نهایی</h2>
+  <div class="table-wrap"><table><thead><tr><th>نسخه</th><th>زمان</th><th>ثبت‌کننده</th><th>علت</th></tr></thead><tbody>
+    {% for item in snapshots %}<tr><td>{{ item.version|fa_digits }}</td><td>{{ item.created_at }}</td><td>{{ item.created_by|default:'—' }}</td><td>{{ item.reason|default:'—' }}</td></tr>{% empty %}<tr><td colspan="4">هنوز Snapshot نهایی ثبت نشده است.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}
