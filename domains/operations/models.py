@@ -1,7 +1,68 @@
 from django.conf import settings
 from django.db import models
+class Appraiser(models.Model):
+ class CollaborationStatus(models.TextChoices):
+  ACTIVE='ACTIVE','فعال';INACTIVE='INACTIVE','غیرفعال'
+ first_name=models.CharField(max_length=120); last_name=models.CharField(max_length=160)
+ national_id=models.CharField(max_length=10,blank=True,db_index=True); license_number=models.CharField(max_length=80,blank=True,db_index=True)
+ specialty=models.CharField(max_length=255,blank=True); professional_authority=models.CharField(max_length=255,blank=True)
+ mobile=models.CharField(max_length=20,blank=True); phone=models.CharField(max_length=30,blank=True); address=models.TextField(blank=True); email=models.EmailField(blank=True)
+ collaboration_status=models.CharField(max_length=20,choices=CollaborationStatus.choices,default=CollaborationStatus.ACTIVE)
+ notes=models.TextField(blank=True); archived_at=models.DateTimeField(null=True,blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='created_appraisers')
+ created_at=models.DateTimeField(auto_now_add=True); updated_at=models.DateTimeField(auto_now=True)
+ class Meta:
+  ordering=['last_name','first_name','pk']
+  constraints=[
+   models.UniqueConstraint(fields=['national_id'],condition=~models.Q(national_id=''),name='uniq_nonblank_appraiser_national_id'),
+   models.UniqueConstraint(fields=['license_number'],condition=~models.Q(license_number=''),name='uniq_nonblank_appraiser_license'),
+  ]
+ @property
+ def sama_code(self): return f'EXP-{self.pk:06d}' if self.pk else '—'
+ @property
+ def full_name(self): return f'{self.first_name} {self.last_name}'.strip()
+ def __str__(self): return f'{self.sama_code} — {self.full_name}'
+
+
 class Appraisal(models.Model):
- space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='appraisals'); year=models.CharField(max_length=4,blank=True); sequence=models.CharField(max_length=20,blank=True); amount_rial=models.DecimalField(max_digits=24,decimal_places=0,null=True); appraiser=models.CharField(max_length=255,blank=True); reference=models.CharField(max_length=255,blank=True); appraisal_date=models.CharField(max_length=10,blank=True); status=models.CharField(max_length=80,blank=True); created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT); created_at=models.DateTimeField(auto_now_add=True,null=True)
+ space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='appraisals')
+ appraiser=models.CharField(max_length=255,blank=True)
+ appraiser_ref=models.ForeignKey(Appraiser,null=True,blank=True,on_delete=models.PROTECT,related_name='appraisals')
+ year=models.CharField(max_length=4,blank=True); sequence=models.CharField(max_length=20,blank=True)
+ amount_rial=models.DecimalField(max_digits=24,decimal_places=0,null=True,blank=True)
+ reference=models.CharField(max_length=255,blank=True)
+ response_number=models.CharField(max_length=120,blank=True); response_date=models.CharField(max_length=10,blank=True)
+ appraisal_date=models.CharField(max_length=10,blank=True); status=models.CharField(max_length=80,blank=True)
+ is_current=models.BooleanField(default=False); notes=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT)
+ created_at=models.DateTimeField(auto_now_add=True,null=True); updated_at=models.DateTimeField(auto_now=True)
+ class Meta:
+  ordering=['-appraisal_date','-id']
+  constraints=[
+   models.UniqueConstraint(fields=['space'],condition=models.Q(is_current=True),name='one_current_appraisal_per_space'),
+   models.CheckConstraint(condition=models.Q(amount_rial__isnull=True)|models.Q(amount_rial__gte=0),name='appraisal_amount_nonnegative'),
+  ]
+ @property
+ def sama_code(self): return f'APR-{self.pk:06d}' if self.pk else '—'
+ @property
+ def appraiser_display(self): return self.appraiser_ref.full_name if self.appraiser_ref_id else self.appraiser
+ def __str__(self): return f'{self.sama_code} — فضای {self.space.code}'
+
+
+class AppraisalNotification(models.Model):
+ class Recipient(models.TextChoices):
+  EXPERT='EXPERT','کارشناس';REGION='REGION','منطقه';BOTH='BOTH','کارشناس و منطقه';OTHER='OTHER','سایر'
+ appraisal=models.ForeignKey(Appraisal,on_delete=models.PROTECT,related_name='notifications')
+ number=models.CharField(max_length=120,blank=True); notification_date=models.CharField(max_length=10)
+ recipient=models.CharField(max_length=20,choices=Recipient.choices); recipient_detail=models.CharField(max_length=255,blank=True)
+ notes=models.TextField(blank=True)
+ document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='appraisal_notifications')
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT)
+ created_at=models.DateTimeField(auto_now_add=True)
+ class Meta:
+  ordering=['-notification_date','-id']
+
+
 class AppraisalFee(models.Model):
  appraisal=models.OneToOneField(Appraisal,on_delete=models.PROTECT,related_name='fee'); amount_rial=models.DecimalField(max_digits=24,decimal_places=0); payment_status=models.CharField(max_length=30); payment_date=models.CharField(max_length=10,blank=True); payment_reference=models.CharField(max_length=255,blank=True); follow_up_date=models.CharField(max_length=10,blank=True); notes=models.TextField(blank=True); supporting_document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='appraisal_fees')
 class Auction(models.Model):
