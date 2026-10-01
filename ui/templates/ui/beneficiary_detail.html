@@ -1,0 +1,42 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}بهره‌بردار {{ beneficiary.sama_code }}{% endblock %}
+{% block section_class %}section-contracts{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p><a href="{% url 'domain-list' 'beneficiaries' %}">بهره‌برداران</a> / پرونده</p><h1>{{ beneficiary.name }}</h1><p>{{ beneficiary.sama_code }}</p></div>
+  <div class="button-row"><a class="button secondary compact" href="{% url 'beneficiary-edit' beneficiary.pk %}">ویرایش اطلاعات</a><span class="badge">{{ beneficiary.completeness_status }}</span></div>
+</div>
+<section class="card dossier-section">
+  <h2>شناسنامه بهره‌بردار</h2>
+  <div class="detail-grid">
+    <div><small>نوع</small><strong>{{ beneficiary.get_kind_display }}</strong></div>
+    <div><small>کد ملی / شناسه ملی</small><strong>{{ beneficiary.identity_number|default:'ثبت نشده' }}</strong></div>
+    <div><small>تلفن همراه</small><strong>{{ beneficiary.mobile|default:'ثبت نشده' }}</strong></div>
+    <div><small>تلفن ثابت</small><strong>{{ beneficiary.phone|default:'ثبت نشده' }}</strong></div>
+    {% if beneficiary.kind == 'NATURAL' %}
+      <div><small>نام پدر</small><strong>{{ beneficiary.father_name|default:'ثبت نشده' }}</strong></div>
+      <div><small>شماره شناسنامه</small><strong>{{ beneficiary.birth_certificate_number|default:'ثبت نشده' }}</strong></div>
+      <div><small>تاریخ تولد</small><strong>{{ beneficiary.birth_date|default:'ثبت نشده' }}</strong></div>
+    {% else %}
+      <div><small>شماره ثبت</small><strong>{{ beneficiary.registration_number|default:'ثبت نشده' }}</strong></div>
+      <div><small>نوع شخصیت حقوقی</small><strong>{{ beneficiary.legal_entity_type|default:'ثبت نشده' }}</strong></div>
+      <div><small>نماینده</small><strong>{{ beneficiary.representative_name|default:'ثبت نشده' }}</strong></div>
+    {% endif %}
+    <div><small>نشانی</small><strong>{{ beneficiary.address|default:'ثبت نشده' }}</strong></div>
+    <div><small>کدپستی</small><strong>{{ beneficiary.postal_code|default:'ثبت نشده' }}</strong></div>
+  </div>
+</section>
+<section class="card dossier-section">
+  <h2>فضاهای جاری و سابقه ارتباط</h2>
+  <div class="table-wrap"><table><thead><tr><th>کد فضا</th><th>نقش</th><th>شروع</th><th>پایان</th><th>وضعیت</th><th>مبنا</th></tr></thead><tbody>
+  {% for item in assignments %}<tr><td><a href="{% url 'space-detail' item.space.code %}">{{ item.space.code }}</a></td><td>{{ item.role }}</td><td>{{ item.start_date|default:'—' }}</td><td>{{ item.end_date|default:'—' }}</td><td>{{ item.get_status_display }}</td><td>{{ item.basis|default:'—' }}</td></tr>{% empty %}<tr><td colspan="6">هنوز ارتباطی با فضای تجاری ثبت نشده است.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<section class="card dossier-section">
+  <h2>قراردادها</h2>
+  <div class="table-wrap"><table><thead><tr><th>شماره قرارداد</th><th>کد فضا</th><th>شروع</th><th>پایان</th><th>مبلغ</th><th>وضعیت حقوقی</th></tr></thead><tbody>
+  {% for item in contracts %}<tr><td>{{ item.number }}</td><td><a href="{% url 'space-detail' item.space.code %}">{{ item.space.code }}</a></td><td>{{ item.start_date }}</td><td>{{ item.end_date }}</td><td>{{ item.amount_rial|administrative }}</td><td>{{ item.status|default:'ثبت نشده' }}</td></tr>{% empty %}<tr><td colspan="6">هنوز قراردادی ثبت نشده است.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<section class="card dossier-section"><h2>Audit Trail</h2><div class="timeline">{% for e in audit_events %}<article><time>{{ e.created_at }}</time><h3>{{ e.action }}</h3><p>{{ e.reason|default:'—' }}</p></article>{% empty %}<p class="empty">رویداد ممیزی ثبت نشده است.</p>{% endfor %}</div></section>
+{% endblock %}
