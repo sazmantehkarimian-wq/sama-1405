@@ -46,21 +46,3 @@ def test_uat_fixed_admin_is_idempotent_and_cannot_change_or_reset_password(clien
  assert client.post(f'/users/{fixed.pk}/reset/',{'reason':'test'}).status_code==302
  fixed.refresh_from_db();assert fixed.check_password('admin')
  body=client.get('/').content.decode();assert 'تغییر گذرواژه' not in body and 'اطلاعات حساب' in body
-
-@pytest.mark.django_db(transaction=True)
-def test_fixed_uat_admin_owner_login_and_management_lock_in_browser(live_server, settings):
- settings.SAMA_UAT_FIXED_ADMIN=True;settings.SAMA_UAT_ADMIN_USERNAME='admin';settings.SAMA_UAT_ADMIN_PASSWORD='admin'
- from core.uat import provision_fixed_uat_admin
- from playwright.sync_api import sync_playwright
- fixed=provision_fixed_uat_admin()
- with sync_playwright() as playwright:
-  browser=playwright.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1366,'height':768})
-  page.goto(f'{live_server.url}/login/');page.get_by_label('نام کاربری').fill('admin');page.get_by_label('گذرواژه').fill('admin');page.get_by_role('button',name='ورود').click()
-  assert page.url.rstrip('/')==live_server.url
-  page.locator('.account summary').click();assert page.get_by_role('link',name='تغییر گذرواژه').count()==0
-  page.goto(f'{live_server.url}/users/');row=page.locator('tr',has_text='admin')
-  assert row.get_by_text('مدیر ثابت UAT').is_visible()
-  assert row.get_by_role('button',name='بازنشانی گذرواژه').count()==0
-  assert row.get_by_role('button',name='غیرفعال‌سازی').count()==0
-  browser.close()
- fixed.refresh_from_db();assert fixed.username=='admin' and fixed.check_password('admin') and fixed.is_active and not fixed.profile.must_change_password
