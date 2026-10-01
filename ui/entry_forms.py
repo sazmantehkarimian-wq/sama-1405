@@ -679,3 +679,99 @@ class ExpertFeeBatchForm(forms.Form):
         self.fields["fees"].queryset=AppraisalFee.objects.filter(
             status=AppraisalFee.Status.READY_TO_SEND
         ).select_related("appraisal__space","appraisal__appraiser_ref").order_by("appraisal__space__code")
+
+
+
+class CommissionMemberForm(BaseNormalizedModelForm):
+    class Meta:
+        model = CommissionMember
+        fields = ["name","position","role","sign_order","start_date","end_date","status","notes"]
+        labels = {
+            "name":"نام عضو","position":"سمت","role":"نقش در کمیسیون","sign_order":"ترتیب امضا",
+            "start_date":"تاریخ شروع","end_date":"تاریخ پایان","status":"وضعیت","notes":"توضیحات",
+        }
+        widgets={"notes":forms.Textarea(attrs={"rows":2})}
+
+
+class CommissionSessionForm(forms.Form):
+    number=forms.CharField(label="شماره جلسه",max_length=120,required=False)
+    session_date=JalaliDateField(label="تاریخ جلسه",required=True)
+    session_time=forms.CharField(label="ساعت جلسه",max_length=5,required=False,widget=forms.TextInput(attrs={"placeholder":"09:30","dir":"ltr"}))
+    location=forms.CharField(label="محل جلسه",max_length=255,required=False)
+    title=forms.CharField(label="عنوان جلسه",max_length=255,required=True)
+    description=forms.CharField(label="شرح کلی",required=False,widget=forms.Textarea(attrs={"rows":3}))
+    status=forms.ChoiceField(label="وضعیت جلسه",choices=CommissionSession.Status.choices,initial=CommissionSession.Status.DRAFT)
+    members=forms.ModelMultipleChoiceField(label="اعضای جلسه",queryset=CommissionMember.objects.none(),required=False,widget=forms.CheckboxSelectMultiple)
+    notes=forms.CharField(label="ملاحظات",required=False,widget=forms.Textarea(attrs={"rows":2}))
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields["members"].queryset=CommissionMember.objects.filter(status=CommissionMember.Status.ACTIVE).order_by("sign_order","name")
+
+    def clean_session_time(self):
+        value=self.cleaned_data.get("session_time","").strip()
+        if not value:return ""
+        import re
+        if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d",value):
+            raise ValidationError("ساعت جلسه باید به شکل HH:MM باشد.")
+        return value
+
+
+class CommissionCaseForm(forms.Form):
+    title=forms.CharField(label="عنوان موضوع",max_length=255)
+    description=forms.CharField(label="شرح موضوع",required=False,widget=forms.Textarea(attrs={"rows":3}))
+    reason=forms.CharField(label="علت طرح در کمیسیون",required=False,widget=forms.Textarea(attrs={"rows":2}))
+    case_type=forms.CharField(label="نوع موضوع",max_length=120,required=False)
+    referral_reference=forms.CharField(label="مرجع ارجاع",max_length=255,required=False)
+    responsible=forms.ModelChoiceField(label="مسئول پیگیری",queryset=get_user_model().objects.none(),required=False,empty_label="بدون مسئول فعلی")
+    follow_up_due_date=JalaliDateField(label="مهلت پیگیری",required=False)
+    spaces=forms.ModelMultipleChoiceField(label="فضاهای مرتبط",queryset=CommercialSpace.objects.none(),required=False)
+    contracts=forms.ModelMultipleChoiceField(label="قراردادهای مرتبط",queryset=Contract.objects.none(),required=False)
+    beneficiaries=forms.ModelMultipleChoiceField(label="بهره‌برداران مرتبط",queryset=Beneficiary.objects.none(),required=False)
+    auction_periods=forms.ModelMultipleChoiceField(label="دوره‌های مزایده مرتبط",queryset=AuctionPeriod.objects.none(),required=False)
+    notes=forms.CharField(label="ملاحظات",required=False,widget=forms.Textarea(attrs={"rows":2}))
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields["responsible"].queryset=get_user_model().objects.filter(is_active=True).order_by("username")
+        self.fields["spaces"].queryset=CommercialSpace.objects.order_by("code")
+        self.fields["contracts"].queryset=Contract.objects.select_related("space","beneficiary").order_by("-start_date","-pk")
+        self.fields["beneficiaries"].queryset=Beneficiary.objects.filter(archived_at__isnull=True).order_by("name")
+        self.fields["auction_periods"].queryset=AuctionPeriod.objects.order_by("-id")
+
+
+class CommissionDecisionForm(forms.Form):
+    identity=forms.CharField(label="شماره / شناسه تصمیم",max_length=120,required=False)
+    decision_date=JalaliDateField(label="تاریخ تصمیم",required=True)
+    decision_type=forms.CharField(label="نوع تصمیم / مصوبه",max_length=120,required=False)
+    decision=forms.CharField(label="متن رسمی تصمیم",widget=forms.Textarea(attrs={"rows":4}),required=True)
+    result=forms.CharField(label="نتیجه",max_length=255,required=False)
+    responsible=forms.ModelChoiceField(label="مسئول اجرا / پیگیری",queryset=get_user_model().objects.none(),required=False,empty_label="بدون مسئول")
+    due_date=JalaliDateField(label="مهلت اجرا",required=False)
+    execution_status=forms.ChoiceField(label="وضعیت اجرا",choices=CommissionDecision.ExecutionStatus.choices)
+    subsequent_action=forms.CharField(label="اقدام بعدی",required=False,widget=forms.Textarea(attrs={"rows":2}))
+    document=forms.ModelChoiceField(label="سند مرتبط",queryset=Document.objects.none(),required=False,empty_label="بدون سند")
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields["responsible"].queryset=get_user_model().objects.filter(is_active=True).order_by("username")
+        self.fields["document"].queryset=Document.objects.filter(archived_at__isnull=True).order_by("-uploaded_at")[:500]
+
+
+class CommissionFollowUpForm(forms.Form):
+    required_action=forms.CharField(label="اقدام موردنیاز",widget=forms.Textarea(attrs={"rows":2}))
+    responsible=forms.ModelChoiceField(label="مسئول پیگیری",queryset=get_user_model().objects.none(),required=False,empty_label="بدون مسئول")
+    responsible_unit=forms.CharField(label="واحد مسئول",max_length=255,required=False)
+    referred_date=JalaliDateField(label="تاریخ ارجاع",required=False)
+    due_date=JalaliDateField(label="مهلت",required=False)
+    status=forms.ChoiceField(label="وضعیت",choices=CommissionDecision.ExecutionStatus.choices)
+    completed_date=JalaliDateField(label="تاریخ انجام",required=False)
+    result=forms.CharField(label="نتیجه اقدام",required=False,widget=forms.Textarea(attrs={"rows":2}))
+    notes=forms.CharField(label="توضیحات",required=False,widget=forms.Textarea(attrs={"rows":2}))
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields["responsible"].queryset=get_user_model().objects.filter(is_active=True).order_by("username")
+
+
+class CommissionFollowUpTransitionForm(forms.Form):
+    status=forms.ChoiceField(label="وضعیت جدید",choices=CommissionDecision.ExecutionStatus.choices)
+    completed_date=JalaliDateField(label="تاریخ انجام",required=False)
+    result=forms.CharField(label="نتیجه اقدام",required=False,widget=forms.Textarea(attrs={"rows":2}))
+    note=forms.CharField(label="توضیح تغییر",required=False,widget=forms.Textarea(attrs={"rows":2}))
