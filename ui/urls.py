@@ -9,6 +9,7 @@ path('beneficiaries/new/',entry_views.beneficiary_create,name='beneficiary-creat
 path('beneficiaries/<int:pk>/',entry_views.beneficiary_detail,name='beneficiary-detail'),
 path('beneficiaries/<int:pk>/edit/',entry_views.beneficiary_edit,name='beneficiary-edit'),
 path('spaces/<str:code>/contracts/new/',entry_views.contract_create,name='contract-create'),
+path('spaces/<str:code>/beneficiaries/assign/',entry_views.beneficiary_assign,name='beneficiary-assign'),
 path('appraisers/new/',entry_views.appraiser_create,name='appraiser-create'),
 path('appraisers/<int:pk>/',entry_views.appraiser_detail,name='appraiser-detail'),
 path('appraisers/<int:pk>/edit/',entry_views.appraiser_edit,name='appraiser-edit'),
