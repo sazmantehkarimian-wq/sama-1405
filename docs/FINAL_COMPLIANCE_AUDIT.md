@@ -22,7 +22,8 @@
 | Search / Filter | PARTIAL | جست‌وجوی کلیدهای اصلی توسعه یافته؛ فیلتر تخصصی همه ماژول‌ها کامل نیست. |
 | Documents / FileMovement / Alerts / Workflow | EXISTING — REVIEW REQUIRED | پیاده‌سازی پایه موجود است؛ تطبیق نهایی Zero-Data/FROZEN هنوز باز است. |
 | Auction / Commission | EXISTING — REVIEW REQUIRED | موتور و گردش پایه وجود دارد؛ Gate نهایی بعد از تکمیل دامنه‌های وابسته لازم است. |
-| Utilities / Consumption | INCOMPLETE | مدل کامل FROZEN قبض/Allocation/Measurement/Snapshot هنوز تکمیل نشده است. |
+| Electricity core | PASS | Bill/Allocation/Measurement، اولویت داده واقعی، محاسبه سهم‌ها، Override مجاز، کنترل درصد/ریال، Final/Reopen، Rule Registry و Snapshot نسخه‌دار روی Zero-Data تست شده‌اند. |
+| Water / Gas / other utilities | PENDING | طبق FROZEN مستقل از فرمول برق طراحی و پیاده‌سازی می‌شوند. |
 | Official reports | REVIEW REQUIRED | موتور گزارش موجود است، ولی schema و ستون‌های جدید باید end-to-end بازآزمایی شوند. |
 | Backup / Restore | REVIEW REQUIRED | سازوکار موجود است؛ بعد از تثبیت migration chain باید Regression نهایی شود. |
 | Security / Auth | PASS در Quality tests | Password hashing، CSRF، throttle و user-management تست دارند. |
