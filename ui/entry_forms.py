@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from domains.contracts.models import Beneficiary, Contract
 from domains.documents.models import Document
 from domains.operations.models import (
-    Appraiser, AppraisalNotification, ElectricityAllocation,
+    Appraiser, AppraisalFee, AppraisalNotification, ElectricityAllocation,
     ElectricityConsumptionCategory, UtilityBill, UtilityConnection, UtilityMeasurement,
     UtilityParameterRule, UtilityUnit,
 )
@@ -623,3 +623,59 @@ class UtilityBillForm(forms.Form):
         if cleaned.get("payment_status")==UtilityBill.PaymentStatus.PAID and not cleaned.get("payment_date"):
             self.add_error("payment_date","برای قبض پرداخت‌شده، تاریخ پرداخت الزامی است.")
         return cleaned
+
+
+
+class AppraisalFeeCreateForm(forms.Form):
+    amount_rial=forms.DecimalField(label="مبلغ حق‌الزحمه (ریال)",min_value=1,decimal_places=0,max_digits=24)
+    follow_up_date=JalaliDateField(label="تاریخ پیگیری",required=False)
+    supporting_document=forms.ModelChoiceField(label="پیوست",queryset=Document.objects.none(),required=False,empty_label="بدون پیوست")
+    notes=forms.CharField(label="توضیحات",required=False,widget=forms.Textarea(attrs={"rows":3}))
+
+    def __init__(self,*args,appraisal=None,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.appraisal=appraisal
+        docs=Document.objects.none()
+        if appraisal:
+            docs=Document.objects.filter(entity_type="CommercialSpace",entity_id=appraisal.space.code,archived_at__isnull=True).order_by("-uploaded_at")
+        self.fields["supporting_document"].queryset=docs
+        self.fields["amount_rial"].widget.attrs.update({"inputmode":"numeric","min":"1"})
+
+
+class AppraisalFeeTransitionForm(forms.Form):
+    status=forms.ChoiceField(label="وضعیت جدید",choices=AppraisalFee.Status.choices)
+    sent_to_finance_date=JalaliDateField(label="تاریخ ارسال به مالی",required=False)
+    letter_number=forms.CharField(label="شماره نامه / گردش",max_length=120,required=False)
+    letter_date=JalaliDateField(label="تاریخ نامه / گردش",required=False)
+    payment_date=JalaliDateField(label="تاریخ پرداخت",required=False)
+    paid_amount_rial=forms.DecimalField(label="مبلغ پرداخت‌شده (ریال)",required=False,min_value=0,decimal_places=0,max_digits=24)
+    payment_reference=forms.CharField(label="مرجع پرداخت",max_length=255,required=False)
+    reason=forms.CharField(label="علت / توضیح",required=False,widget=forms.Textarea(attrs={"rows":2}))
+
+    def __init__(self,*args,fee=None,**kwargs):
+        self.fee=fee
+        super().__init__(*args,**kwargs)
+        self.fields["paid_amount_rial"].widget.attrs.update({"inputmode":"numeric","min":"0"})
+
+
+class AppraisalFeeAmountForm(forms.Form):
+    amount_rial=forms.DecimalField(label="مبلغ جدید حق‌الزحمه (ریال)",min_value=1,decimal_places=0,max_digits=24)
+    reason=forms.CharField(label="علت اصلاح",widget=forms.Textarea(attrs={"rows":2}))
+
+
+class ExpertFeeBatchForm(forms.Form):
+    fees=forms.ModelMultipleChoiceField(
+        label="حق‌الزحمه‌های آماده ارسال",
+        queryset=AppraisalFee.objects.none(),
+        widget=forms.SelectMultiple(attrs={"size":10}),
+    )
+    sent_date=JalaliDateField(label="تاریخ ارسال",required=True)
+    letter_number=forms.CharField(label="شماره نامه / گردش",max_length=120)
+    letter_date=JalaliDateField(label="تاریخ نامه / گردش",required=True)
+    notes=forms.CharField(label="توضیحات",required=False,widget=forms.Textarea(attrs={"rows":2}))
+
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields["fees"].queryset=AppraisalFee.objects.filter(
+            status=AppraisalFee.Status.READY_TO_SEND
+        ).select_related("appraisal__space","appraisal__appraiser_ref").order_by("appraisal__space__code")
