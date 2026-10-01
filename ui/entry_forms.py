@@ -1,10 +1,12 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
 from domains.contracts.models import Beneficiary, Contract
 from domains.documents.models import Document
 from domains.operations.models import (
-    Appraiser, AppraisalFee, AppraisalNotification, ElectricityAllocation,
+    Appraiser, AppraisalFee, AppraisalNotification, AuctionPeriod, CommissionDecision,
+    CommissionMember, CommissionSession, ElectricityAllocation,
     ElectricityConsumptionCategory, UtilityBill, UtilityConnection, UtilityMeasurement,
     UtilityParameterRule, UtilityUnit,
 )
