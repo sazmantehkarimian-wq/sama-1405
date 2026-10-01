@@ -171,3 +171,29 @@ def test_beneficiary_change_closes_previous_link_and_requires_reason(client):
     assert old.status=="ENDED" and old.end_date=="1405/07/31"
     assert old.termination_reason=="ابلاغ تغییر بهره‌بردار"
     assert new.status=="ACTIVE" and new.start_date=="1405/08/01"
+
+
+@pytest.mark.django_db
+def test_contract_does_not_duplicate_matching_beneficiary_assignment_and_rejects_mismatch(client):
+    user=get_user_model().objects.create_user("contract-beneficiary-consistency",password="A-very-safe-password")
+    client.force_login(user)
+    space=CommercialSpace.objects.create(code="6112",name="فضا",status="ACTIVE")
+    first=Beneficiary.objects.create(kind="NATURAL",name="بهره‌بردار اول",first_name="بهره‌بردار",last_name="اول")
+    second=Beneficiary.objects.create(kind="LEGAL",name="شرکت دوم",legal_name="شرکت دوم")
+
+    assert client.post("/spaces/6112/beneficiaries/assign/",{
+        "beneficiary":first.pk,"start_date":"1405/07/01","basis":"بهره‌برداری جاری",
+    }).status_code==302
+
+    response=client.post("/spaces/6112/contracts/new/",{
+        "beneficiary":first.pk,"number":"C-MATCH","start_date":"1405/08/01","end_date":"1405/12/29",
+    })
+    assert response.status_code==302
+    assert first.space_assignments.filter(space=space).count()==1
+
+    mismatch=client.post("/spaces/6112/contracts/new/",{
+        "beneficiary":second.pk,"number":"C-MISMATCH","start_date":"1406/01/01","end_date":"1406/12/29",
+    })
+    assert mismatch.status_code==200
+    assert not Contract.objects.filter(number="C-MISMATCH").exists()
+    assert "ابتدا تغییر بهره‌بردار" in mismatch.content.decode()
