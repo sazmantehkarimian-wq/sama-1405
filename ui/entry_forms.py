@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from domains.contracts.models import Beneficiary, Contract
 from domains.documents.models import Document
 from domains.operations.models import (
-    Appraiser, AppraisalFee, AppraisalNotification, AuctionPeriod, CommissionDecision,
+    Appraiser, AppraisalFee, AppraisalNotification, AuctionInstruction, AuctionPeriod, CommissionDecision,
     CommissionMember, CommissionSession, ElectricityAllocation,
     ElectricityConsumptionCategory, UtilityBill, UtilityConnection, UtilityMeasurement,
     UtilityParameterRule, UtilityUnit,
@@ -777,3 +777,28 @@ class CommissionFollowUpTransitionForm(forms.Form):
     completed_date=JalaliDateField(label="تاریخ انجام",required=False)
     result=forms.CharField(label="نتیجه اقدام",required=False,widget=forms.Textarea(attrs={"rows":2}))
     note=forms.CharField(label="توضیح تغییر",required=False,widget=forms.Textarea(attrs={"rows":2}))
+
+
+
+class AuctionInstructionForm(forms.Form):
+    space=forms.ModelChoiceField(label="فضای تجاری",queryset=CommercialSpace.objects.none())
+    source=forms.ChoiceField(label="منبع دستور",choices=AuctionInstruction.Source.choices)
+    direction=forms.ChoiceField(label="جهت اثر",choices=AuctionInstruction.Direction.choices)
+    reason=forms.CharField(label="علت",widget=forms.Textarea(attrs={"rows":2}))
+    reference=forms.CharField(label="مرجع / شماره مستند",max_length=255)
+    effective_from=JalaliDateField(label="شروع اثر",required=True)
+    effective_to=JalaliDateField(label="پایان اثر",required=False)
+    commission_decision=forms.ModelChoiceField(
+        label="تصمیم کمیسیون مرتبط",queryset=CommissionDecision.objects.none(),required=False,
+        empty_label="بدون تصمیم کمیسیون",
+    )
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields["space"].queryset=CommercialSpace.objects.order_by("code")
+        self.fields["commission_decision"].queryset=CommissionDecision.objects.filter(case__isnull=False).order_by("-decision_date","-pk")
+
+    def clean(self):
+        cleaned=super().clean()
+        if cleaned.get("source")==AuctionInstruction.Source.COMMISSION and not cleaned.get("commission_decision"):
+            self.add_error("commission_decision","برای دستور کمیسیون، انتخاب تصمیم کمیسیون الزامی است.")
+        return cleaned
