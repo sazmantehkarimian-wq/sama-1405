@@ -1,6 +1,14 @@
 from django.db import migrations
 
 FORWARD = """
+CREATE TRIGGER IF NOT EXISTS validate_commercial_space_code_insert
+BEFORE INSERT ON properties_commercialspace
+FOR EACH ROW
+WHEN NEW.code IS NULL OR NEW.code = '' OR NEW.code GLOB '*[^0-9]*' OR substr(NEW.code, 1, 1) = '0'
+BEGIN
+    SELECT RAISE(ABORT, 'commercial space code must be a positive numeric code without leading zero');
+END;
+
 CREATE TRIGGER IF NOT EXISTS protect_commercial_space_code
 BEFORE UPDATE OF code ON properties_commercialspace
 FOR EACH ROW
@@ -19,6 +27,7 @@ END;
 """
 
 REVERSE = """
+DROP TRIGGER IF EXISTS validate_commercial_space_code_insert;
 DROP TRIGGER IF EXISTS protect_commercial_space_code;
 DROP TRIGGER IF EXISTS protect_mother_property_identifier;
 """
