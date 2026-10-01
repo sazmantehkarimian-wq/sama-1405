@@ -10,7 +10,7 @@ from domains.properties.models import CommercialSpace,Region,Center,MotherProper
 from domains.registry.models import Discrepancy
 from domains.identity.models import UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
 from domains.contracts.models import Contract, Beneficiary
-from domains.operations.models import Appraiser, Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, UtilityBill, UtilityConnection, UtilityMeasurement, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
+from domains.operations.models import Appraiser, Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, ExpertFeePaymentBatch, UtilityBill, UtilityConnection, UtilityMeasurement, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
 from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from services.file_movement import current_holder
@@ -109,6 +109,101 @@ def utility_bills_excel(request):
  )
 
 
+def _filtered_expert_fees(params):
+ qs=AppraisalFee.objects.select_related(
+  'appraisal','appraisal__space','appraisal__space__region','appraisal__appraiser_ref','supporting_document'
+ ).prefetch_related('batch_items__batch').order_by('-created_at','-pk')
+ q=(params.get('q') or '').strip()
+ if q:
+  condition=(
+   Q(appraisal__space__code__iexact=q)
+   |Q(appraisal__space__name__icontains=q)
+   |Q(appraisal__appraiser__icontains=q)
+   |Q(appraisal__appraiser_ref__first_name__icontains=q)
+   |Q(appraisal__appraiser_ref__last_name__icontains=q)
+   |Q(letter_number__icontains=q)
+   |Q(payment_reference__icontains=q)
+  )
+  pk=_system_pk(q,'FEE')
+  if pk:condition|=Q(pk=pk)
+  qs=qs.filter(condition)
+ status=(params.get('status') or '').strip()
+ if status in AppraisalFee.Status.values:qs=qs.filter(status=status)
+ region=(params.get('region') or '').strip()
+ if region.isdigit():qs=qs.filter(appraisal__space__region_id=region)
+ appraisal_from=(params.get('appraisal_from') or '').strip()
+ appraisal_to=(params.get('appraisal_to') or '').strip()
+ if appraisal_from:qs=qs.filter(appraisal__appraisal_date__gte=appraisal_from)
+ if appraisal_to:qs=qs.filter(appraisal__appraisal_date__lte=appraisal_to)
+ sent_from=(params.get('sent_from') or '').strip()
+ sent_to=(params.get('sent_to') or '').strip()
+ if sent_from:qs=qs.filter(sent_to_finance_date__gte=sent_from)
+ if sent_to:qs=qs.filter(sent_to_finance_date__lte=sent_to)
+ paid_from=(params.get('paid_from') or '').strip()
+ paid_to=(params.get('paid_to') or '').strip()
+ if paid_from:qs=qs.filter(payment_date__gte=paid_from)
+ if paid_to:qs=qs.filter(payment_date__lte=paid_to)
+ batch=(params.get('batch') or '').strip()
+ if batch:qs=qs.filter(batch_items__active=True,batch_items__batch__code__icontains=batch)
+ payment=(params.get('payment') or '').strip()
+ if payment=='paid':qs=qs.filter(status__in=[AppraisalFee.Status.PAID,AppraisalFee.Status.CLOSED])
+ elif payment=='unpaid':qs=qs.exclude(status__in=[AppraisalFee.Status.PAID,AppraisalFee.Status.CLOSED])
+ return qs.distinct()
+
+
+@login_required
+def expert_fee_dashboard(request):
+ qs=_filtered_expert_fees(request.GET)
+ page=Paginator(qs,50).get_page(request.GET.get('page'))
+ totals=qs.aggregate(total_amount=Sum('amount_rial'),paid_amount=Sum('paid_amount_rial'))
+ total_amount=totals['total_amount'] or 0
+ paid_amount=totals['paid_amount'] or 0
+ context={
+  'page':page,
+  'fee_count':qs.count(),
+  'entered_count':qs.filter(status=AppraisalFee.Status.FEE_ENTERED).count(),
+  'ready_count':qs.filter(status=AppraisalFee.Status.READY_TO_SEND).count(),
+  'sent_count':qs.filter(status=AppraisalFee.Status.SENT_TO_FINANCE).count(),
+  'progress_count':qs.filter(status=AppraisalFee.Status.IN_PROGRESS).count(),
+  'paid_count':qs.filter(status__in=[AppraisalFee.Status.PAID,AppraisalFee.Status.CLOSED]).count(),
+  'correction_count':qs.filter(status=AppraisalFee.Status.NEEDS_CORRECTION).count(),
+  'total_amount':total_amount,'paid_amount':paid_amount,'pending_amount':total_amount-paid_amount,
+  'statuses':AppraisalFee.Status.choices,'regions':Region.objects.order_by('name'),
+  'batches':ExpertFeePaymentBatch.objects.prefetch_related('items__fee').order_by('-created_at','-pk')[:30],
+ }
+ return render(request,'ui/expert_fee_dashboard.html',context)
+
+
+@login_required
+def expert_fees_excel(request):
+ qs=_filtered_expert_fees(request.GET)
+ labels=[
+  'کد حق‌الزحمه','کد کارشناسی','کد فضا','نام فضا','منطقه','کارشناس','کد کارشناس',
+  'تاریخ کارشناسی','مبلغ کارشناسی (ریال)','مبلغ حق‌الزحمه (ریال)','وضعیت',
+  'تاریخ ارسال به مالی','شماره نامه / گردش','تاریخ نامه / گردش',
+  'تاریخ پرداخت','مبلغ پرداخت‌شده (ریال)','مرجع پرداخت','Batch',
+ ]
+ def data():
+  for item in qs[:10000]:
+   active_batch=next((x.batch for x in item.batch_items.all() if x.active),None)
+   expert=item.appraisal.appraiser_ref
+   yield [
+    item.sama_code,item.appraisal.sama_code,item.appraisal.space.code,item.appraisal.space.name or '—',
+    item.appraisal.space.region.name if item.appraisal.space.region else '—',
+    item.appraisal.appraiser_display,expert.sama_code if expert else '—',
+    item.appraisal.appraisal_date or '—',item.appraisal.amount_rial if item.appraisal.amount_rial is not None else '—',
+    item.amount_rial,item.get_status_display(),item.sent_to_finance_date or '—',item.letter_number or '—',
+    item.letter_date or '—',item.payment_date or '—',
+    item.paid_amount_rial if item.paid_amount_rial is not None else '—',item.payment_reference or '—',
+    active_batch.sama_code if active_batch else '—',
+   ]
+ return HttpResponse(
+  tabular_excel('حق‌الزحمه کارشناسان',labels,data()),
+  content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  headers={'Content-Disposition':'attachment; filename="expert-fees.xlsx"'},
+ )
+
+
 @login_required
 def dashboard(request):
  spaces=CommercialSpace.objects.all();active=spaces.filter(status='ACTIVE')
@@ -179,7 +274,7 @@ DOMAIN_LISTS={
  'beneficiaries':('بهره‌برداران',Beneficiary.objects.all(),(('sama_code','کد بهره‌بردار'),('name','نام / عنوان'),('identity_number','کد ملی / شناسه ملی'),('kind','نوع'),('completeness_status','وضعیت تکمیل'))),
  'appraisers':('کارشناسان',Appraiser.objects.all(),(('sama_code','کد کارشناس'),('full_name','نام کارشناس'),('license_number','شماره پروانه'),('specialty','رشته / صلاحیت'),('collaboration_status','وضعیت همکاری'))),
  'appraisals':('کارشناسی',Appraisal.objects.select_related('space','appraiser_ref'),(('sama_code','کد کارشناسی'),('space.code','کد فضا'),('appraiser_display','کارشناس'),('response_number','شماره جواب'),('response_date','تاریخ جواب'),('appraisal_date','تاریخ کارشناسی'),('amount_rial','مبلغ (ریال)'),('status','وضعیت'))),
- 'fees':('حق‌الزحمه کارشناسی',AppraisalFee.objects.select_related('appraisal__space'),(('appraisal.space.code','کد فضا'),('amount_rial','مبلغ (ریال)'),('payment_status','پرداخت'),('payment_date','تاریخ پرداخت'),('follow_up_date','پیگیری'))),
+ 'fees':('حق‌الزحمه کارشناسی',AppraisalFee.objects.select_related('appraisal__space','appraisal__appraiser_ref'),(('sama_code','کد حق‌الزحمه'),('appraisal.space.code','کد فضا'),('appraisal.appraiser_display','کارشناس'),('amount_rial','مبلغ (ریال)'),('status','وضعیت'),('sent_to_finance_date','ارسال به مالی'),('letter_number','شماره نامه'),('payment_date','تاریخ پرداخت'),('payment_reference','مرجع پرداخت'))),
  'auctions':('مزایده‌ها',Auction.objects.select_related('space'),(('space.code','کد فضا'),('year','سال'),('sequence','نوبت'),('stage','مرحله'),('result','نتیجه'))),
  'commissions':('کمیسیون معاملات',CommissionDecision.objects.all(),(('identity','شناسه'),('decision_date','تاریخ'),('subject','موضوع'),('decision','تصمیم'))),
  'utilities':('انشعابات و مصرف',UtilityRecord.objects.select_related('space'),(('space.code','کد فضا'),('utility_type','نوع'),('account_number','اشتراک'),('bill_amount_rial','مبلغ قبض (ریال)'),('payment_status','پرداخت'))),
@@ -219,7 +314,10 @@ def _search_domain(qs,domain,q):
   if pk:condition|=Q(pk=pk)
   return qs.filter(condition).distinct()
  if domain=='fees':
-  return qs.filter(Q(appraisal__space__code__iexact=q)|Q(appraisal__appraiser__icontains=q)|Q(payment_reference__icontains=q))
+  condition=Q(appraisal__space__code__iexact=q)|Q(appraisal__space__name__icontains=q)|Q(appraisal__appraiser__icontains=q)|Q(letter_number__icontains=q)|Q(payment_reference__icontains=q)
+  pk=_system_pk(q,'FEE')
+  if pk:condition|=Q(pk=pk)
+  return qs.filter(condition)
  if domain in {'auctions','utilities','workflows','alerts'}:
   return qs.filter(space__code__iexact=q)
  if domain=='beneficiaries':
