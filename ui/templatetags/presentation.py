@@ -31,7 +31,7 @@ _EVENT_LABELS = {
     'SOURCE_HISTORY':'سابقه منبع','BENEFICIARY_HISTORY':'سابقه بهره‌بردار','CONTRACT_HISTORY':'سابقه قرارداد',
     'APPRAISAL_HISTORY':'سابقه کارشناسی','AUCTION_HISTORY':'سابقه مزایده','DECISION_HISTORY':'مصوبه یا دستور',
     'UTILITY_OBLIGATION_HISTORY':'تعهد انشعاب','DOCUMENT_REFERENCE_HISTORY':'مرجع سند','CONTRACT_CREATE':'ثبت قرارداد',
-    'CONTRACT_AMENDMENT':'ثبت الحاقیه','APPRAISAL_CREATE':'ثبت کارشناسی','APPRAISAL_FEE_CREATE':'ثبت حق‌الزحمه',
+    'CONTRACT_AMENDMENT':'ثبت الحاقیه','APPRAISAL_CREATE':'ثبت کارشناسی','APPRAISAL_FEE_CREATE':'ثبت حق‌الزحمه','APPRAISAL_FEE_TRANSITION':'تغییر وضعیت حق‌الزحمه',
     'UTILITY_RECORD_CREATE':'ثبت مصرف','WORKFLOW_CREATE':'ایجاد فرایند','WORKFLOW_TRANSITION':'تغییر فرایند',
     'COMMISSION_CREATE':'تصمیم کمیسیون','COMMISSION_TRANSITION':'تغییر تصمیم کمیسیون','ALERT_CREATE':'ثبت مورد پیگیری',
     'ALERT_RESOLVE':'مختومه‌سازی مورد پیگیری','FILE_MOVEMENT_CREATE':'تحویل فیزیکی پرونده','FILE_MOVEMENT_RETURN':'بازگشت پرونده','SPACE_STATUS_TRANSITION':'تغییر وضعیت فضا',
