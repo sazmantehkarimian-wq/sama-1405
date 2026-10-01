@@ -60,7 +60,7 @@ def test_five_authenticated_users_can_commit_independent_operational_writes():
 @pytest.mark.django_db
 def test_fee_utility_and_workflow_commands_validate_and_audit(client):
  from domains.operations.models import Appraisal,AppraisalFee,UtilityRecord,WorkflowInstance,TimelineEvent
-  user=get_user_model().objects.create_user('operator2',password='A-very-safe-password')
+ user=get_user_model().objects.create_user('operator2',password='A-very-safe-password')
  client.force_login(user)
  space=CommercialSpace.objects.create(code='502',name='فضا',status='ACTIVE')
  appraisal=Appraisal.objects.create(space=space,amount_rial=100)
