@@ -24,7 +24,12 @@ _REASON_LABELS = {
     "CONTRACT_EXPIRING": "قرارداد در آستانه پایان است", "DATA_INCOMPLETE": "اطلاعات پرونده کامل نیست",
     "NOT_CANDIDATE_SPACE_OUT_OF_CYCLE": "فضا خارج از چرخه است", "REVIEW_MISSING_CONTRACT_AMOUNT": "مبلغ قرارداد ثبت نشده است",
     "NOT_CANDIDATE_LEVEL_JOZ": "سطح معامله مشمول مزایده نیست", "CANDIDATE_CONTRACT_WINDOW": "قرارداد در بازه زمانی مصوب پایان است",
-    "REVIEW_MISSING_APPRAISAL": "کارشناسی معتبر ثبت نشده است", "NOT_CANDIDATE_OUTSIDE_TIME_WINDOW": "قرارداد خارج از بازه زمانی مصوب است",
+    "REVIEW_MISSING_APPRAISAL": "کارشناسی مرجع معتبر ثبت نشده است", "NOT_CANDIDATE_OUTSIDE_TIME_WINDOW": "قرارداد خارج از بازه زمانی مصوب است",
+    "NOT_CANDIDATE_CONTRACT_OUTSIDE_WINDOW": "قرارداد خارج از پنجره زمانی مصوب است",
+    "ACTION_APPRAISAL_EXPIRES_BEFORE_AUCTION": "کارشناسی تا تاریخ برنامه‌ریزی‌شده مزایده منقضی می‌شود",
+    "CONFLICTING_AUTHORIZED_INSTRUCTIONS": "دستورات معتبر متعارض وجود دارد و نیازمند بررسی رسمی است",
+    "BLOCKED_BY_MANUAL_EXCLUSION": "بر اساس دستور معتبر از ورود خودکار جلوگیری شده است",
+    "INCLUDED_BY_MANUAL_OVERRIDE": "بر اساس دستور معتبر وارد فهرست کاندیدا شده است",
     "CANDIDATE_NO_CONTRACT_VALID_APPRAISAL": "بدون قرارداد و دارای کارشناسی معتبر است", "CANDIDATE_STICKY_PREVIOUS_VALID_DECISION": "تصمیم معتبر پیشین حفظ شده است",
 }
 _EVENT_LABELS = {
@@ -36,6 +41,10 @@ _EVENT_LABELS = {
     'COMMISSION_CREATE':'تصمیم کمیسیون','COMMISSION_TRANSITION':'تغییر تصمیم کمیسیون','ALERT_CREATE':'ثبت مورد پیگیری',
     'ALERT_RESOLVE':'مختومه‌سازی مورد پیگیری','FILE_MOVEMENT_CREATE':'تحویل فیزیکی پرونده','FILE_MOVEMENT_RETURN':'بازگشت پرونده','SPACE_STATUS_TRANSITION':'تغییر وضعیت فضا',
     'AUCTION_EVALUATE':'بررسی آمادگی مزایده','AUCTION_LOT_ADD':'افزودن به دوره مزایده',
+    'AUCTION_INSTRUCTION_CREATE':'ثبت دستور مؤثر بر مزایده',
+    'COMMISSION_SESSION_CREATE':'ثبت جلسه کمیسیون','COMMISSION_CASE_CREATE':'طرح موضوع کمیسیون',
+    'COMMISSION_DECISION_CREATE':'ثبت تصمیم کمیسیون','COMMISSION_FOLLOWUP_CREATE':'ایجاد پیگیری مصوبه',
+    'COMMISSION_FOLLOWUP_TRANSITION':'تغییر وضعیت پیگیری مصوبه',
     'DOCUMENT_UPLOAD':'بارگذاری سند',
 }
 
