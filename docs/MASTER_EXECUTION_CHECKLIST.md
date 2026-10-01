@@ -23,7 +23,7 @@
 | پرونده کارشناسی ساختاری | PASS | کد `APR`، کارشناس ثبت‌شده، ابلاغ 1:N، جواب، تاریخ خود کارشناسی و مبلغ مستقل. |
 | یک کارشناسی مرجع جاری + تاریخچه | PASS | unique conditional DB constraint + سرویس تغییر مرجع؛ سابقه قبلی حفظ می‌شود. |
 | تاریخ‌های کارشناسی مستقل | PASS | تاریخ ابلاغ، تاریخ جواب و تاریخ خود کارشناسی فیلدهای جدا و Validation مستقل دارند. |
-| حق‌الزحمه کارشناسی | موجود / نیازمند بازبینی نهایی | فرآیند قبلی تراکنشی و Auditدار باقی است؛ باید با پرونده جدید Appraiser/Appraisal از نظر UI و Reference Status نهایی تطبیق شود. |
+| حق‌الزحمه کارشناسی | CORE PASS | گردش FROZEN شامل مبلغ دستی مستقل، وضعیت‌های کنترل‌شده، ارسال به مالی با نامه/تاریخ، پرداخت کامل با شرط برابری مبلغ، اصلاح مبلغ با Audit، Batch گروهی با عضویت فعال یکتا، KPI/Filter/Drill-down و XLSX رسمی پیاده و تست شد. PDF/Print اختصاصی این گزارش در Gate خروجی نهایی باز می‌ماند. |
 | مزایده و Rule Registry | موجود / نیازمند بازبینی نهایی | موتور نسخه‌دار و snapshot موجود است؛ باید بعد از تکمیل فرم‌های کارشناسی و قرارداد روی Zero-Data دوباره Gate نهایی شود. |
 | کمیسیون معاملات | موجود / نیازمند بازبینی نهایی | ایجاد/Transition/Audit موجود؛ بازبینی فرم‌ها و Reference Data باقی است. |
 | برق — Bill / Allocation / Measurement / Snapshot | PASS | مدل FROZEN برق روی Zero-Data پیاده شد: UtilityUnit، ElectricityBill، Allocation، Measurement، Category، Rule Registry، اولویت داده واقعی، Override مجاز، کنترل ۱۰۰٪، کنترل ریالی، Final/Reopen و Snapshot نسخه‌دار. |
@@ -48,8 +48,8 @@
 1. سبز نگه‌داشتن Quality Gate پس از هر تغییر Schema/Workflow.
 2. تکمیل بهره‌بردار مستقل از قرارداد و نمایش Current/History.
 3. تکمیل قرارداد، کارشناسان و کارشناسی بر اساس اسناد FROZEN.
-4. تکمیل گزارش‌ها و فیلترهای تخصصی آب/گاز و سایر انشعابات پس از تثبیت Core برق و Rule/Reference Data.
-5. تکمیل اسناد، گردش پرونده، هشدارها، کمیسیون و مزایده.
+4. تکمیل اسناد تخصصی، هشدارها، Workflow، کمیسیون و مزایده روی مدل Zero-Data.
+5. تکمیل خروجی‌های PDF/Print تخصصی، از جمله حق‌الزحمه و انشعابات.
 6. بازآزمایی Search/Filter/Report/Print روی schema نهایی.
 7. Backup/Restore و Security regression.
 8. ساخت Portable Windows Zero-Data، UAT واقعی و سپس تصمیم Owner.
