@@ -514,8 +514,9 @@ class ElectricityAllocationForm(forms.Form):
     override_reason = forms.CharField(label="علت Override", required=False, widget=forms.Textarea(attrs={"rows": 2}))
     notes = forms.CharField(label="توضیحات", required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
-    def __init__(self, *args, bill=None, **kwargs):
+    def __init__(self, *args, bill=None, actor=None, **kwargs):
         self.bill = bill
+        self.actor = actor
         super().__init__(*args, **kwargs)
         self.fields["space"].queryset = CommercialSpace.objects.order_by("code")
         self.fields["category"].queryset = ElectricityConsumptionCategory.objects.filter(active=True).order_by("name")
@@ -523,6 +524,9 @@ class ElectricityAllocationForm(forms.Form):
         if bill:
             measurements = measurements.filter(period_start__lte=bill.period_end, period_end__gte=bill.period_start)
         self.fields["measurement"].queryset = measurements.select_related("space").order_by("-reading_date", "-id")
+        if actor is not None and not actor.is_staff:
+            self.fields.pop("manual_override_percent", None)
+            self.fields.pop("override_reason", None)
 
     def clean(self):
         cleaned = super().clean()
