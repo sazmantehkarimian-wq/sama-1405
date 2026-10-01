@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from domains.contracts.models import Beneficiary, Contract
 from domains.operations.models import (
     Appraiser, AppraisalNotification, ElectricityAllocation,
-    ElectricityConsumptionCategory, UtilityMeasurement, UtilityUnit,
+    ElectricityConsumptionCategory, UtilityMeasurement, UtilityParameterRule, UtilityUnit,
 )
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
 from services.text import normalize_digits, normalize_persian_text, normalize_space_code
@@ -537,4 +537,39 @@ class ElectricityAllocationForm(forms.Form):
         override = cleaned.get("manual_override_percent")
         if override is not None and not cleaned.get("override_reason"):
             self.add_error("override_reason", "برای Override دستی، علت الزامی است.")
+        return cleaned
+
+
+
+class UtilityParameterRuleForm(forms.ModelForm):
+    effective_from = JalaliDateField(label="تاریخ اثر", required=True)
+    effective_to = JalaliDateField(label="پایان اعتبار", required=False)
+
+    class Meta:
+        model = UtilityParameterRule
+        fields = [
+            "key", "label", "value_decimal", "value_text", "unit",
+            "effective_from", "effective_to", "active", "notes",
+        ]
+        labels = {
+            "key": "کلید Rule / Parameter",
+            "label": "عنوان",
+            "value_decimal": "مقدار عددی",
+            "value_text": "مقدار متنی",
+            "unit": "واحد",
+            "active": "فعال",
+            "notes": "توضیحات",
+        }
+        widgets = {"notes": forms.Textarea(attrs={"rows": 2})}
+
+    def clean(self):
+        cleaned = super().clean()
+        numeric = cleaned.get("value_decimal")
+        text_value = (cleaned.get("value_text") or "").strip()
+        if numeric is None and not text_value:
+            raise ValidationError("حداقل یکی از مقدار عددی یا متنی باید ثبت شود.")
+        if numeric is not None and text_value:
+            raise ValidationError("برای هر Rule فقط یکی از مقدار عددی یا متنی را ثبت کنید.")
+        if cleaned.get("effective_from") and cleaned.get("effective_to") and cleaned["effective_from"] > cleaned["effective_to"]:
+            self.add_error("effective_to", "پایان اعتبار نمی‌تواند قبل از تاریخ اثر باشد.")
         return cleaned
