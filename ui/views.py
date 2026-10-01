@@ -177,9 +177,12 @@ def expert_fee_dashboard(request):
  totals=qs.aggregate(total_amount=Sum('amount_rial'),paid_amount=Sum('paid_amount_rial'))
  total_amount=totals['total_amount'] or 0
  paid_amount=totals['paid_amount'] or 0
+ missing_fees=Appraisal.objects.filter(appraiser_ref__isnull=False,fee__isnull=True).select_related('space','space__region','appraiser_ref').order_by('-appraisal_date','-pk')
  context={
   'page':page,
   'fee_count':qs.count(),
+  'missing_fee_count':missing_fees.count(),
+  'missing_fees':missing_fees[:100],
   'entered_count':qs.filter(status=AppraisalFee.Status.FEE_ENTERED).count(),
   'ready_count':qs.filter(status=AppraisalFee.Status.READY_TO_SEND).count(),
   'sent_count':qs.filter(status=AppraisalFee.Status.SENT_TO_FINANCE).count(),
