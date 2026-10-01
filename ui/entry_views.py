@@ -11,6 +11,7 @@ from domains.operations.models import (
     UtilityBill, UtilityConnection, UtilityMeasurement, UtilityParameterRule, UtilityUnit,
 )
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
+from services.auctions import create_instruction
 from services.commission import (
     create_case, create_case_decision, create_followup, create_session, transition_followup,
 )
@@ -27,7 +28,7 @@ from services.operations import (
 from services.utilities import create_utility_bill, create_utility_connection
 from ui.entry_forms import (
     AppraisalEntryForm, AppraisalFeeAmountForm, AppraisalFeeCreateForm, AppraisalFeeTransitionForm,
-    AppraiserForm, BeneficiaryAssignmentForm, BeneficiaryForm,
+    AppraiserForm, AuctionInstructionForm, BeneficiaryAssignmentForm, BeneficiaryForm,
     CenterForm, CommercialSpaceForm, CommissionCaseForm, CommissionDecisionForm,
     CommissionFollowUpForm, CommissionFollowUpTransitionForm, CommissionMemberForm,
     CommissionSessionForm, ContractEntryForm, ElectricityAllocationForm, ExpertFeeBatchForm,
@@ -1182,4 +1183,29 @@ def commission_followup_transition(request,followup_id):
         "form":form,"title":"تغییر وضعیت پیگیری مصوبه",
         "subtitle":f"وضعیت فعلی: {followup.get_status_display()}",
         "cancel_url":"commission-session-detail","cancel_kwargs":{"session_id":followup.decision.case.session_id},
+    })
+
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+@transaction.atomic
+def auction_instruction_create(request):
+    form=AuctionInstructionForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            item=create_instruction(
+                space=form.cleaned_data["space"],actor=request.user,values=form.cleaned_data,
+                commission_decision=form.cleaned_data.get("commission_decision"),ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,f"دستور {item.sama_code} ثبت شد.")
+            return redirect("auction-workspace")
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":"ثبت دستور مؤثر بر مزایده",
+        "subtitle":"دستور کمیسیون، مدیر و ورود دستی مجاز هم‌تراز ثبت می‌شوند؛ تعارض مستقیم باعث REVIEW_REQUIRED می‌شود.",
+        "cancel_url":"auction-workspace",
     })
