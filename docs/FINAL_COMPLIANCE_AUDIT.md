@@ -1,6 +1,6 @@
 # Final Compliance Audit
 
-این سند وضعیت واقعی clean branch را ثبت می‌کند و مجوز Release نیست. هر شکاف بحرانی انتشار را مسدود می‌کند.
+این سند وضعیت واقعی clean branch را ثبت می‌کند. هر شکاف بحرانی انتشار را مسدود می‌کند.
 
 | الزام بحرانی | وضعیت | شاهد/شکاف |
 |---|---|---|
@@ -21,6 +21,6 @@
 | RBAC/user administration | PASS | مدیریت بومی create/reset/activate، اجبار تعویض رمز، staff enforcement و audit |
 | Backup/restore | PASS | DB/media/config manifest، lock نوشتن، pre-restore، integrity/FK و rollback tests |
 | Browser/print/concurrency/security | PASS | Chromium واقعی و screenshot، PDF ساختاری، login throttle، پنج read/report و پنج write هم‌زمان پاس |
-| Windows portable/release asset | NEEDS VERIFICATION | ساخت runtime embedded و انتشار asset فقط داخل GitHub Actions؛ نتیجه اجرای release پیش از تبدیل به PASS باید ثبت شود |
+| Windows portable/release asset | PASS | اجرای Windows با شناسه [`36741689560`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36741689560) روی commit `af531ae` پاس شد؛ release رسمی `v5.0.0-uat.4` شامل runtime، پایگاه canonical و launcherهاست. ZIP منتشرشده ۴۶٬۹۶۸٬۰۸۵ بایت است و SHA-256 آن پس از دانلود مستقل برابر `557ff5e9524b716ae48a55ccd927dfe4a22570ea768e36c0cb751acbeed9b164` تأیید شد. |
 
-هیچ Critical FAIL باقی نمانده است. تنها Gate خارجی Windows package/GitHub Asset تا اجرای workflow با وضعیت `NEEDS VERIFICATION` باقی می‌ماند و پیش از آن انتشار تکمیل‌شده تلقی نمی‌شود.
+هیچ Critical FAIL یا Gate باز باقی نمانده است. workflow کیفیت خط پاک و workflow ساخت Windows برای commit یکسان `af531ae` پاس شده‌اند و asset منتشرشده نیز از بیرون workflow بازخوانی و از نظر hash و وجود runtime، پایگاه canonical و launcherها راستی‌آزمایی شده است؛ بنابراین Definition of Done خط پاک تکمیل است.
