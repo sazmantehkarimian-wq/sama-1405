@@ -59,11 +59,12 @@ def test_five_authenticated_users_can_commit_independent_operational_writes():
 
 @pytest.mark.django_db
 def test_fee_utility_and_workflow_commands_validate_and_audit(client):
- from domains.operations.models import Appraisal,AppraisalFee,UtilityRecord,WorkflowInstance,TimelineEvent
+ from domains.operations.models import Appraiser,Appraisal,AppraisalFee,UtilityRecord,WorkflowInstance,TimelineEvent
  user=get_user_model().objects.create_user('operator2',password='A-very-safe-password')
  client.force_login(user)
  space=CommercialSpace.objects.create(code='502',name='فضا',status='ACTIVE')
- appraisal=Appraisal.objects.create(space=space,amount_rial=100)
+ appraiser=Appraiser.objects.create(first_name='کارشناس',last_name='آزمون',created_by=user)
+ appraisal=Appraisal.objects.create(space=space,appraiser_ref=appraiser,appraiser=appraiser.full_name,amount_rial=100)
  response=client.post(f'/appraisals/{appraisal.pk}/fee/',{'amount_rial':'1200000','payment_status':'PENDING','follow_up_date':'1405/07/20'})
  assert response.status_code==302 and AppraisalFee.objects.get(appraisal=appraisal).amount_rial==1200000
  payload={'utility_type':'WATER','account_number':'123','period_start':'1405/07/01','period_end':'1405/07/30','bill_amount_rial':'1000','organization_share_rial':'400','beneficiary_share_rial':'500','calculation_basis':'قرائت کنتور','payment_status':'UNPAID'}
