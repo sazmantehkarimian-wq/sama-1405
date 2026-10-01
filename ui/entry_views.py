@@ -3,9 +3,14 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
+from domains.contracts.models import Beneficiary
 from domains.identity.models import AuditEvent
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
-from ui.entry_forms import CenterForm, CommercialSpaceForm, MotherPropertyForm, RegionForm
+from services.contracts import create_contract
+from ui.entry_forms import (
+    BeneficiaryForm, CenterForm, CommercialSpaceForm, ContractEntryForm,
+    MotherPropertyForm, RegionForm,
+)
 
 
 def _ip(request):
@@ -234,5 +239,149 @@ def location_settings(request):
             "center_form": center_form,
             "regions": Region.objects.order_by("code"),
             "centers": Center.objects.select_related("region").order_by("name"),
+        },
+    )
+
+
+
+@login_required
+@transaction.atomic
+def beneficiary_create(request):
+    form = BeneficiaryForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        beneficiary = form.save(commit=False)
+        beneficiary.created_by = request.user
+        beneficiary.save()
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="BENEFICIARY_CREATE",
+            entity_type="Beneficiary",
+            entity_id=str(beneficiary.pk),
+            after={
+                "code": beneficiary.sama_code,
+                "kind": beneficiary.kind,
+                "name": beneficiary.name,
+                "identity_number": beneficiary.identity_number,
+            },
+            ip_address=_ip(request),
+        )
+        messages.success(request, f"پرونده بهره‌بردار {beneficiary.sama_code} ایجاد شد.")
+        return redirect("beneficiary-detail", pk=beneficiary.pk)
+    return render(
+        request,
+        "ui/entity_form.html",
+        {
+            "form": form,
+            "title": "ثبت بهره‌بردار",
+            "subtitle": "شخص حقیقی و حقوقی با ساختار هویتی مستقل ثبت می‌شوند. نبود شناسه هویتی مانع ثبت اولیه نیست.",
+            "cancel_url": "domain-list",
+            "cancel_kwargs": {"domain": "beneficiaries"},
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def beneficiary_edit(request, pk):
+    beneficiary = get_object_or_404(Beneficiary, pk=pk, archived_at__isnull=True)
+    before = {
+        "kind": beneficiary.kind,
+        "name": beneficiary.name,
+        "identity_number": beneficiary.identity_number,
+        "mobile": beneficiary.mobile,
+        "phone": beneficiary.phone,
+        "address": beneficiary.address,
+        "representative_name": beneficiary.representative_name,
+    }
+    form = BeneficiaryForm(request.POST or None, instance=beneficiary)
+    if request.method == "POST" and form.is_valid():
+        updated = form.save()
+        after = {
+            "kind": updated.kind,
+            "name": updated.name,
+            "identity_number": updated.identity_number,
+            "mobile": updated.mobile,
+            "phone": updated.phone,
+            "address": updated.address,
+            "representative_name": updated.representative_name,
+        }
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="BENEFICIARY_UPDATE",
+            entity_type="Beneficiary",
+            entity_id=str(updated.pk),
+            before=before,
+            after=after,
+            reason=request.POST.get("change_reason", "").strip(),
+            ip_address=_ip(request),
+        )
+        messages.success(request, "اطلاعات بهره‌بردار به‌روزرسانی شد.")
+        return redirect("beneficiary-detail", pk=updated.pk)
+    return render(
+        request,
+        "ui/entity_form.html",
+        {
+            "form": form,
+            "title": f"ویرایش بهره‌بردار {beneficiary.sama_code}",
+            "subtitle": "سوابق قرارداد و ارتباط با فضا از پرونده‌های اصلی خود خوانده می‌شوند و overwrite نمی‌شوند.",
+            "cancel_url": "beneficiary-detail",
+            "cancel_kwargs": {"pk": beneficiary.pk},
+            "show_change_reason": True,
+        },
+    )
+
+
+@login_required
+def beneficiary_detail(request, pk):
+    beneficiary = get_object_or_404(Beneficiary, pk=pk, archived_at__isnull=True)
+    assignments = beneficiary.space_assignments.select_related("space").order_by("-start_date", "-id")
+    contracts = beneficiary.contracts.select_related("space").order_by("-start_date", "-id")
+    audit = AuditEvent.objects.filter(entity_type="Beneficiary", entity_id=str(beneficiary.pk)).order_by("-created_at")[:100]
+    return render(
+        request,
+        "ui/beneficiary_detail.html",
+        {
+            "beneficiary": beneficiary,
+            "assignments": assignments,
+            "contracts": contracts,
+            "audit_events": audit,
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def contract_create(request, code):
+    space = get_object_or_404(CommercialSpace, code=code)
+    form = ContractEntryForm(request.POST or None, space=space)
+    if request.method == "POST" and form.is_valid():
+        try:
+            contract = create_contract(
+                space=space,
+                beneficiary=form.cleaned_data["beneficiary"],
+                actor=request.user,
+                values=form.cleaned_data,
+                ip_address=_ip(request),
+            )
+        except Exception as exc:
+            from django.core.exceptions import ValidationError
+            if isinstance(exc, ValidationError):
+                form.add_error(None, " ".join(exc.messages))
+            else:
+                raise
+        else:
+            messages.success(request, f"قرارداد {contract.number} ثبت شد.")
+            return redirect("space-detail", code=space.code)
+    return render(
+        request,
+        "ui/entity_form.html",
+        {
+            "form": form,
+            "title": f"ثبت قرارداد برای فضای {space.code}",
+            "subtitle": "بهره‌بردار باید قبلاً پرونده مستقل داشته باشد. سامانه بازه قراردادهای همین کد فضا را کنترل می‌کند.",
+            "cancel_url": "space-detail",
+            "cancel_kwargs": {"code": space.code},
+            "secondary_action_url": "beneficiary-create",
+            "secondary_action_label": "ثبت بهره‌بردار جدید",
         },
     )
