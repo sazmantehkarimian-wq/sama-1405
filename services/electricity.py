@@ -458,6 +458,35 @@ def _snapshot_payload(bill):
     }
 
 
+
+def electricity_bill_issues(bill):
+    issues = []
+    allocations = list(bill.allocations.select_related("space", "measurement", "category"))
+    eligible = [item for item in allocations if item.eligible]
+    if not eligible:
+        issues.append(("NO_ELIGIBLE_SPACE", "قبض فعال بدون فضای مشمول است."))
+    if bill.beneficiary_share_percent + bill.organization_share_percent != HUNDRED:
+        issues.append(("INVALID_TOTAL_SHARES", "جمع سهم بهره‌برداران و سازمان ۱۰۰٪ نیست."))
+    final_sum = sum((item.final_share_percent for item in eligible), ZERO)
+    if final_sum != bill.beneficiary_share_percent:
+        issues.append(("SPACE_SHARE_MISMATCH", "مجموع سهم نهایی فضاها با سهم کل بهره‌برداران برابر نیست."))
+    if any(item.confidence_level in {
+        ElectricityAllocation.Confidence.INCOMPLETE,
+        ElectricityAllocation.Confidence.REVIEW,
+    } for item in eligible):
+        issues.append(("INCOMPLETE_DATA", "حداقل یک فضای مشمول داده ناقص یا نیازمند بررسی دارد."))
+    if any(item.manual_override_percent is not None and not item.override_reason.strip() for item in eligible):
+        issues.append(("OVERRIDE_WITHOUT_REASON", "سهم دستی بدون علت ثبت شده است."))
+    if any(item.measurement_id and not item.measurement.is_valid for item in eligible):
+        issues.append(("INVALID_MEASUREMENT", "Measurement نامعتبر به تخصیص متصل است."))
+    if bill.status in {ElectricityBill.Status.CALCULATED, ElectricityBill.Status.FINAL}:
+        organization_amount = bill.organization_amount_rial
+        space_amount = sum((item.payable_amount_rial or ZERO for item in eligible), ZERO)
+        if space_amount + organization_amount != bill.amount_rial:
+            issues.append(("RIAL_MISMATCH", "جمع ریالی سهم فضاها و سازمان با مبلغ قبض برابر نیست."))
+    return issues
+
+
 @retry_locked
 @transaction.atomic
 def finalize_electricity_bill(*, bill, actor, ip_address=None):
