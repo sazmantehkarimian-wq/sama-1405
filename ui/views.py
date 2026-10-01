@@ -5,12 +5,12 @@ from django.contrib.auth import update_session_auth_hash
 from django.core.paginator import Paginator
 from django.http import HttpResponse, FileResponse
 from django.shortcuts import render,get_object_or_404,redirect
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery, Sum
 from domains.properties.models import CommercialSpace,Region,Center,MotherProperty
 from domains.registry.models import Discrepancy
 from domains.identity.models import UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
 from domains.contracts.models import Contract, Beneficiary
-from domains.operations.models import Appraiser, Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
+from domains.operations.models import Appraiser, Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, UtilityBill, UtilityConnection, UtilityMeasurement, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
 from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from services.file_movement import current_holder
@@ -19,6 +19,96 @@ from ui.forms import PersianPasswordChangeForm
 from core.uat import is_fixed_uat_admin
 from services.money import format_rial
 @login_required
+def _filtered_utility_bills(params):
+ from decimal import Decimal, InvalidOperation
+ previous=UtilityBill.objects.filter(
+  connection=OuterRef('connection_id'),
+  period_end__lt=OuterRef('period_start'),
+ ).order_by('-period_end','-pk')
+ qs=UtilityBill.objects.select_related(
+  'connection','connection__space','connection__space__region','connection__space__center','measurement'
+ ).annotate(
+  previous_amount_rial=Subquery(previous.values('amount_rial')[:1]),
+  previous_consumption=Subquery(previous.values('consumption')[:1]),
+ ).order_by('-period_end','-pk')
+ q=(params.get('q') or '').strip()
+ if q:
+  qs=qs.filter(
+   Q(connection__space__code__iexact=q)
+   |Q(connection__space__name__icontains=q)
+   |Q(connection__account_number__icontains=q)
+   |Q(connection__meter_number__icontains=q)
+   |Q(connection__provider__icontains=q)
+  )
+ utility_type=(params.get('utility_type') or '').strip()
+ if utility_type in UtilityConnection.Type.values:qs=qs.filter(connection__utility_type=utility_type)
+ payment=(params.get('payment_status') or '').strip()
+ if payment in UtilityBill.PaymentStatus.values:qs=qs.filter(payment_status=payment)
+ region=(params.get('region') or '').strip()
+ if region.isdigit():qs=qs.filter(connection__space__region_id=region)
+ center=(params.get('center') or '').strip()
+ if center.isdigit():qs=qs.filter(connection__space__center_id=center)
+ period_from=(params.get('period_from') or '').strip()
+ period_to=(params.get('period_to') or '').strip()
+ if period_from:qs=qs.filter(period_end__gte=period_from)
+ if period_to:qs=qs.filter(period_start__lte=period_to)
+ presence=(params.get('measurement') or '').strip()
+ if presence=='yes':qs=qs.filter(measurement__isnull=False)
+ elif presence=='no':qs=qs.filter(measurement__isnull=True)
+ try:
+  if params.get('amount_min'):qs=qs.filter(amount_rial__gte=Decimal(str(params.get('amount_min')).replace(',','')))
+  if params.get('amount_max'):qs=qs.filter(amount_rial__lte=Decimal(str(params.get('amount_max')).replace(',','')))
+ except (InvalidOperation,ValueError):
+  return qs.none()
+ return qs
+
+
+@login_required
+def utility_dashboard(request):
+ qs=_filtered_utility_bills(request.GET)
+ page=Paginator(qs,50).get_page(request.GET.get('page'))
+ for item in page.object_list:
+  item.amount_change_rial=(item.amount_rial-item.previous_amount_rial) if item.previous_amount_rial is not None else None
+  item.consumption_change=(item.consumption-item.previous_consumption) if item.consumption is not None and item.previous_consumption is not None else None
+ totals=qs.aggregate(total_amount=Sum('amount_rial'),total_consumption=Sum('consumption'))
+ context={
+  'page':page,
+  'bill_count':qs.count(),
+  'connection_count':qs.values('connection_id').distinct().count(),
+  'total_amount':totals['total_amount'] or 0,
+  'total_consumption':totals['total_consumption'],
+  'water_count':qs.filter(connection__utility_type=UtilityConnection.Type.WATER).count(),
+  'gas_count':qs.filter(connection__utility_type=UtilityConnection.Type.GAS).count(),
+  'measurement_count':qs.filter(measurement__isnull=False).count(),
+  'regions':Region.objects.order_by('name'),
+  'centers':Center.objects.order_by('name'),
+  'utility_types':UtilityConnection.Type.choices,
+  'payment_statuses':UtilityBill.PaymentStatus.choices,
+ }
+ return render(request,'ui/utility_dashboard.html',context)
+
+
+@login_required
+def utility_bills_excel(request):
+ qs=_filtered_utility_bills(request.GET)
+ labels=['کد قبض','نوع انشعاب','کد فضا','نام فضا','منطقه','مرکز','شماره اشتراک','شماره کنتور','شروع دوره','پایان دوره','تاریخ قبض','مبلغ قبض (ریال)','مصرف','وضعیت پرداخت','تاریخ پرداخت','Measurement']
+ def data():
+  for item in qs[:10000]:
+   yield [
+    item.sama_code,item.connection.get_utility_type_display(),item.connection.space.code,item.connection.space.name or '—',
+    item.connection.space.region.name if item.connection.space.region else '—',
+    item.connection.space.center.name if item.connection.space.center else '—',
+    item.connection.account_number,item.connection.meter_number or '—',item.period_start,item.period_end,item.bill_date or '—',
+    item.amount_rial,item.consumption if item.consumption is not None else '—',item.get_payment_status_display(),item.payment_date or '—',
+    f'{item.measurement.consumption} {item.measurement.measurement_unit}' if item.measurement_id else '—',
+   ]
+ return HttpResponse(
+  tabular_excel('قبوض آب و گاز',labels,data()),
+  content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  headers={'Content-Disposition':'attachment; filename="utility-bills.xlsx"'},
+ )
+
+
 def dashboard(request):
  spaces=CommercialSpace.objects.all();active=spaces.filter(status='ACTIVE')
  region_rows=list(active.exclude(region=None).values('region__name').annotate(total=Count('id')).order_by('-total')[:5]);maximum=max((row['total'] for row in region_rows),default=1)
