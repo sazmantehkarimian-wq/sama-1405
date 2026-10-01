@@ -35,6 +35,12 @@ def test_fee_is_manual_independent_from_appraisal_amount_and_audited(client):
     assert fee.amount_rial==1250000
     assert fee.amount_rial!=appraisal.amount_rial
     assert fee.status==AppraisalFee.Status.FEE_ENTERED
+    direct_paid=client.post(f"/fees/{fee.pk}/transition/",{
+        "status":"PAID","payment_date":"1405/07/10","paid_amount_rial":"1250000","payment_reference":"EARLY",
+    })
+    assert direct_paid.status_code==200
+    fee.refresh_from_db()
+    assert fee.status==AppraisalFee.Status.FEE_ENTERED
     assert fee.expert==appraiser and fee.space==space
     assert AuditEvent.objects.filter(action="APPRAISAL_FEE_CREATE",entity_id=str(fee.pk)).exists()
 
@@ -147,9 +153,15 @@ def test_fee_dashboard_filters_and_excel_export(client):
     fee=AppraisalFee.objects.get()
     client.post(f"/fees/{fee.pk}/transition/",{"status":"READY_TO_SEND"})
 
+    missing=Appraisal.objects.create(
+        space=space,appraiser_ref=appraiser,appraiser=appraiser.full_name,
+        appraisal_date="1405/09/01",amount_rial=8000000,created_by=user,
+    )
     response=client.get("/fees/",{"status":"READY_TO_SEND"})
     assert response.status_code==200
     assert response.context["fee_count"]==1
+    assert response.context["missing_fee_count"]==1
+    assert missing.sama_code in response.content.decode()
     assert fee.sama_code in response.content.decode()
     assert appraiser.full_name in response.content.decode()
 
