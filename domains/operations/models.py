@@ -300,7 +300,30 @@ class UtilityBill(models.Model):
 
 
 class FileMovement(models.Model):
- space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='file_movements'); location=models.CharField(max_length=255); holder=models.CharField(max_length=255); delivered_by=models.CharField(max_length=255); received_by=models.CharField(max_length=255); handover_at=models.DateTimeField(); returned_at=models.DateTimeField(null=True); signature_state=models.CharField(max_length=50); direction=models.CharField(max_length=20); next_action=models.CharField(max_length=255,blank=True); due_date=models.CharField(max_length=10,blank=True); notes=models.TextField(blank=True); created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+ class Direction(models.TextChoices):
+  OUT='OUT','خروج';IN='IN','ورود'
+ space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='file_movements')
+ location=models.CharField(max_length=255);holder=models.CharField(max_length=255)
+ delivered_by=models.CharField(max_length=255);received_by=models.CharField(max_length=255)
+ handover_at=models.DateTimeField();returned_at=models.DateTimeField(null=True,blank=True)
+ signature_state=models.CharField(max_length=50)
+ direction=models.CharField(max_length=20,choices=Direction.choices)
+ next_action=models.CharField(max_length=255,blank=True);due_date=models.CharField(max_length=10,blank=True)
+ notes=models.TextField(blank=True);created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
+ class Meta:
+  ordering=['-handover_at','-id']
+  constraints=[
+   models.UniqueConstraint(fields=['space'],condition=models.Q(returned_at__isnull=True),name='one_open_file_movement_per_space'),
+  ]
+ @property
+ def is_open(self):return self.returned_at is None
+ @property
+ def duration_days(self):
+  from django.utils import timezone
+  end=self.returned_at or timezone.now()
+  seconds=max(0,(end-self.handover_at).total_seconds())
+  return int(seconds//86400)
+
 class TimelineEvent(models.Model):
  space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='timeline'); event_type=models.CharField(max_length=80); jalali_date=models.CharField(max_length=10,blank=True,db_index=True); occurred_at=models.DateTimeField(null=True); source_entity=models.CharField(max_length=80); source_entity_id=models.CharField(max_length=80); title=models.CharField(max_length=255); description=models.TextField(blank=True); previous_state=models.CharField(max_length=120,blank=True); new_state=models.CharField(max_length=120,blank=True); responsible_person=models.CharField(max_length=255,blank=True); document=models.ForeignKey('documents.Document',null=True,on_delete=models.PROTECT); provenance=models.TextField(); target_url=models.CharField(max_length=500,blank=True)
  class Meta: ordering=['-jalali_date','-occurred_at','-id']
