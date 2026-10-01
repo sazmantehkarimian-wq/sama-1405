@@ -26,7 +26,8 @@
 | حق‌الزحمه کارشناسی | موجود / نیازمند بازبینی نهایی | فرآیند قبلی تراکنشی و Auditدار باقی است؛ باید با پرونده جدید Appraiser/Appraisal از نظر UI و Reference Status نهایی تطبیق شود. |
 | مزایده و Rule Registry | موجود / نیازمند بازبینی نهایی | موتور نسخه‌دار و snapshot موجود است؛ باید بعد از تکمیل فرم‌های کارشناسی و قرارداد روی Zero-Data دوباره Gate نهایی شود. |
 | کمیسیون معاملات | موجود / نیازمند بازبینی نهایی | ایجاد/Transition/Audit موجود؛ بازبینی فرم‌ها و Reference Data باقی است. |
-| انشعابات و مصرف | در حال تکمیل | منطق پایه ثبت قبض/سهم و Audit موجود است، اما مدل کامل FROZEN شامل Bill/Allocation/Measurement/Snapshot هنوز باید روی Zero-Data بازطراحی شود. |
+| برق — Bill / Allocation / Measurement / Snapshot | PASS | مدل FROZEN برق روی Zero-Data پیاده شد: UtilityUnit، ElectricityBill، Allocation، Measurement، Category، Rule Registry، اولویت داده واقعی، Override مجاز، کنترل ۱۰۰٪، کنترل ریالی، Final/Reopen و Snapshot نسخه‌دار. |
+| آب / گاز / سایر انشعابات | PENDING | معماری برق به آب و گاز تعمیم داده نمی‌شود؛ هر زیرحوزه طبق MD مستقل تکمیل خواهد شد. |
 | گردش پرونده / «الان دست کیه» | موجود / نیازمند بازبینی | FileMovement و current holder موجود است؛ باید فرم‌ها و قواعد handover/return نهایی شوند. |
 | اسناد و مدارک | موجود / نیازمند بازبینی | Upload امن، checksum و download کنترل‌شده موجود؛ اتصال تخصصی به Entityهای جدید باید تکمیل شود. |
 | هشدارها / Workflow | موجود / نیازمند بازبینی | سرویس‌های Auditدار موجود؛ Reference Status و UI نهایی باقی است. |
@@ -46,7 +47,7 @@
 1. سبز نگه‌داشتن Quality Gate پس از هر تغییر Schema/Workflow.
 2. تکمیل بهره‌بردار مستقل از قرارداد و نمایش Current/History.
 3. تکمیل قرارداد، کارشناسان و کارشناسی بر اساس اسناد FROZEN.
-4. بازطراحی انشعابات/مصرف و Rule/Reference Data بدون داده Seed عملیاتی.
+4. تکمیل آب/گاز و گزارش‌های تخصصی پس از تثبیت Core برق و Rule/Reference Data.
 5. تکمیل اسناد، گردش پرونده، هشدارها، کمیسیون و مزایده.
 6. بازآزمایی Search/Filter/Report/Print روی schema نهایی.
 7. Backup/Restore و Security regression.
