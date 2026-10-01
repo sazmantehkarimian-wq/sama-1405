@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from domains.identity.models import AuditEvent
-from domains.operations.models import Appraisal, AuctionEvaluation, AuctionLot, AuctionPeriod, AuctionRule, TimelineEvent
+from domains.operations.models import Appraisal, AuctionEvaluation, AuctionInstruction, AuctionLot, AuctionPeriod, AuctionRule, TimelineEvent
 from services.database import retry_locked
 
 
@@ -35,10 +35,10 @@ def _level(amount: Decimal, rule: AuctionRule) -> str:
 @transaction.atomic
 def evaluate_space(*, space, on_date: str, actor, rule: AuctionRule | None = None,
                    auction_date: str = "", ip_address=None) -> AuctionEvaluation:
-    rule = rule or AuctionRule.objects.filter(active=True).order_by("-effective_year", "-id").first()
-    if not rule:
-        raise ValidationError("قاعده فعال و مصوب مزایده ثبت نشده است.")
     today = _date(on_date)
+    rule = rule or AuctionRule.objects.filter(active=True,effective_year=today.year).order_by("-id").first()
+    if not rule:
+        raise ValidationError("قاعده فعال و مصوب مزایده برای سال ارزیابی ثبت نشده است.")
     contracts = []
     for contract in space.contracts.exclude(status__in=["باطل", "فسخ‌شده"]):
         try:
@@ -47,17 +47,18 @@ def evaluate_space(*, space, on_date: str, actor, rule: AuctionRule | None = Non
         except (ValueError, TypeError):
             continue
     contract = sorted(contracts, key=lambda item: item.start_date, reverse=True)[0] if contracts else None
-    appraisals = []
-    for appraisal in space.appraisals.exclude(appraisal_date=""):
+    appraisal = space.appraisals.filter(is_current=True).exclude(appraisal_date="").order_by("-appraisal_date","-pk").first()
+    appraisal_date = None
+    if appraisal:
         try:
-            appraisals.append((_date(appraisal.appraisal_date), appraisal))
+            appraisal_date = _date(appraisal.appraisal_date)
         except (ValueError, TypeError):
-            continue
-    appraisal_pair = max(appraisals, default=None, key=lambda item: item[0])
-    appraisal = appraisal_pair[1] if appraisal_pair else None
-    appraisal_expiry = _add_months(appraisal_pair[0], rule.appraisal_valid_months) if appraisal_pair else None
+            appraisal = None
+    appraisal_expiry = _add_months(appraisal_date, rule.appraisal_valid_months) if appraisal_date else None
     appraisal_reference_date = _date(auction_date) if auction_date else today
-    appraisal_valid = bool(appraisal_expiry and appraisal_expiry >= appraisal_reference_date)
+    appraisal_valid_today = bool(appraisal_expiry and appraisal_expiry >= today)
+    appraisal_valid_at_auction = bool(appraisal_expiry and appraisal_expiry >= appraisal_reference_date)
+    appraisal_valid = appraisal_valid_at_auction
     reasons, decision, readiness, amount, basis, remaining = [], "REVIEW_REQUIRED", "REVIEW_REQUIRED", None, "", None
 
     if space.status != "ACTIVE":
@@ -73,28 +74,54 @@ def evaluate_space(*, space, on_date: str, actor, rule: AuctionRule | None = Non
             else:
                 decision, reasons = "CANDIDATE", ["CANDIDATE_CONTRACT_WINDOW"]
                 readiness = "READY" if appraisal_valid else "ACTION_REQUIRED"
-                if not appraisal_valid:
+                if not appraisal:
+                    reasons.append("REVIEW_MISSING_APPRAISAL")
+                elif appraisal_valid_today and auction_date and not appraisal_valid_at_auction:
+                    reasons.append("ACTION_APPRAISAL_EXPIRES_BEFORE_AUCTION")
+                elif not appraisal_valid:
                     reasons.append("REVIEW_MISSING_APPRAISAL")
         else:
-            decision, readiness, reasons = "NOT_CANDIDATE", "ACTION_REQUIRED", ["NOT_CANDIDATE_OUTSIDE_TIME_WINDOW"]
+            decision, readiness, reasons = "NOT_CANDIDATE", "ACTION_REQUIRED", ["NOT_CANDIDATE_CONTRACT_OUTSIDE_WINDOW"]
     else:
         amount, basis = (appraisal.amount_rial if appraisal else None), "APPRAISAL"
         if not appraisal or amount is None or not appraisal_valid:
-            reasons = ["REVIEW_MISSING_APPRAISAL"]
+            if appraisal and appraisal_valid_today and auction_date and not appraisal_valid_at_auction:
+                reasons = ["ACTION_APPRAISAL_EXPIRES_BEFORE_AUCTION"]
+            else:
+                reasons = ["REVIEW_MISSING_APPRAISAL"]
             readiness = "ACTION_REQUIRED"
         elif _level(amount, rule) == "MINOR":
             decision, readiness, reasons = "NOT_CANDIDATE", "ACTION_REQUIRED", ["NOT_CANDIDATE_LEVEL_JOZ"]
         else:
             decision, readiness, reasons = "CANDIDATE", "READY", ["CANDIDATE_NO_CONTRACT_VALID_APPRAISAL"]
 
-    prior_candidate = space.auction_evaluations.filter(decision="CANDIDATE").exists()
-    if prior_candidate and decision == "NOT_CANDIDATE" and reasons == ["NOT_CANDIDATE_OUTSIDE_TIME_WINDOW"]:
-        decision, reasons = "CANDIDATE", ["CANDIDATE_STICKY_PREVIOUS_VALID_DECISION"]
+    instructions = list(
+        space.auction_instructions.filter(active=True,effective_from__lte=on_date)
+        .filter(__import__('django.db.models',fromlist=['Q']).Q(effective_to="")|__import__('django.db.models',fromlist=['Q']).Q(effective_to__gte=on_date))
+        .order_by("-effective_from","-pk")
+    )
+    directions={item.direction for item in instructions}
+    if len(directions)>1:
+        decision,readiness,reasons="REVIEW_REQUIRED","REVIEW_REQUIRED",["CONFLICTING_AUTHORIZED_INSTRUCTIONS"]
+    elif directions=={AuctionInstruction.Direction.EXCLUDE}:
+        decision,readiness,reasons="NOT_CANDIDATE","ACTION_REQUIRED",["BLOCKED_BY_MANUAL_EXCLUSION"]
+    elif directions=={AuctionInstruction.Direction.INCLUDE}:
+        decision="CANDIDATE"
+        readiness="READY" if appraisal_valid else "ACTION_REQUIRED"
+        reasons=["INCLUDED_BY_MANUAL_OVERRIDE"]
+        if not appraisal:
+            reasons.append("REVIEW_MISSING_APPRAISAL")
+        elif appraisal_valid_today and auction_date and not appraisal_valid_at_auction:
+            reasons.append("ACTION_APPRAISAL_EXPIRES_BEFORE_AUCTION")
     snapshot = {"space_code": space.code, "space_status": space.status, "contract_id": contract.pk if contract else None,
         "remaining_days": remaining, "amount_rial": str(amount) if amount is not None else None, "amount_basis": basis,
         "transaction_level": _level(amount, rule) if amount is not None else None,
-        "appraisal_id": appraisal.pk if appraisal else None, "appraisal_expiry": str(appraisal_expiry) if appraisal_expiry else None,
-        "rule_version": rule.version, "evaluation_date": on_date, "auction_date": auction_date or None}
+        "appraisal_id": appraisal.pk if appraisal else None, "appraisal_date": appraisal.appraisal_date if appraisal else None,
+        "appraisal_amount_rial": str(appraisal.amount_rial) if appraisal and appraisal.amount_rial is not None else None,
+        "appraisal_expiry": str(appraisal_expiry) if appraisal_expiry else None,
+        "rule_version": rule.version, "threshold_rule_version": rule.version,
+        "override_state":[{"id":x.pk,"source":x.source,"direction":x.direction,"reference":x.reference} for x in instructions],
+        "evaluation_date": on_date, "auction_date": auction_date or None, "engine_version":"zero-data-1"}
     evaluation = AuctionEvaluation.objects.create(space=space, rule=rule, decision=decision,
         readiness=readiness, reason_codes=reasons, snapshot=snapshot, evaluated_by=actor)
     AuditEvent.objects.create(actor=actor, action="AUCTION_EVALUATE", entity_type="AuctionEvaluation",
@@ -148,3 +175,47 @@ def add_evaluated_lot(*, period: AuctionPeriod, evaluation: AuctionEvaluation, a
     )
     TimelineEvent.objects.create(space=evaluation.space,event_type="AUCTION_LOT_ADD",jalali_date=period.planned_date,source_entity="AuctionLot",source_entity_id=str(lot.pk),title=f"افزودن به دوره مزایده {period.title}",new_state=lot.readiness,responsible_person=actor.get_full_name() or actor.username,provenance="ثبت عملیاتی دوره مزایده",target_url=f"/spaces/{evaluation.space.code}/")
     return lot
+
+
+
+@retry_locked
+@transaction.atomic
+def create_instruction(*, space, actor, values, commission_decision=None, ip_address=None):
+    if not actor.is_staff:
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied("ثبت دستور مؤثر بر مزایده فقط برای کاربر مجاز امکان‌پذیر است.")
+    source=values.get("source","")
+    direction=values.get("direction","")
+    reason=(values.get("reason") or "").strip()
+    reference=(values.get("reference") or "").strip()
+    if source not in AuctionInstruction.Source.values or direction not in AuctionInstruction.Direction.values:
+        raise ValidationError("نوع منبع یا جهت اثر معتبر نیست.")
+    if not reason or not reference:
+        raise ValidationError("علت و مرجع دستور الزامی است.")
+    try:
+        effective_from=_date(values.get("effective_from",""))
+        effective_to=_date(values.get("effective_to","")) if values.get("effective_to") else ""
+    except (ValueError,TypeError) as exc:
+        raise ValidationError("تاریخ اثر دستور معتبر نیست.") from exc
+    if effective_to and effective_to<effective_from:
+        raise ValidationError("پایان اثر نمی‌تواند قبل از شروع اثر باشد.")
+    if source==AuctionInstruction.Source.COMMISSION and commission_decision is None:
+        raise ValidationError("برای دستور کمیسیون، انتخاب تصمیم کمیسیون الزامی است.")
+    item=AuctionInstruction.objects.create(
+        space=space,source=source,direction=direction,reason=reason,reference=reference,
+        effective_from=effective_from,effective_to=effective_to,
+        commission_decision=commission_decision,created_by=actor,
+    )
+    AuditEvent.objects.create(
+        actor=actor,action="AUCTION_INSTRUCTION_CREATE",entity_type="AuctionInstruction",
+        entity_id=str(item.pk),after={"space":space.code,"source":source,"direction":direction,"reference":reference,
+        "effective_from":effective_from,"effective_to":effective_to},reason=reason,ip_address=ip_address,
+    )
+    TimelineEvent.objects.create(
+        space=space,event_type="AUCTION_INSTRUCTION_CREATE",jalali_date=effective_from,
+        source_entity="AuctionInstruction",source_entity_id=str(item.pk),
+        title="ثبت دستور مؤثر بر مزایده",description=f"{item.get_source_display()} — {item.get_direction_display()} — {reference}",
+        new_state=direction,responsible_person=actor.get_full_name() or actor.username,
+        provenance="دستور رسمی ثبت‌شده با مرجع و Audit",target_url=f"/spaces/{space.code}/",
+    )
+    return item
