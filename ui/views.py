@@ -384,24 +384,30 @@ def password_change(request):
 @login_required
 @require_POST
 def add_movement(request,code):
- from django.utils import timezone
- from django.db import transaction
- from services.dates import normalize_jalali
- from domains.identity.models import AuditEvent
+ from django.core.exceptions import ValidationError
+ from services.file_movement import register_handover
  space=get_object_or_404(CommercialSpace,code=code)
- required=('location','holder','delivered_by','received_by','signature_state','direction')
- if any(not request.POST.get(field,'').strip() for field in required):
-  messages.error(request,'تکمیل همه فیلدهای الزامی گردش پرونده لازم است.');return redirect('space-detail',code=code)
- due=request.POST.get('due_date','').strip()
- if due:
-  try:due=normalize_jalali(due)
-  except ValueError:messages.error(request,'تاریخ مهلت معتبر نیست.');return redirect('space-detail',code=code)
- with transaction.atomic():
-  movement=FileMovement.objects.create(space=space,location=request.POST['location'].strip(),holder=request.POST['holder'].strip(),delivered_by=request.POST['delivered_by'].strip(),received_by=request.POST['received_by'].strip(),handover_at=timezone.now(),signature_state=request.POST['signature_state'].strip(),direction=request.POST['direction'].strip(),next_action=request.POST.get('next_action','').strip(),due_date=due,notes=request.POST.get('notes','').strip(),created_by=request.user)
-  AuditEvent.objects.create(actor=request.user,action='FILE_MOVEMENT_CREATE',entity_type='CommercialSpace',entity_id=space.code,after={'movement_id':movement.pk,'holder':movement.holder,'location':movement.location},ip_address=request.META.get('REMOTE_ADDR'))
-  from domains.operations.models import TimelineEvent
-  TimelineEvent.objects.create(space=space,event_type='FILE_MOVEMENT_CREATE',jalali_date=due,occurred_at=movement.handover_at,source_entity='FileMovement',source_entity_id=str(movement.pk),title='ثبت گردش فیزیکی پرونده',description=f'{movement.holder} — {movement.location}',new_state=movement.direction,responsible_person=request.user.get_full_name() or request.user.username,provenance='رویداد عملیاتی ثبت‌شده در سامانه',target_url=f'/spaces/{space.code}/')
- messages.success(request,'گردش پرونده ثبت شد.');return redirect('space-detail',code=code)
+ try:
+  register_handover(space=space,actor=request.user,values=request.POST,ip_address=request.META.get('REMOTE_ADDR'))
+ except ValidationError as exc:
+  messages.error(request,' '.join(exc.messages))
+ else:
+  messages.success(request,'تحویل فیزیکی پرونده ثبت شد و دارنده جاری به‌روزرسانی شد.')
+ return redirect('space-detail',code=code)
+
+@login_required
+@require_POST
+def return_movement(request,code):
+ from django.core.exceptions import ValidationError
+ from services.file_movement import close_current_movement
+ space=get_object_or_404(CommercialSpace,code=code)
+ try:
+  close_current_movement(space=space,actor=request.user,reason=request.POST.get('reason',''),ip_address=request.META.get('REMOTE_ADDR'))
+ except ValidationError as exc:
+  messages.error(request,' '.join(exc.messages))
+ else:
+  messages.success(request,'بازگشت پرونده ثبت شد و دارنده جاری بسته شد.')
+ return redirect('space-detail',code=code)
 
 @login_required
 @require_POST
