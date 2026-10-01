@@ -1,9 +1,10 @@
 """Single official output engine for filtered canonical querysets."""
 from io import BytesIO
 from pathlib import Path
+from decimal import Decimal
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as ExcelImage
-from openpyxl.styles import Alignment, Border, Side, Font
+from openpyxl.styles import Alignment, Border, Side, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from docx import Document
 from docx.enum.section import WD_ORIENT
@@ -33,6 +34,19 @@ BASE=Path(__file__).resolve().parents[1]
 LOGO=BASE/'design_system/static/design_system/img/organization-logo.png'
 FONT=BASE/'design_system/static/design_system/fonts/Vazirmatn-Regular.ttf'
 
+def _style_xlsx(ws,header,total):
+ ws.freeze_panes=f'A{header+1}';ws.auto_filter.ref=f'A{header}:{ws.cell(max(header,ws.max_row),total).coordinate}'
+ ws.sheet_properties.pageSetUpPr.fitToPage=True;ws.page_setup.orientation='landscape';ws.page_setup.fitToWidth=1;ws.page_setup.fitToHeight=0
+ ws.print_title_rows=f'{header}:{header}';ws.oddFooter.center.text='صفحه &P از &N'
+ side=Side(style='thin',color='D8D3CF');header_fill=PatternFill('solid',fgColor='E7F1F4')
+ for row in ws.iter_rows(min_row=header):
+  for cell in row:
+   cell.alignment=Alignment(horizontal='right',vertical='center',wrap_text=True);cell.border=Border(left=side,right=side,top=side,bottom=side);cell.font=Font(name='Vazirmatn',size=10)
+   if isinstance(cell.value,(int,float,Decimal)):cell.number_format='#,##0.###'
+ for cell in ws[header]:cell.font=Font(name='Vazirmatn',bold=True,size=10,color='252221');cell.fill=header_fill
+ ws.row_dimensions[header].height=28
+ for column in ws.columns:ws.column_dimensions[get_column_letter(column[0].column)].width=min(42,max(14,max(len(str(cell.value or '')) for cell in column)+2))
+
 def columns(selected=None):
  selected=[key for key in (selected or DEFAULT_FIELDS) if key in FIELD_MAP]
  return selected or list(DEFAULT_FIELDS)
@@ -47,13 +61,7 @@ def excel(spaces,blank_columns=(),selected=None):
   logo=ExcelImage(str(LOGO));logo.width=64;logo.height=64;ws.add_image(logo,'A1')
  ws.append([FIELD_MAP[x][0] for x in keys]+list(blank_columns)); header=ws.max_row
  for row in rows(spaces,keys):ws.append(row+['']*len(blank_columns))
- ws.freeze_panes=f'A{header+1}'; ws.auto_filter.ref=f'A{header}:{ws.cell(ws.max_row,total).coordinate}'
- side=Side(style='thin',color='888888')
- for row in ws.iter_rows(min_row=header):
-  for c in row:c.alignment=Alignment(horizontal='center',vertical='center',wrap_text=True);c.border=Border(left=side,right=side,top=side,bottom=side)
- for c in ws[header]:c.font=Font(name='Vazirmatn',bold=True)
- for col in ws.columns:
-  letter=get_column_letter(col[0].column); ws.column_dimensions[letter].width=min(42,max(14,max(len(str(c.value or '')) for c in col)+2))
+ _style_xlsx(ws,header,total)
  out=BytesIO(); wb.save(out); return out.getvalue()
 
 def tabular_excel(title,labels,data):
@@ -66,13 +74,7 @@ def tabular_excel(title,labels,data):
   logo=ExcelImage(str(LOGO));logo.width=64;logo.height=64;ws.add_image(logo,'A1')
  ws.append(list(labels));header=ws.max_row
  for values in data:ws.append(list(values))
- ws.freeze_panes=f'A{header+1}';ws.auto_filter.ref=f'A{header}:{ws.cell(max(header,ws.max_row),total).coordinate}'
- side=Side(style='thin',color='888888')
- for row in ws.iter_rows(min_row=header):
-  for cell in row:
-   cell.alignment=Alignment(horizontal='center',vertical='center',wrap_text=True);cell.border=Border(left=side,right=side,top=side,bottom=side)
- for cell in ws[header]:cell.font=Font(name='Vazirmatn',bold=True)
- for column in ws.columns:ws.column_dimensions[get_column_letter(column[0].column)].width=min(42,max(14,max(len(str(cell.value or '')) for cell in column)+2))
+ _style_xlsx(ws,header,total)
  out=BytesIO();wb.save(out);return out.getvalue()
 def _rtl(paragraph):
  paragraph.alignment=WD_ALIGN_PARAGRAPH.CENTER

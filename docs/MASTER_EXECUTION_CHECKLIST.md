@@ -29,3 +29,4 @@
 | Browser/print QA | PASS | Chromium واقعی RTL/login/filter/dossier و screenshot؛ PDF server-side واقعی با صفحه، metadata و نبود URL |
 | Five-user application concurrency | PASS | پنج کاربر authenticated در read/search/report و پنج write عملیاتی هم‌زمان با retry محدود SQLite |
 | Clean Windows release | PASS | اجرای Windows روی commit `af531ae` با شناسه [`36741689560`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36741689560) پاس شد؛ release رسمی `v5.0.0-uat.4` شامل ZIP به‌اندازه ۴۶٬۹۶۸٬۰۸۵ بایت و `SHA256SUMS.txt` است و hash دانلود مستقل نیز با مقدار `557ff5e9524b716ae48a55ccd927dfe4a22570ea768e36c0cb751acbeed9b164` تطبیق داده شد. |
+| Owner UI/UX and Design System UAT | UAT REMEDIATION IN PROGRESS | پذیرش رابط `v5.0.0-uat.4` رد شده است؛ شواهد release قبلی صرفاً baseline فنی هستند و انتشار UAT جدید تا تکمیل بازبینی مرورگر و Gateهای اصلاحی مجاز نیست. |

@@ -1,7 +1,6 @@
 from django.contrib.auth.decorators import login_required,user_passes_test
 from django.views.decorators.http import require_POST
 from django.contrib import messages
-from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
 from django.core.paginator import Paginator
 from django.http import HttpResponse
@@ -16,9 +15,13 @@ from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from services.file_movement import current_holder
 from reporting.engine import excel,docx,pdf,tabular_excel
+from ui.forms import PersianPasswordChangeForm
 @login_required
 def dashboard(request):
- context={'space_count':CommercialSpace.objects.count(),'active_count':CommercialSpace.objects.filter(status='ACTIVE').count(),'inactive_count':CommercialSpace.objects.filter(status='OUT_OF_CYCLE').count(),'property_count':MotherProperty.objects.count(),'discrepancy_count':Discrepancy.objects.exclude(status='RESOLVED').count(),'contract_count':Contract.objects.count(),'appraisal_count':Appraisal.objects.count(),'alert_count':Alert.objects.exclude(status='RESOLVED').count()}
+ spaces=CommercialSpace.objects.all();active=spaces.filter(status='ACTIVE')
+ region_rows=list(active.exclude(region=None).values('region__name').annotate(total=Count('id')).order_by('-total')[:5]);maximum=max((row['total'] for row in region_rows),default=1)
+ for row in region_rows:row['percent']=round(row['total']*100/maximum)
+ context={'space_count':spaces.count(),'active_count':active.count(),'inactive_count':spaces.filter(status='OUT_OF_CYCLE').count(),'property_count':MotherProperty.objects.count(),'discrepancy_count':Discrepancy.objects.exclude(status='RESOLVED').count(),'contract_count':Contract.objects.count(),'appraisal_count':Appraisal.objects.count(),'alert_count':Alert.objects.exclude(status='RESOLVED').count(),'without_contract_count':active.filter(contracts__isnull=True).count(),'without_appraisal_count':active.filter(appraisals__isnull=True).count(),'open_workflow_count':WorkflowInstance.objects.filter(state='OPEN').count(),'region_rows':region_rows}
  return render(request,'ui/dashboard.html',context)
 @login_required
 def space_list(request):
@@ -54,9 +57,22 @@ def open_space_filter(request,filter_id):
  pairs=[(key,value) for key,values in saved.definition.items() for value in values]
  return redirect('/spaces/?'+urlencode(pairs))
 
+@login_required
+@require_POST
+def rename_space_filter(request,filter_id):
+ saved=get_object_or_404(SavedFilter,pk=filter_id,owner=request.user,domain='spaces');name=request.POST.get('name','').strip()
+ if name:saved.name=name;saved.save(update_fields=['name']);messages.success(request,'نام فیلتر ذخیره‌شده تغییر کرد.')
+ return redirect('space-list')
+
+@login_required
+@require_POST
+def delete_space_filter(request,filter_id):
+ get_object_or_404(SavedFilter,pk=filter_id,owner=request.user,domain='spaces').delete();messages.success(request,'فیلتر ذخیره‌شده حذف شد.')
+ return redirect('space-list')
+
 DOMAIN_LISTS={
  'properties':('املاک مادر',MotherProperty.objects.select_related('region'),(('identifier','شناسه ملک'),('name','نام'),('region.name','منطقه'),('primary_usage','کاربری'),('area','مساحت'))),
- 'discrepancies':('مغایرت‌های داده',Discrepancy.objects.select_related('source_file'),(('entity_key','شناسه رکورد'),('field_key','فیلد'),('reason','علت'),('severity','شدت'),('status','وضعیت'))),
+ 'discrepancies':('بررسی مغایرت‌های داده',Discrepancy.objects.select_related('source_file','assigned_to'),(('entity_key','شناسه رکورد'),('field_key','فیلد'),('observed_value','مقدار موجود'),('expected_value','مقدار مورد انتظار'),('reason','علت'),('severity','اهمیت'),('status','وضعیت'))),
  'contracts':('قراردادها',Contract.objects.select_related('space'),(('number','شماره'),('space.code','کد فضا'),('start_date','شروع'),('end_date','پایان'),('status','وضعیت'))),
  'beneficiaries':('بهره‌برداران',Beneficiary.objects.all(),(('name','نام'),('identity_number','شناسه'),('kind','نوع'),('contact','تماس'))),
  'appraisals':('کارشناسی',Appraisal.objects.select_related('space'),(('space.code','کد فضا'),('appraisal_date','تاریخ'),('appraiser','کارشناس'),('amount_rial','مبلغ (ریال)'),('status','وضعیت'))),
@@ -69,7 +85,10 @@ DOMAIN_LISTS={
  'documents':('اسناد بارگذاری‌شده',Document.objects.all(),(('title','عنوان'),('document_type','نوع'),('original_filename','نام فایل'),('uploaded_at','زمان بارگذاری'))),
 }
 def _value(obj,path):
- for part in path.split('.'):
+ parts=path.split('.')
+ for index,part in enumerate(parts):
+  display=getattr(obj,f'get_{part}_display',None) if index==len(parts)-1 else None
+  if display:return display()
   obj=getattr(obj,part,None)
   if obj is None:return '—'
  return obj if obj not in ('',None) else '—'
@@ -91,6 +110,18 @@ def domain_excel(request,domain):
  labels=[label for _,label in columns]
  data=([_value(item,key) for key,_ in columns] for item in qs.order_by('pk')[:10000])
  return HttpResponse(tabular_excel(title,labels,data),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':f'attachment; filename="{domain}.xlsx"'})
+
+@login_required
+@require_POST
+def discrepancy_review(request,discrepancy_id):
+ item=get_object_or_404(Discrepancy,pk=discrepancy_id);status=request.POST.get('status','')
+ if status not in Discrepancy.Status.values:
+  messages.error(request,'وضعیت بررسی معتبر نیست.');return redirect('domain-list',domain='discrepancies')
+ resolution=request.POST.get('resolution','').strip()
+ if status==Discrepancy.Status.RESOLVED and not resolution:
+  messages.error(request,'برای حل مغایرت، نتیجه بررسی را ثبت کنید.');return redirect('domain-list',domain='discrepancies')
+ item.status=status;item.resolution=resolution;item.assigned_to=request.user;item.save(update_fields=['status','resolution','assigned_to']);messages.success(request,'وضعیت مغایرت ثبت شد.')
+ return redirect('domain-list',domain='discrepancies')
 
 @login_required
 def auction_workspace(request):
@@ -194,9 +225,11 @@ def user_list(request):
  return render(request,'ui/user_list.html',{'users':get_user_model().objects.select_related('profile')})
 @login_required
 def password_change(request):
- form=PasswordChangeForm(request.user,request.POST or None)
+ form=PersianPasswordChangeForm(request.user,request.POST or None)
  if request.method=='POST' and form.is_valid():
-  user=form.save(); UserProfile.objects.update_or_create(user=user,defaults={'must_change_password':False,'display_name':user.get_full_name() or user.username});update_session_auth_hash(request,user);return redirect('dashboard')
+  user=form.save();profile,_=UserProfile.objects.get_or_create(user=user,defaults={'display_name':user.get_full_name() or user.username});profile.must_change_password=False
+  if not profile.display_name:profile.display_name=user.get_full_name() or user.username
+  profile.save(update_fields=['must_change_password','display_name']);update_session_auth_hash(request,user);return redirect('dashboard')
  return render(request,'ui/password_change.html',{'form':form})
 
 @login_required
@@ -217,6 +250,8 @@ def add_movement(request,code):
  with transaction.atomic():
   movement=FileMovement.objects.create(space=space,location=request.POST['location'].strip(),holder=request.POST['holder'].strip(),delivered_by=request.POST['delivered_by'].strip(),received_by=request.POST['received_by'].strip(),handover_at=timezone.now(),signature_state=request.POST['signature_state'].strip(),direction=request.POST['direction'].strip(),next_action=request.POST.get('next_action','').strip(),due_date=due,notes=request.POST.get('notes','').strip(),created_by=request.user)
   AuditEvent.objects.create(actor=request.user,action='FILE_MOVEMENT_CREATE',entity_type='CommercialSpace',entity_id=space.code,after={'movement_id':movement.pk,'holder':movement.holder,'location':movement.location},ip_address=request.META.get('REMOTE_ADDR'))
+  from domains.operations.models import TimelineEvent
+  TimelineEvent.objects.create(space=space,event_type='FILE_MOVEMENT_CREATE',jalali_date=due,occurred_at=movement.handover_at,source_entity='FileMovement',source_entity_id=str(movement.pk),title='ثبت گردش فیزیکی پرونده',description=f'{movement.holder} — {movement.location}',new_state=movement.direction,responsible_person=request.user.get_full_name() or request.user.username,provenance='رویداد عملیاتی ثبت‌شده در سامانه',target_url=f'/spaces/{space.code}/')
  messages.success(request,'گردش پرونده ثبت شد.');return redirect('space-detail',code=code)
 
 @login_required

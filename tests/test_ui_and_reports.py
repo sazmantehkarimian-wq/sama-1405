@@ -11,7 +11,7 @@ def user(db):return get_user_model().objects.create_user('u',password='A-very-sa
 def test_space_list_and_dossier(client,user):
  client.force_login(user);s=CommercialSpace.objects.create(code='9',name='فضای آزمون',status='ACTIVE',source_row=5,source_classification='authority')
  assert client.get('/spaces/').status_code==200
- body=client.get('/spaces/9/').content.decode();assert 'پرونده فضای 9' in body and 'الان دست کیه' in body and 'None' not in body
+ body=client.get('/spaces/9/').content.decode();assert 'پرونده فضای 9' in body and 'دارنده فعلی پرونده' in body and 'None' not in body
 
 @pytest.mark.django_db
 def test_advanced_space_filters_and_saved_view(client,user):
@@ -29,6 +29,13 @@ def test_advanced_space_filters_and_saved_view(client,user):
  assert 'status=ACTIVE' in client.get(f'/spaces/filters/{saved.pk}/').url
  response=client.get('/spaces/',{'code':'A-10','code_op':'equals','status':['OUT_OF_CYCLE'],'logic':'or'})
  body=response.content.decode();assert 'A-10' in body and 'B-20' in body
+ response=client.get('/spaces/',{'status':'ACTIVE','contract_presence':'empty','appraisal_presence':'empty'})
+ assert 'A-10' in response.content.decode() and 'B-20' not in response.content.decode()
+ saved.name='نام قدیم';saved.save()
+ assert client.post(f'/spaces/filters/{saved.pk}/rename/',{'name':'نام جدید'}).status_code==302
+ saved.refresh_from_db();assert saved.name=='نام جدید'
+ assert client.post(f'/spaces/filters/{saved.pk}/delete/').status_code==302
+ assert not SavedFilter.objects.filter(pk=saved.pk).exists()
 @pytest.mark.django_db
 def test_real_export_structures():
  s=CommercialSpace.objects.create(code='9',name='فضا',status='ACTIVE',source_row=5,source_classification='authority');qs=CommercialSpace.objects.all()
@@ -50,6 +57,8 @@ def test_typed_operational_list_has_official_excel_export(client,user):
  assert workbook.active.sheet_view.rightToLeft
  assert workbook.active.auto_filter.ref
  assert any(image for image in workbook.active._images)
+ assert workbook.active.page_setup.orientation=='landscape'
+ assert workbook.active.print_title_rows
 
 @pytest.mark.django_db
 def test_saved_report_and_immutable_snapshot(client,user,settings,tmp_path):

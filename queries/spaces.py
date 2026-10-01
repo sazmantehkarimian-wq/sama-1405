@@ -61,6 +61,12 @@ def filter_spaces(params):
         clauses.append(Q(address="") | Q(address__isnull=True))
     elif presence == "nonempty":
         clauses.append(~(Q(address="") | Q(address__isnull=True)))
+    contract_presence = params.get("contract_presence")
+    if contract_presence == "empty": clauses.append(Q(contracts__isnull=True))
+    elif contract_presence == "nonempty": clauses.append(Q(contracts__isnull=False))
+    appraisal_presence = params.get("appraisal_presence")
+    if appraisal_presence == "empty": clauses.append(Q(appraisals__isnull=True))
+    elif appraisal_presence == "nonempty": clauses.append(Q(appraisals__isnull=False))
 
     try:
         if params.get("area_min"):

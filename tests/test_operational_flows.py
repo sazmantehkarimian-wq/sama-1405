@@ -55,7 +55,7 @@ def test_five_authenticated_users_can_commit_independent_operational_writes():
 
 @pytest.mark.django_db
 def test_fee_utility_and_workflow_commands_validate_and_audit(client):
- from domains.operations.models import Appraisal,AppraisalFee,UtilityRecord,WorkflowInstance
+ from domains.operations.models import Appraisal,AppraisalFee,UtilityRecord,WorkflowInstance,TimelineEvent
  from domains.registry.models import ImportBatch,SourceFile
  user=get_user_model().objects.create_user('operator2',password='A-very-safe-password')
  client.force_login(user)
@@ -79,10 +79,11 @@ def test_fee_utility_and_workflow_commands_validate_and_audit(client):
  assert OperationalHistory.objects.filter(entity_type='AppraisalFee',action='CREATED').exists()
  assert OperationalHistory.objects.filter(entity_type='UtilityRecord',action='CREATED').exists()
  assert OperationalHistory.objects.filter(entity_type='WorkflowInstance',action='TRANSITION').exists()
+ assert set(TimelineEvent.objects.filter(space=space).values_list('event_type',flat=True)) >= {'APPRAISAL_FEE_CREATE','UTILITY_RECORD_CREATE','WORKFLOW_TRANSITION'}
 
 @pytest.mark.django_db
 def test_operational_workflow_commission_and_alert_lifecycles(client):
- from domains.operations.models import Alert, CommissionDecision, WorkflowInstance
+ from domains.operations.models import Alert, CommissionDecision, WorkflowInstance, TimelineEvent
  user=get_user_model().objects.create_user('operator3',password='A-very-safe-password')
  space=CommercialSpace.objects.create(code='503',name='فضا',status='ACTIVE',source_row=2,source_classification='authority')
  client.force_login(user)
@@ -96,6 +97,7 @@ def test_operational_workflow_commission_and_alert_lifecycles(client):
  response=client.post(f'/alerts/{alert.pk}/resolve/',{'reason':'اقدام و ثبت نامه'})
  alert.refresh_from_db();assert response.status_code==302 and alert.status=='RESOLVED'
  assert set(AuditEvent.objects.values_list('action',flat=True)) >= {'WORKFLOW_CREATE','COMMISSION_TRANSITION','ALERT_RESOLVE'}
+ assert set(TimelineEvent.objects.filter(space=space).values_list('event_type',flat=True)) >= {'WORKFLOW_CREATE','COMMISSION_TRANSITION','ALERT_RESOLVE'}
 
 @pytest.mark.django_db
 def test_commission_workspace_creates_linked_audited_decision(client):
@@ -111,7 +113,7 @@ def test_commission_workspace_creates_linked_audited_decision(client):
 
 @pytest.mark.django_db
 def test_auction_workspace_evaluates_and_adds_candidate_to_draft_period(client):
- from domains.operations.models import Appraisal,AuctionRule,AuctionPeriod,AuctionLot
+ from domains.operations.models import Appraisal,AuctionRule,AuctionPeriod,AuctionLot,TimelineEvent
  from domains.registry.models import ImportBatch,SourceFile
  user=get_user_model().objects.create_user('auction-operator',password='A-very-safe-password')
  client.force_login(user)
@@ -126,6 +128,7 @@ def test_auction_workspace_evaluates_and_adds_candidate_to_draft_period(client):
  period=AuctionPeriod.objects.get(identity='P-1')
  assert client.post(f'/auctions/periods/{period.pk}/lots/',{'evaluation_id':evaluation.pk}).status_code==302
  assert AuctionLot.objects.filter(period=period,space=space,evaluation=evaluation).exists()
+ assert set(TimelineEvent.objects.filter(space=space).values_list('event_type',flat=True)) >= {'AUCTION_EVALUATE','AUCTION_LOT_ADD'}
  assert set(AuditEvent.objects.values_list('action',flat=True)) >= {'AUCTION_EVALUATE','AUCTION_PERIOD_CREATE','AUCTION_LOT_ADD'}
 
 @pytest.mark.django_db

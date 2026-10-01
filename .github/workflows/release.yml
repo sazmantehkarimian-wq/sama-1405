@@ -1,8 +1,8 @@
-name: SAMA Next clean UAT release
+name: SAMA contract management UAT release
 on:
   workflow_dispatch:
   push:
-    tags: ['v5.0.0-uat.4']
+    tags: ['v5.0.0-uat.5']
 permissions:
   contents: write
 jobs:
@@ -63,28 +63,28 @@ jobs:
         shell: pwsh
         run: |
           New-Item release -ItemType Directory -Force | Out-Null
-          Compress-Archive -Path "build/SAMA_5.0.0-uat.4" -DestinationPath "release/SAMA_5.0.0-uat.4.zip" -CompressionLevel Optimal
-          $hash = (Get-FileHash "release/SAMA_5.0.0-uat.4.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  SAMA_5.0.0-uat.4.zip" | Set-Content "release/SHA256SUMS.txt" -Encoding utf8NoBOM
+          Compress-Archive -Path "build/SAMA_5.0.0-uat.5" -DestinationPath "release/SAMA_5.0.0-uat.5.zip" -CompressionLevel Optimal
+          $hash = (Get-FileHash "release/SAMA_5.0.0-uat.5.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  SAMA_5.0.0-uat.5.zip" | Set-Content "release/SHA256SUMS.txt" -Encoding utf8NoBOM
           New-Item verify-package -ItemType Directory | Out-Null
-          Expand-Archive "release/SAMA_5.0.0-uat.4.zip" verify-package
-          if (-not (Test-Path "verify-package/SAMA_5.0.0-uat.4/runtime/python.exe")) { throw "Portable runtime missing" }
-          if (-not (Test-Path "verify-package/SAMA_5.0.0-uat.4/data/sama.sqlite3")) { throw "Canonical DB missing" }
-          $check = ((Get-FileHash "release/SAMA_5.0.0-uat.4.zip" -Algorithm SHA256).Hash.ToLowerInvariant() + "  SAMA_5.0.0-uat.4.zip")
+          Expand-Archive "release/SAMA_5.0.0-uat.5.zip" verify-package
+          if (-not (Test-Path "verify-package/SAMA_5.0.0-uat.5/runtime/python.exe")) { throw "Portable runtime missing" }
+          if (-not (Test-Path "verify-package/SAMA_5.0.0-uat.5/data/sama.sqlite3")) { throw "Canonical DB missing" }
+          $check = ((Get-FileHash "release/SAMA_5.0.0-uat.5.zip" -Algorithm SHA256).Hash.ToLowerInvariant() + "  SAMA_5.0.0-uat.5.zip")
           if ($check -ne (Get-Content "release/SHA256SUMS.txt" -Raw -Encoding utf8).Trim()) { throw "Release hash verification failed" }
       - uses: actions/upload-artifact@v4
         with:
-          name: SAMA_5.0.0-uat.4
+          name: SAMA_5.0.0-uat.5
           path: release/*
       - name: Publish and verify GitHub Release assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view v5.0.0-uat.4 *> $null
-          if ($LASTEXITCODE -ne 0) { gh release create v5.0.0-uat.4 --target "${{ github.sha }}" --title "SAMA Next 5.0.0-uat.4" --notes "First clean-architecture UAT candidate. Legacy v3/UAT3 remains reference-only." }
-          gh release upload v5.0.0-uat.4 release/SAMA_5.0.0-uat.4.zip release/SHA256SUMS.txt --clobber
-          $asset = gh api repos/${{ github.repository }}/releases/tags/v5.0.0-uat.4 --jq '.assets[] | select(.name == "SAMA_5.0.0-uat.4.zip") | [.name,.size] | @tsv'
+          gh release view v5.0.0-uat.5 *> $null
+          if ($LASTEXITCODE -ne 0) { gh release create v5.0.0-uat.5 --target "${{ github.sha }}" --title "سامانه مدیریت قراردادها — 5.0.0-uat.5" --notes "UI/UX and Design System remediation UAT candidate. Not approved for Production/LAN use." }
+          gh release upload v5.0.0-uat.5 release/SAMA_5.0.0-uat.5.zip release/SHA256SUMS.txt --clobber
+          $asset = gh api repos/${{ github.repository }}/releases/tags/v5.0.0-uat.5 --jq '.assets[] | select(.name == "SAMA_5.0.0-uat.5.zip") | [.name,.size] | @tsv'
           if (-not $asset) { throw "Release ZIP asset is not visible through GitHub API" }
-          gh release download v5.0.0-uat.4 --pattern SAMA_5.0.0-uat.4.zip --dir downloaded --clobber
-          if ((Get-FileHash downloaded/SAMA_5.0.0-uat.4.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-FileHash release/SAMA_5.0.0-uat.4.zip -Algorithm SHA256).Hash.ToLowerInvariant()) { throw "Published asset hash differs" }
+          gh release download v5.0.0-uat.5 --pattern SAMA_5.0.0-uat.5.zip --dir downloaded --clobber
+          if ((Get-FileHash downloaded/SAMA_5.0.0-uat.5.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-FileHash release/SAMA_5.0.0-uat.5.zip -Algorithm SHA256).Hash.ToLowerInvariant()) { throw "Published asset hash differs" }

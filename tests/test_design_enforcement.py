@@ -12,3 +12,31 @@ def test_no_remote_runtime_assets_or_inline_styles():
 def test_colors_live_only_in_tokens():
  app=(ROOT/'design_system/static/design_system/css/app.css').read_text()
  colors=set(re.findall(r'#[0-9a-fA-F]{3,8}',app));assert colors <= {'#fff','#000'}
+
+def test_official_product_name_and_account_navigation_are_enforced():
+ templates='\n'.join(p.read_text() for p in (ROOT/'ui/templates').rglob('*.html'))
+ assert 'سامانه مدیریت امور قراردادها' not in templates
+ assert 'سامانه مدیریت قراردادها' in (ROOT/'ui/templates/ui/base.html').read_text()
+ base=(ROOT/'ui/templates/ui/base.html').read_text()
+ nav=base.split('<nav class="topnav"',1)[1].split('</nav>',1)[0]
+ assert '>خروج<' not in nav
+ assert 'class="account"' in base and 'aria-current="page"' in base
+
+def test_design_system_has_semantic_sections_and_shared_components():
+ tokens=(ROOT/'design_system/static/design_system/css/tokens.css').read_text()
+ app=(ROOT/'design_system/static/design_system/css/app.css').read_text()
+ for section in ('dashboard','spaces','contracts','appraisals','auctions','utilities','workflows','documents','alerts','reports','users'):
+  assert f'--section-{section}' in tokens and f'.section-{section}' in tokens
+ for component in ('.filter-panel','.account-menu','.tabs','.empty','.badge','.button.compact','.kpis','.page-header'):
+  assert component in app
+
+def test_authentication_and_filters_do_not_leak_default_ui():
+ login=(ROOT/'ui/templates/ui/login.html').read_text();password=(ROOT/'ui/templates/ui/password_change.html').read_text();forms=(ROOT/'ui/forms.py').read_text();spaces=(ROOT/'ui/templates/ui/space_list.html').read_text()
+ assert 'form.as_div' not in login+password
+ assert all(label in login+password+forms for label in ('نام کاربری','گذرواژه','گذرواژه فعلی','گذرواژه جدید','تکرار گذرواژه جدید'))
+ assert '<select name="region_id" multiple' not in spaces and '<select name="center_id" multiple' not in spaces
+ assert 'فیلترهای ذخیره‌شده' in spaces and 'ذخیره فیلتر جاری' in spaces
+
+def test_templates_do_not_define_ad_hoc_visual_css():
+ for path in (ROOT/'ui/templates').rglob('*.html'):
+  text=path.read_text();assert '<style' not in text and ' style=' not in text

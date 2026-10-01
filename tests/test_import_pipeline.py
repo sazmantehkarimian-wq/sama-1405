@@ -2,12 +2,19 @@ import zipfile
 from pathlib import Path
 import pytest
 from openpyxl import load_workbook
-from import_pipeline.import_authorities import run
+from import_pipeline.import_authorities import first_value, run
 from domains.properties.models import MotherProperty, CommercialSpace
 from domains.registry.models import RawCell, CanonicalField, Discrepancy
 from domains.operations.models import Appraisal, Auction, DecisionOrder, UtilityObligation, SourceDocumentReference, TimelineEvent
 
 ROOT=Path(__file__).parents[1]/'authority/inputs/1405-07-06'
+
+def test_alternate_contract_and_appraisal_headings_are_not_dropped():
+ row={'مبلغ با ارزش افزوده (ریال)':120,'مبلغ کارشناسی (ریال)':80,'نام کارشناس':'کارشناس دوم','مرجع نامه':'نامه ۲'}
+ assert first_value(row,'مبلغ قرارداد با ارزش افزوده (ریال)','مبلغ با ارزش افزوده (ریال)')==120
+ assert first_value(row,'مبلغ کارشناسی اجاره ماهانه (ریال)','مبلغ کارشناسی (ریال)')==80
+ assert first_value(row,'نام کارشناس ارزیابی','نام کارشناس')=='کارشناس دوم'
+ assert first_value(row,'شماره / مرجع نامه کارشناسی','مرجع نامه')=='نامه ۲'
 
 @pytest.mark.django_db(transaction=True)
 def test_complete_authority_import_is_lossless_and_typed(tmp_path):
