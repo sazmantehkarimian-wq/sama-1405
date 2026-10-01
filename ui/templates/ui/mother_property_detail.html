@@ -27,9 +27,7 @@
     <div><small>مساحت اعیان</small><strong>{{ item.area|default:'ثبت نشده' }}</strong></div>
     <div class="wide"><small>نشانی</small><strong>{{ item.address|default:'ثبت نشده' }}</strong></div>
   </div>
-  {% if item.completeness_reasons %}
-  <div class="notice"><strong>نیازمند تکمیل</strong><ul>{% for reason in item.completeness_reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div>
-  {% endif %}
+  {% if item.quality_review_reasons %}<div class="notice error"><strong>نیازمند بررسی</strong><ul>{% for reason in item.quality_review_reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div>{% elif item.completeness_reasons %}<div class="notice"><strong>نیازمند تکمیل</strong><ul>{% for reason in item.completeness_reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div>{% endif %}
 </section>
 
 <section class="card dossier-section" id="ownership">
@@ -85,7 +83,7 @@
 <section class="card dossier-section" id="correspondence">
   <div class="page-header"><h2>اسناد و مکاتبات اداری ملک</h2><a class="button emphasized compact" href="{% url 'mother-property-correspondence-create' item.pk %}">ثبت مکاتبه</a></div>
   <div class="table-wrap"><table><thead><tr><th>نوع</th><th>شماره</th><th>تاریخ</th><th>موضوع</th><th>فرستنده</th><th>گیرنده</th><th>پیگیری</th><th>مسئول / مهلت</th><th>فایل</th></tr></thead><tbody>
-  {% for row in item.correspondence.all %}<tr><td>{{ row.get_document_type_display|default:row.document_type }}</td><td>{{ row.number|default:'—' }}</td><td>{{ row.document_date|default:'—' }}</td><td>{{ row.subject }}</td><td>{{ row.sender|default:'—' }}</td><td>{{ row.recipient|default:'—' }}</td><td>{% if row.needs_follow_up %}{{ row.get_follow_up_status_display }}{% else %}نیاز ندارد{% endif %}</td><td>{% if row.responsible %}{{ row.responsible }}{% else %}—{% endif %} / {{ row.due_date|default:'—' }}</td><td>{% if row.document %}<a href="{% url 'document-download' row.document.pk %}">دریافت</a>{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="9">مکاتبه‌ای ثبت نشده است.</td></tr>{% endfor %}
+  {% for row in item.correspondence.all %}<tr><td>{{ row.document_type }}</td><td>{{ row.number|default:'—' }}</td><td>{{ row.document_date|default:'—' }}</td><td>{{ row.subject }}</td><td>{{ row.sender|default:'—' }}</td><td>{{ row.recipient|default:'—' }}</td><td>{% if row.needs_follow_up %}{{ row.get_follow_up_status_display }}{% else %}نیاز ندارد{% endif %}</td><td>{% if row.responsible %}{{ row.responsible }}{% else %}—{% endif %} / {{ row.due_date|default:'—' }}{% if row.needs_follow_up %}<form class="inline-form compact-form no-print" method="post" action="{% url 'mother-property-correspondence-transition' row.pk %}">{% csrf_token %}<select name="follow_up_status"><option value="OPEN">باز</option><option value="DONE">انجام‌شده</option><option value="CLOSED">مختومه</option><option value="REVIEW_REQUIRED">نیازمند بررسی</option></select><input name="reason" placeholder="علت / نتیجه تغییر" required><button class="secondary compact">ثبت وضعیت</button></form>{% endif %}</td><td>{% if row.document %}<a href="{% url 'document-download' row.document.pk %}">دریافت</a>{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="9">مکاتبه‌ای ثبت نشده است.</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 
