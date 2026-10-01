@@ -6,7 +6,7 @@
   <div><h1>انشعابات و مصرف</h1><p>گزارش عملیاتی آب، گاز و سایر انشعابات — برق در زیرسامانه تخصصی مستقل مدیریت می‌شود.</p></div>
   <div class="button-row">
     <a class="button emphasized compact" href="{% url 'electricity-dashboard' %}">زیرسامانه برق</a>
-    <a class="button secondary compact" href="{% url 'utility-bills-excel' %}?{{ request.GET.urlencode }}">خروجی رسمی اکسل</a>
+    <a class="button secondary compact" href="{% url 'utility-bills-excel' %}?{{ request.GET.urlencode }}">خروجی رسمی اکسل</a><button class="secondary compact no-print" type="button" onclick="window.print()">چاپ گزارش</button>
   </div>
 </div>
 
@@ -19,7 +19,7 @@
   <a class="card kpi" href="#utility-bills"><small>جمع مبلغ</small><strong>{{ total_amount|rial }}</strong></a>
 </div>
 
-<form class="card filter-panel" method="get">
+<form class="card filter-panel no-print" method="get">
   <div class="filter-panel-header"><h2>جست‌وجو و فیلتر گزارش</h2><a class="button tertiary compact" href="{% url 'utility-dashboard' %}">پاک‌کردن همه</a></div>
   <div class="filter-primary">
     <label>جست‌وجو<input name="q" value="{{ request.GET.q }}" placeholder="کد فضا، نام، اشتراک، کنتور یا تأمین‌کننده"></label>
@@ -41,7 +41,7 @@
 <section class="card dossier-section" id="utility-bills">
   <div class="page-header"><div><h2>قبوض آب، گاز و سایر انشعابات</h2><p>مقایسه با دوره قبلی همان اشتراک در صورت وجود نمایش داده می‌شود.</p></div></div>
   <div class="table-wrap"><table>
-    <thead><tr><th>کد قبض</th><th>نوع</th><th>کد فضا</th><th>اشتراک</th><th>دوره</th><th>مبلغ</th><th>تغییر مبلغ</th><th>مصرف</th><th>تغییر مصرف</th><th>Measurement</th><th>پرداخت</th><th>پرونده فضا</th></tr></thead>
+    <thead><tr><th>کد قبض</th><th>نوع</th><th>کد فضا</th><th>اشتراک</th><th>دوره</th><th>مبلغ</th><th>تغییر مبلغ</th><th>مصرف</th><th>تغییر مصرف</th><th>Measurement</th><th>سند قبض</th><th>پرداخت</th><th>پرونده فضا</th></tr></thead>
     <tbody>
     {% for item in page %}
       <tr>
@@ -55,10 +55,11 @@
         <td>{% if item.consumption is not None %}{{ item.consumption|fa_digits }}{% else %}—{% endif %}</td>
         <td>{% if item.consumption_change is not None %}{{ item.consumption_change|fa_digits }}{% else %}—{% endif %}</td>
         <td>{% if item.measurement %}{{ item.measurement.consumption|fa_digits }} {{ item.measurement.measurement_unit }}{% else %}—{% endif %}</td>
+        <td>{% if item.supporting_document %}<a href="{% url 'document-download' item.supporting_document.pk %}">{{ item.supporting_document.title }}</a>{% else %}—{% endif %}</td>
         <td>{{ item.get_payment_status_display }}</td>
         <td><a class="button compact" href="{% url 'space-detail' item.connection.space.code %}">مشاهده</a></td>
       </tr>
-    {% empty %}<tr><td colspan="12">رکوردی مطابق فیلتر جاری وجود ندارد.</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="13">رکوردی مطابق فیلتر جاری وجود ندارد.</td></tr>{% endfor %}
     </tbody>
   </table></div>
   <nav class="pagination">{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}&{{ request.GET.urlencode }}">صفحه قبل</a>{% endif %}<span>صفحه {{ page.number|fa_digits }} از {{ page.paginator.num_pages|fa_digits }}</span>{% if page.has_next %}<a href="?page={{ page.next_page_number }}&{{ request.GET.urlencode }}">صفحه بعد</a>{% endif %}</nav>
