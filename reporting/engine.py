@@ -82,6 +82,36 @@ def tabular_excel(title,labels,data):
  for values in data:ws.append(list(values))
  _style_xlsx(ws,header,total)
  out=BytesIO();wb.save(out);return out.getvalue()
+def tabular_pdf(title,labels,data):
+ """Official server-side PDF for typed operational reports; no browser print dependency."""
+ out=BytesIO();pdfmetrics.registerFont(TTFont('Vazirmatn',str(FONT)))
+ doc=SimpleDocTemplate(
+  out,pagesize=landscape(A4),rightMargin=10*mm,leftMargin=10*mm,
+  topMargin=10*mm,bottomMargin=12*mm,title=str(title),
+ )
+ style=ParagraphStyle('fa-tabular',fontName='Vazirmatn',fontSize=8,leading=12,alignment=TA_CENTER)
+ story=[]
+ if LOGO.exists():story.append(Image(str(LOGO),width=16*mm,height=16*mm))
+ for line in HEADERS:story.append(Paragraph(_fa(line),style))
+ story.append(Paragraph(_fa(title),style));story.append(Spacer(1,4*mm))
+ table_data=[[_fa(label) for label in labels]]
+ for values in data:table_data.append([_fa(value if value not in (None,'') else '—') for value in values])
+ table_data=[list(reversed(row)) for row in table_data]
+ table=Table(table_data,repeatRows=1,hAlign='CENTER',splitByRow=1)
+ table.setStyle(TableStyle([
+  ('FONTNAME',(0,0),(-1,-1),'Vazirmatn'),('FONTSIZE',(0,0),(-1,-1),7),
+  ('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+  ('GRID',(0,0),(-1,-1),.45,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#f1edf2')),
+  ('LEADING',(0,0),(-1,-1),10),
+ ]));story.append(table)
+ def numbered_page(canvas,document):
+  canvas.saveState();canvas.setFont('Vazirmatn',8)
+  canvas.drawCentredString(landscape(A4)[0]/2,6*mm,_fa(f'صفحه {document.page}'))
+  canvas.restoreState()
+ doc.build(story,onFirstPage=numbered_page,onLaterPages=numbered_page)
+ return out.getvalue()
+
+
 def _rtl(paragraph):
  paragraph.alignment=WD_ALIGN_PARAGRAPH.CENTER
  pPr=paragraph._p.get_or_add_pPr();bidi=OxmlElement('w:bidi');bidi.set(qn('w:val'),'1');pPr.append(bidi)
