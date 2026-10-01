@@ -154,3 +154,75 @@ def pdf(spaces,selected=None,blank_columns=()):
  def numbered_page(canvas,document):
   canvas.saveState();canvas.setFont('Vazirmatn',8);canvas.drawCentredString(landscape(A4)[0]/2,6*mm,_fa(f'صفحه {document.page}'));canvas.restoreState()
  doc.build(story,onFirstPage=numbered_page,onLaterPages=numbered_page);return out.getvalue()
+
+
+
+def multi_sheet_excel(title, sections):
+ """One official workbook with one RTL sheet per selected scoped domain."""
+ wb=Workbook()
+ default=wb.active
+ wb.remove(default)
+ used=set()
+ for section in sections:
+  base=str(section["title"] or "گزارش")[:31]
+  sheet_name=base
+  counter=2
+  while sheet_name in used:
+   suffix=f"-{counter}"
+   sheet_name=(base[:31-len(suffix)]+suffix)
+   counter+=1
+  used.add(sheet_name)
+  ws=wb.create_sheet(sheet_name)
+  ws.sheet_view.rightToLeft=True
+  labels=list(section["labels"]); total=max(1,len(labels))
+  for line in HEADERS:
+   ws.append(["",line] if total>1 else [line])
+   if total>2:ws.merge_cells(start_row=ws.max_row,start_column=2,end_row=ws.max_row,end_column=total)
+  ws.append(["",title] if total>1 else [title])
+  if total>2:ws.merge_cells(start_row=ws.max_row,start_column=2,end_row=ws.max_row,end_column=total)
+  if LOGO.exists():
+   logo=ExcelImage(str(LOGO));logo.width=64;logo.height=64;ws.add_image(logo,"A1")
+  ws.append(labels);header=ws.max_row
+  for row in section["rows"]:ws.append(list(row))
+  _style_xlsx(ws,header,total)
+ if not sections:
+  ws=wb.create_sheet("گزارش");ws.sheet_view.rightToLeft=True;ws.append(["داده‌ای برای نمایش وجود ندارد"])
+ out=BytesIO();wb.save(out);return out.getvalue()
+
+
+def multi_section_pdf(title, sections):
+ """Official PDF with clear selected-domain sections over the same scoped datasets."""
+ out=BytesIO();pdfmetrics.registerFont(TTFont("Vazirmatn",str(FONT)))
+ doc=SimpleDocTemplate(
+  out,pagesize=landscape(A4),rightMargin=8*mm,leftMargin=8*mm,
+  topMargin=8*mm,bottomMargin=12*mm,title=str(title),
+ )
+ title_style=ParagraphStyle("fa-scope-title",fontName="Vazirmatn",fontSize=10,leading=15,alignment=TA_CENTER)
+ cell_style=ParagraphStyle("fa-scope-cell",fontName="Vazirmatn",fontSize=6.5,leading=9,alignment=TA_CENTER)
+ story=[]
+ if LOGO.exists():story.append(Image(str(LOGO),width=16*mm,height=16*mm))
+ for line in HEADERS:story.append(Paragraph(_fa(line),title_style))
+ story.append(Paragraph(_fa(title),title_style));story.append(Spacer(1,4*mm))
+ for section in sections:
+  story.append(Paragraph(_fa(section["title"]),title_style));story.append(Spacer(1,2*mm))
+  labels=[_fa(x) for x in section["labels"]]
+  data=[labels]
+  for row in section["rows"]:
+   data.append([_fa(value if value not in (None,"") else "—") for value in row])
+  if len(data)==1:
+   data.append([_fa("داده‌ای ثبت نشده است")]+[""]*(max(1,len(labels))-1))
+  data=[list(reversed(row)) for row in data]
+  table=Table(data,repeatRows=1,hAlign="CENTER",splitByRow=1)
+  table.setStyle(TableStyle([
+   ("FONTNAME",(0,0),(-1,-1),"Vazirmatn"),("FONTSIZE",(0,0),(-1,-1),6.5),
+   ("ALIGN",(0,0),(-1,-1),"CENTER"),("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+   ("GRID",(0,0),(-1,-1),.35,colors.grey),("BACKGROUND",(0,0),(-1,0),colors.HexColor("#f1edf2")),
+   ("LEADING",(0,0),(-1,-1),9),
+  ]))
+  story.append(table);story.append(Spacer(1,5*mm))
+ def numbered_page(canvas,document):
+  canvas.saveState();canvas.setFont("Vazirmatn",8)
+  canvas.drawCentredString(landscape(A4)[0]/2,6*mm,_fa(f"صفحه {document.page}"))
+  canvas.restoreState()
+ doc.build(story,onFirstPage=numbered_page,onLaterPages=numbered_page)
+ return out.getvalue()
