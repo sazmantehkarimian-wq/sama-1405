@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from domains.contracts.models import Beneficiary
 from domains.identity.models import AuditEvent
 from domains.operations.models import (
-    Appraiser, ElectricityBill, ElectricityConsumptionCategory,
+    Appraiser, AppraisalFee, ElectricityBill, ElectricityConsumptionCategory,
     UtilityBill, UtilityConnection, UtilityMeasurement, UtilityParameterRule, UtilityUnit,
 )
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
@@ -16,11 +16,15 @@ from services.electricity import (
     record_measurement, recalculate_electricity_bill, reopen_electricity_bill, update_electricity_bill,
     upsert_electricity_allocation,
 )
-from services.operations import create_appraisal
+from services.operations import (
+    create_appraisal, create_appraisal_fee, create_fee_payment_batch,
+    transition_appraisal_fee, update_appraisal_fee_amount,
+)
 from services.utilities import create_utility_bill, create_utility_connection
 from ui.entry_forms import (
-    AppraisalEntryForm, AppraiserForm, BeneficiaryAssignmentForm, BeneficiaryForm,
-    CenterForm, CommercialSpaceForm, ContractEntryForm, ElectricityAllocationForm,
+    AppraisalEntryForm, AppraisalFeeAmountForm, AppraisalFeeCreateForm, AppraisalFeeTransitionForm,
+    AppraiserForm, BeneficiaryAssignmentForm, BeneficiaryForm,
+    CenterForm, CommercialSpaceForm, ContractEntryForm, ElectricityAllocationForm, ExpertFeeBatchForm,
     ElectricityBillForm, MotherPropertyForm, RegionForm, UtilityBillForm,
     UtilityConnectionForm, UtilityMeasurementForm, UtilityParameterRuleForm, UtilityUnitForm,
 )
@@ -917,4 +921,104 @@ def utility_bill_create(request,connection_id):
         "form":form,"title":f"ثبت قبض {connection.get_utility_type_display()} — {connection.account_number}",
         "subtitle":"برای آب و گاز فقط داده واقعی قبض/مصرف/Measurement ثبت می‌شود؛ فرمول برق استفاده نمی‌شود.",
         "cancel_url":"space-detail","cancel_kwargs":{"code":connection.space.code},
+    })
+
+
+
+@login_required
+@transaction.atomic
+def appraisal_fee_create(request,appraisal_id):
+    from domains.operations.models import Appraisal
+    appraisal=get_object_or_404(Appraisal.objects.select_related("space","appraiser_ref"),pk=appraisal_id)
+    form=AppraisalFeeCreateForm(request.POST or None,appraisal=appraisal)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            fee=create_appraisal_fee(
+                appraisal=appraisal,actor=request.user,amount=form.cleaned_data["amount_rial"],
+                notes=form.cleaned_data.get("notes",""),document=form.cleaned_data.get("supporting_document"),
+                follow_up_date=form.cleaned_data.get("follow_up_date",""),ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,f"پرونده حق‌الزحمه {fee.sama_code} ایجاد شد.")
+            return redirect("expert-fee-dashboard")
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":f"ثبت حق‌الزحمه {appraisal.sama_code}",
+        "subtitle":"مبلغ حق‌الزحمه مستقل از مبلغ کارشناسی و فقط به‌صورت دستی ثبت می‌شود.",
+        "cancel_url":"space-detail","cancel_kwargs":{"code":appraisal.space.code},
+    })
+
+
+@login_required
+@transaction.atomic
+def appraisal_fee_transition(request,fee_id):
+    fee=get_object_or_404(AppraisalFee.objects.select_related("appraisal__space"),pk=fee_id)
+    form=AppraisalFeeTransitionForm(request.POST or None,fee=fee)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            transition_appraisal_fee(
+                fee=fee,actor=request.user,new_status=form.cleaned_data["status"],values=form.cleaned_data,
+                reason=form.cleaned_data.get("reason",""),ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,"وضعیت حق‌الزحمه ثبت شد.")
+            return redirect("expert-fee-dashboard")
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":f"تغییر وضعیت {fee.sama_code}",
+        "subtitle":f"وضعیت فعلی: {fee.get_status_display()}",
+        "cancel_url":"expert-fee-dashboard",
+    })
+
+
+@login_required
+@transaction.atomic
+def appraisal_fee_amount_update(request,fee_id):
+    fee=get_object_or_404(AppraisalFee.objects.select_related("appraisal__space"),pk=fee_id)
+    form=AppraisalFeeAmountForm(request.POST or None,initial={"amount_rial":fee.amount_rial})
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            update_appraisal_fee_amount(
+                fee=fee,actor=request.user,amount=form.cleaned_data["amount_rial"],
+                reason=form.cleaned_data["reason"],ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,"مبلغ حق‌الزحمه با ثبت Audit اصلاح شد.")
+            return redirect("expert-fee-dashboard")
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":f"اصلاح مبلغ {fee.sama_code}",
+        "subtitle":"پس از پرداخت یا مختومه‌شدن، اصلاح مستقیم مبلغ مجاز نیست.",
+        "cancel_url":"expert-fee-dashboard",
+    })
+
+
+@login_required
+@transaction.atomic
+def expert_fee_batch_create(request):
+    form=ExpertFeeBatchForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            batch=create_fee_payment_batch(
+                fees=list(form.cleaned_data["fees"]),actor=request.user,
+                sent_date=form.cleaned_data["sent_date"],letter_number=form.cleaned_data["letter_number"],
+                letter_date=form.cleaned_data["letter_date"],notes=form.cleaned_data.get("notes",""),
+                ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,f"Batch {batch.sama_code} ایجاد و به مالی ارسال شد.")
+            return redirect("expert-fee-dashboard")
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":"ارسال گروهی حق‌الزحمه به مالی",
+        "subtitle":"فقط رکوردهای «آماده ارسال» انتخاب می‌شوند و هر رکورد فقط در یک Batch فعال عضو است.",
+        "cancel_url":"expert-fee-dashboard",
     })
