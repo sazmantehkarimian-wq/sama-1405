@@ -5,13 +5,22 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from domains.contracts.models import Beneficiary
 from domains.identity.models import AuditEvent
-from domains.operations.models import Appraiser
+from domains.operations.models import (
+    Appraiser, ElectricityBill, ElectricityConsumptionCategory,
+    UtilityMeasurement, UtilityUnit,
+)
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
 from services.contracts import assign_beneficiary, create_contract
+from services.electricity import (
+    create_electricity_bill, finalize_electricity_bill, record_measurement,
+    recalculate_electricity_bill, reopen_electricity_bill, upsert_electricity_allocation,
+)
 from services.operations import create_appraisal
 from ui.entry_forms import (
     AppraisalEntryForm, AppraiserForm, BeneficiaryAssignmentForm, BeneficiaryForm,
-    CenterForm, CommercialSpaceForm, ContractEntryForm, MotherPropertyForm, RegionForm,
+    CenterForm, CommercialSpaceForm, ContractEntryForm, ElectricityAllocationForm,
+    ElectricityBillForm, MotherPropertyForm, RegionForm, UtilityMeasurementForm,
+    UtilityUnitForm,
 )
 
 
@@ -556,3 +565,249 @@ def beneficiary_assign(request, code):
             "secondary_action_label": "ثبت بهره‌بردار جدید",
         },
     )
+
+
+
+@login_required
+def electricity_dashboard(request):
+    bills = ElectricityBill.objects.select_related("unit", "created_by").prefetch_related("allocations").order_by("-period_end", "-id")
+    units = UtilityUnit.objects.filter(active=True).order_by("name")
+    context = {
+        "bills": bills[:200],
+        "units": units,
+        "bill_count": bills.count(),
+        "final_count": bills.filter(status=ElectricityBill.Status.FINAL).count(),
+        "review_count": bills.filter(status=ElectricityBill.Status.REVIEW_REQUIRED).count(),
+        "total_amount": sum((item.amount_rial for item in bills), 0),
+    }
+    return render(request, "ui/electricity_dashboard.html", context)
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+@transaction.atomic
+def utility_unit_create(request):
+    form = UtilityUnitForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        unit = form.save(commit=False)
+        unit.created_by = request.user
+        unit.save()
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="UTILITY_UNIT_CREATE",
+            entity_type="UtilityUnit",
+            entity_id=str(unit.pk),
+            after={"name": unit.name, "kind": unit.kind, "region_id": unit.region_id, "center_id": unit.center_id},
+            ip_address=_ip(request),
+        )
+        messages.success(request, "واحد برق ثبت شد.")
+        return redirect("electricity-dashboard")
+    return render(
+        request,
+        "ui/entity_form.html",
+        {
+            "form": form,
+            "title": "تعریف واحد برق",
+            "subtitle": "واحد می‌تواند منطقه، مرکز خاص یا واحد مصوب دیگری باشد.",
+            "cancel_url": "electricity-dashboard",
+        },
+    )
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+@transaction.atomic
+def electricity_category_create(request):
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        eui_raw = request.POST.get("eui", "").strip()
+        effective_from = request.POST.get("effective_from", "").strip()
+        if not name:
+            messages.error(request, "نام دسته مصرف الزامی است.")
+        elif ElectricityConsumptionCategory.objects.filter(name=name).exists():
+            messages.error(request, "این دسته مصرف قبلاً ثبت شده است.")
+        else:
+            from decimal import Decimal, InvalidOperation
+            try:
+                eui = Decimal(eui_raw) if eui_raw else None
+                if eui is not None and eui < 0:
+                    raise InvalidOperation
+            except InvalidOperation:
+                messages.error(request, "EUI باید عدد غیرمنفی معتبر باشد.")
+            else:
+                category = ElectricityConsumptionCategory.objects.create(
+                    name=name,
+                    eui=eui,
+                    effective_from=effective_from,
+                    notes=request.POST.get("notes", "").strip(),
+                    created_by=request.user,
+                )
+                AuditEvent.objects.create(
+                    actor=request.user,
+                    action="ELECTRICITY_CATEGORY_CREATE",
+                    entity_type="ElectricityConsumptionCategory",
+                    entity_id=str(category.pk),
+                    after={"name": category.name, "eui": str(category.eui) if category.eui is not None else None},
+                    ip_address=_ip(request),
+                )
+                messages.success(request, "دسته مصرف برق ثبت شد.")
+    return redirect("electricity-dashboard")
+
+
+@login_required
+@transaction.atomic
+def electricity_bill_create(request):
+    form = ElectricityBillForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            bill = create_electricity_bill(
+                unit=form.cleaned_data["unit"],
+                actor=request.user,
+                values=form.cleaned_data,
+                ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None, " ".join(exc.messages))
+        else:
+            messages.success(request, f"قبض برق {bill.sama_code} ثبت شد.")
+            return redirect("electricity-bill-detail", bill_id=bill.pk)
+    return render(
+        request,
+        "ui/entity_form.html",
+        {
+            "form": form,
+            "title": "ثبت قبض برق",
+            "subtitle": "مبلغ قبض و درصد سهم‌ها ساختاری ثبت می‌شوند؛ جمع سهم سازمان و بهره‌برداران باید دقیقاً ۱۰۰٪ باشد.",
+            "cancel_url": "electricity-dashboard",
+        },
+    )
+
+
+@login_required
+def electricity_bill_detail(request, bill_id):
+    bill = get_object_or_404(
+        ElectricityBill.objects.select_related("unit", "supporting_document", "finalized_by")
+        .prefetch_related("allocations__space", "allocations__measurement", "allocations__category", "snapshots"),
+        pk=bill_id,
+    )
+    allocation_form = ElectricityAllocationForm(bill=bill)
+    return render(
+        request,
+        "ui/electricity_bill_detail.html",
+        {
+            "bill": bill,
+            "allocation_form": allocation_form,
+            "allocations": bill.allocations.select_related("space", "measurement", "category").order_by("space__code"),
+            "snapshots": bill.snapshots.all(),
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def utility_measurement_create(request, code):
+    space = get_object_or_404(CommercialSpace, code=code)
+    form = UtilityMeasurementForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            measurement = record_measurement(
+                space=space,
+                actor=request.user,
+                values=form.cleaned_data,
+                ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None, " ".join(exc.messages))
+        else:
+            messages.success(request, "Measurement ثبت شد و در تاریخچه باقی می‌ماند.")
+            return redirect("space-detail", code=space.code)
+    return render(
+        request,
+        "ui/entity_form.html",
+        {
+            "form": form,
+            "title": f"ثبت Measurement برای فضای {space.code}",
+            "subtitle": "داده واقعی و زیرکنتور بر داده برآوردی اولویت دارند و Measurement قبلی حذف نمی‌شود.",
+            "cancel_url": "space-detail",
+            "cancel_kwargs": {"code": space.code},
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def electricity_allocation_save(request, bill_id):
+    from django.core.exceptions import ValidationError
+    bill = get_object_or_404(ElectricityBill, pk=bill_id)
+    form = ElectricityAllocationForm(request.POST or None, bill=bill)
+    if request.method != "POST":
+        return redirect("electricity-bill-detail", bill_id=bill.pk)
+    if form.is_valid():
+        try:
+            upsert_electricity_allocation(
+                bill=bill,
+                space=form.cleaned_data["space"],
+                actor=request.user,
+                values=form.cleaned_data,
+                ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            for message in exc.messages:
+                messages.error(request, message)
+        else:
+            messages.success(request, "فضای مشمول و پارامترهای محاسبه ثبت و قبض باز‌محاسبه شد.")
+    else:
+        for errors in form.errors.values():
+            for error in errors:
+                messages.error(request, error)
+    return redirect("electricity-bill-detail", bill_id=bill.pk)
+
+
+@login_required
+@transaction.atomic
+def electricity_recalculate(request, bill_id):
+    from django.core.exceptions import ValidationError
+    bill = get_object_or_404(ElectricityBill, pk=bill_id)
+    try:
+        recalculate_electricity_bill(bill=bill, actor=request.user, ip_address=_ip(request))
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+    else:
+        messages.success(request, "محاسبه برق بر اساس اولویت Measurement / تجهیزات / مدل مصوب به‌روزرسانی شد.")
+    return redirect("electricity-bill-detail", bill_id=bill.pk)
+
+
+@login_required
+@transaction.atomic
+def electricity_finalize(request, bill_id):
+    from django.core.exceptions import ValidationError
+    bill = get_object_or_404(ElectricityBill, pk=bill_id)
+    try:
+        snapshot = finalize_electricity_bill(bill=bill, actor=request.user, ip_address=_ip(request))
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+    else:
+        messages.success(request, f"محاسبه نهایی شد و Snapshot نسخه {snapshot.version} ثبت شد.")
+    return redirect("electricity-bill-detail", bill_id=bill.pk)
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+@transaction.atomic
+def electricity_reopen(request, bill_id):
+    from django.core.exceptions import ValidationError
+    bill = get_object_or_404(ElectricityBill, pk=bill_id)
+    try:
+        reopen_electricity_bill(
+            bill=bill,
+            actor=request.user,
+            reason=request.POST.get("reason", ""),
+            ip_address=_ip(request),
+        )
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+    else:
+        messages.success(request, "محاسبه نهایی با ثبت علت بازگشایی شد.")
+    return redirect("electricity-bill-detail", bill_id=bill.pk)
