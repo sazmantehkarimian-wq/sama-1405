@@ -31,6 +31,8 @@ def test_space_code_is_numeric_unique_and_immutable_even_through_queryset_update
     invalid = CommercialSpaceForm(data={"code": "0173", "name": "نامعتبر", "status": "ACTIVE"})
     assert not invalid.is_valid()
     with pytest.raises(DatabaseError):
+        CommercialSpace.objects.create(code="ABC", name="نامعتبر", status="ACTIVE")
+    with pytest.raises(DatabaseError):
         CommercialSpace.objects.filter(pk=space.pk).update(code="174")
 
 
