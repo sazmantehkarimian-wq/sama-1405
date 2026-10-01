@@ -907,7 +907,7 @@ def utility_bill_create(request,connection_id):
     if request.method=="POST" and form.is_valid():
         from django.core.exceptions import ValidationError
         try:
-            bill=create_utility_bill(connection=connection,actor=request.user,values=form.cleaned_data,ip_address=_ip(request))
+            bill=create_utility_bill(connection=connection,actor=request.user,values=form.cleaned_data,document=form.cleaned_data.get("supporting_document"),ip_address=_ip(request))
         except ValidationError as exc:
             form.add_error(None," ".join(exc.messages))
         else:
