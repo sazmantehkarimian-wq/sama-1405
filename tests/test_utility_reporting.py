@@ -2,10 +2,12 @@ from io import BytesIO
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from openpyxl import load_workbook
 
 from domains.operations.models import UtilityBill, UtilityConnection, UtilityMeasurement
 from domains.properties.models import CommercialSpace, Region
+from services.documents import store_document
 
 
 @pytest.mark.django_db
@@ -81,3 +83,26 @@ def test_utility_excel_export_respects_filters_and_is_excel_2019_compatible(clie
     assert "GX" in values
     assert "WX" not in values
     assert sheet.sheet_view.rightToLeft is True
+
+
+@pytest.mark.django_db
+def test_water_gas_bill_can_link_existing_space_document(client,tmp_path,settings):
+    settings.MEDIA_ROOT=tmp_path
+    user=get_user_model().objects.create_user("utility-evidence",password="A-very-safe-password")
+    client.force_login(user)
+    space=CommercialSpace.objects.create(code="8106",name="فضای سند",status="ACTIVE")
+    connection=UtilityConnection.objects.create(space=space,utility_type="WATER",account_number="W-DOC",status="ACTIVE")
+    document=store_document(
+        uploaded=SimpleUploadedFile("water-bill.pdf",b"%PDF-1.4\nwater",content_type="application/pdf"),
+        title="قبض آب اسکن‌شده",document_type="قبض آب",entity_type="CommercialSpace",entity_id=space.code,user=user,
+    )
+    response=client.post(f"/utility-connections/{connection.pk}/bills/new/",{
+        "period_start":"1405/03/01","period_end":"1405/03/31","amount_rial":"3500",
+        "payment_status":"UNPAID","supporting_document":document.pk,
+    })
+    assert response.status_code==302
+    bill=UtilityBill.objects.get(connection=connection)
+    assert bill.supporting_document==document
+
+    dashboard=client.get("/utilities/",{"q":"8106"})
+    assert "قبض آب اسکن‌شده" in dashboard.content.decode()
