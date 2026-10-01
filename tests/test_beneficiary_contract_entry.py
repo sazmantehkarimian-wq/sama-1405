@@ -116,3 +116,58 @@ def test_beneficiary_and_contract_search_use_identity_fields(client):
 
     by_identity=client.get("/records/contracts/",{"q":"12345678902"})
     assert "CNT-SEARCH" in by_identity.content.decode()
+
+
+@pytest.mark.django_db
+def test_beneficiary_can_be_assigned_without_contract_and_list_shows_it(client):
+    user=get_user_model().objects.create_user("beneficiary-assign",password="A-very-safe-password")
+    client.force_login(user)
+    space=CommercialSpace.objects.create(code="6110",name="فضای بدون قرارداد",status="ACTIVE")
+    beneficiary=Beneficiary.objects.create(kind="NATURAL",name="ندا نمونه",first_name="ندا",last_name="نمونه")
+
+    response=client.post("/spaces/6110/beneficiaries/assign/",{
+        "beneficiary":beneficiary.pk,
+        "start_date":"1405/07/01",
+        "basis":"بهره‌برداری جاری",
+    })
+    assert response.status_code==302
+    assignment=beneficiary.space_assignments.get(space=space)
+    assert assignment.status=="ACTIVE" and assignment.end_date==""
+    assert Contract.objects.filter(space=space).count()==0
+    assert AuditEvent.objects.filter(action="BENEFICIARY_ASSIGNMENT_CREATE",entity_id=str(assignment.pk)).exists()
+
+    listed=client.get("/spaces/active/")
+    body=listed.content.decode()
+    assert "ندا نمونه" in body
+    assert "فاقد قرارداد" in body
+
+
+@pytest.mark.django_db
+def test_beneficiary_change_closes_previous_link_and_requires_reason(client):
+    user=get_user_model().objects.create_user("beneficiary-change",password="A-very-safe-password")
+    client.force_login(user)
+    space=CommercialSpace.objects.create(code="6111",name="فضا",status="ACTIVE")
+    first=Beneficiary.objects.create(kind="NATURAL",name="بهره‌بردار اول",first_name="بهره‌بردار",last_name="اول")
+    second=Beneficiary.objects.create(kind="LEGAL",name="شرکت دوم",legal_name="شرکت دوم")
+
+    assert client.post("/spaces/6111/beneficiaries/assign/",{
+        "beneficiary":first.pk,"start_date":"1405/07/01","basis":"ثبت اولیه",
+    }).status_code==302
+
+    rejected=client.post("/spaces/6111/beneficiaries/assign/",{
+        "beneficiary":second.pk,"start_date":"1405/08/01","basis":"تغییر بهره‌بردار",
+    })
+    assert rejected.status_code==200
+    assert first.space_assignments.get(space=space).status=="ACTIVE"
+    assert second.space_assignments.filter(space=space).count()==0
+
+    accepted=client.post("/spaces/6111/beneficiaries/assign/",{
+        "beneficiary":second.pk,"start_date":"1405/08/01","basis":"تغییر بهره‌بردار",
+        "termination_reason":"ابلاغ تغییر بهره‌بردار",
+    })
+    assert accepted.status_code==302
+    old=first.space_assignments.get(space=space)
+    new=second.space_assignments.get(space=space)
+    assert old.status=="ENDED" and old.end_date=="1405/07/31"
+    assert old.termination_reason=="ابلاغ تغییر بهره‌بردار"
+    assert new.status=="ACTIVE" and new.start_date=="1405/08/01"
