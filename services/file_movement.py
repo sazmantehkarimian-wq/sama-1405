@@ -29,14 +29,17 @@ def register_handover(*,space,actor,values,ip_address=None):
     if direction not in FileMovement.Direction.values:
         raise ValidationError("جهت گردش پرونده معتبر نیست.")
     now=timezone.now()
-    existing=list(
+    existing=(
         FileMovement.objects.select_for_update()
         .filter(space=space,returned_at__isnull=True)
         .order_by("-handover_at","-id")
+        .first()
     )
-    for item in existing:
-        item.returned_at=now
-        item.save(update_fields=["returned_at"])
+    if existing:
+        raise ValidationError(
+            f"پرونده در حال حاضر در دست «{existing.holder}» در «{existing.location}» است؛ "
+            "ابتدا بازگشت / خاتمه تحویل جاری را ثبت کنید."
+        )
     movement=FileMovement.objects.create(
         space=space,
         location=str(values.get("location","")).strip(),
@@ -53,7 +56,7 @@ def register_handover(*,space,actor,values,ip_address=None):
     )
     AuditEvent.objects.create(
         actor=actor,action="FILE_MOVEMENT_CREATE",entity_type="CommercialSpace",entity_id=space.code,
-        before={"closed_movement_ids":[item.pk for item in existing]} if existing else None,
+        before=None,
         after={
             "movement_id":movement.pk,"holder":movement.holder,"location":movement.location,
             "direction":movement.direction,"due_date":movement.due_date,
@@ -63,7 +66,7 @@ def register_handover(*,space,actor,values,ip_address=None):
     TimelineEvent.objects.create(
         space=space,event_type="FILE_MOVEMENT_CREATE",occurred_at=movement.handover_at,
         source_entity="FileMovement",source_entity_id=str(movement.pk),title="ثبت تحویل فیزیکی پرونده",
-        description=f"{movement.holder} — {movement.location}",previous_state=existing[0].holder if existing else "",
+        description=f"{movement.holder} — {movement.location}",previous_state="",
         new_state=movement.holder,responsible_person=actor.get_full_name() or actor.username,
         provenance="گردش فیزیکی ثبت‌شده در سما",target_url=f"/spaces/{space.code}/",
     )
