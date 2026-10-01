@@ -232,13 +232,13 @@ def upsert_electricity_allocation(*, bill, space, actor, values, ip_address=None
         "manual_override_percent": override,
         "override_reason": override_reason,
         "notes": (values.get("notes") or "").strip(),
-        "created_by": actor,
     }
     allocation, created = ElectricityAllocation.objects.get_or_create(
         bill=bill,
         space=space,
         defaults={
             **defaults,
+            "created_by": actor,
             "calculated_share_percent": None,
             "final_share_percent": ZERO,
             "calculation_source": ElectricityAllocation.Source.APPROVED_MODEL,
