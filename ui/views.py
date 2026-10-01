@@ -366,6 +366,11 @@ def _search_domain(qs,domain,q):
   pk=_system_pk(q,'B')
   if pk:condition|=Q(pk=pk)
   return qs.filter(condition)
+ if domain=='documents':
+  return qs.filter(
+   Q(title__icontains=q)|Q(document_type__icontains=q)|Q(reference__icontains=q)|
+   Q(document_date__icontains=q)|Q(original_filename__icontains=q)|Q(entity_id__icontains=q)
+  )
  return qs
 @login_required
 def domain_list(request,domain):
