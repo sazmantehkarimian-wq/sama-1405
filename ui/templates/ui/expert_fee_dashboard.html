@@ -7,6 +7,7 @@
   <div class="button-row">
     <a class="button emphasized compact" href="{% url 'expert-fee-batch-create' %}">ارسال گروهی به مالی</a>
     <a class="button secondary compact" href="{% url 'expert-fees-excel' %}?{{ request.GET.urlencode }}">خروجی رسمی اکسل</a>
+    <a class="button secondary compact" href="{% url 'expert-fees-pdf' %}?{{ request.GET.urlencode }}">خروجی رسمی PDF</a>
   </div>
 </div>
 
