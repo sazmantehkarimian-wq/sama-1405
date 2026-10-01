@@ -173,8 +173,31 @@ class AuctionPeriod(models.Model):
  class State(models.TextChoices): DRAFT='DRAFT','پیش‌نویس'; READY='READY','آماده'; OPENED='OPENED','بازگشایی‌شده'; CLOSED='CLOSED','مختومه'; CANCELLED='CANCELLED','لغوشده'
  identity=models.CharField(max_length=80,unique=True); title=models.CharField(max_length=255); planned_date=models.CharField(max_length=10); state=models.CharField(max_length=20,choices=State.choices,default=State.DRAFT); created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT); created_at=models.DateTimeField(auto_now_add=True)
 class AuctionLot(models.Model):
- period=models.ForeignKey(AuctionPeriod,on_delete=models.PROTECT,related_name='lots'); space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='auction_lots'); evaluation=models.ForeignKey(AuctionEvaluation,on_delete=models.PROTECT); readiness=models.CharField(max_length=30); result=models.CharField(max_length=120,blank=True); winner_name=models.CharField(max_length=255,blank=True); winning_amount_rial=models.DecimalField(max_digits=24,decimal_places=0,null=True); archived=models.BooleanField(default=False)
- class Meta: constraints=[models.UniqueConstraint(fields=['period','space'],name='one_space_per_auction_period')]
+ class EntryMethod(models.TextChoices):
+  EVALUATED='EVALUATED','انتخاب از ارزیابی کاندیدا';MANUAL='MANUAL','افزودن دستی مجاز'
+ period=models.ForeignKey(AuctionPeriod,on_delete=models.PROTECT,related_name='lots')
+ space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='auction_lots')
+ evaluation=models.ForeignKey(AuctionEvaluation,null=True,blank=True,on_delete=models.PROTECT)
+ entry_method=models.CharField(max_length=20,choices=EntryMethod.choices,default=EntryMethod.EVALUATED)
+ manual_reason=models.TextField(blank=True)
+ manual_reference=models.CharField(max_length=255,blank=True)
+ added_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='added_auction_lots')
+ readiness=models.CharField(max_length=30)
+ result=models.CharField(max_length=120,blank=True)
+ winner_name=models.CharField(max_length=255,blank=True)
+ winning_amount_rial=models.DecimalField(max_digits=24,decimal_places=0,null=True)
+ archived=models.BooleanField(default=False)
+ class Meta:
+  constraints=[
+   models.UniqueConstraint(fields=['period','space'],name='one_space_per_auction_period'),
+   models.CheckConstraint(
+    condition=(
+     models.Q(entry_method='EVALUATED',evaluation__isnull=False)
+     | models.Q(entry_method='MANUAL',manual_reason__gt='',manual_reference__gt='')
+    ),
+    name='auction_lot_entry_evidence_required',
+   ),
+  ]
 class AuctionParticipant(models.Model):
  period=models.ForeignKey(AuctionPeriod,on_delete=models.PROTECT,related_name='participants'); name=models.CharField(max_length=255); identity_number=models.CharField(max_length=30,blank=True); contact=models.CharField(max_length=120,blank=True)
 class AuctionProposal(models.Model):
