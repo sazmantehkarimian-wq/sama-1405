@@ -148,6 +148,24 @@ class Auction(models.Model):
  space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='auctions'); year=models.CharField(max_length=4,blank=True); sequence=models.CharField(max_length=20,blank=True); stage=models.CharField(max_length=120,blank=True); result=models.CharField(max_length=120,blank=True); notes=models.TextField(blank=True)
 class AuctionRule(models.Model):
  version=models.CharField(max_length=40,unique=True); effective_year=models.PositiveSmallIntegerField(); contract_window_min_days=models.PositiveSmallIntegerField(default=1); contract_window_max_days=models.PositiveSmallIntegerField(default=90); minor_ceiling_rial=models.DecimalField(max_digits=24,decimal_places=0); medium_ceiling_rial=models.DecimalField(max_digits=24,decimal_places=0); appraisal_valid_months=models.PositiveSmallIntegerField(default=6); active=models.BooleanField(default=False); change_reason=models.TextField(); approved_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT); created_at=models.DateTimeField(auto_now_add=True)
+class AuctionInstruction(models.Model):
+ class Source(models.TextChoices):
+  COMMISSION='COMMISSION','کمیسیون';MANAGER='MANAGER','مدیر';AUTHORIZED_MANUAL='AUTHORIZED_MANUAL','ورود دستی مجاز'
+ class Direction(models.TextChoices):
+  INCLUDE='INCLUDE','ورود';EXCLUDE='EXCLUDE','عدم ورود'
+ space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='auction_instructions')
+ source=models.CharField(max_length=30,choices=Source.choices);direction=models.CharField(max_length=20,choices=Direction.choices)
+ reason=models.TextField();reference=models.CharField(max_length=255)
+ effective_from=models.CharField(max_length=10);effective_to=models.CharField(max_length=10,blank=True)
+ commission_decision=models.ForeignKey('operations.CommissionDecision',null=True,blank=True,on_delete=models.PROTECT,related_name='auction_instructions')
+ active=models.BooleanField(default=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,related_name='created_auction_instructions')
+ created_at=models.DateTimeField(auto_now_add=True)
+ class Meta: ordering=['-effective_from','-id']
+ @property
+ def sama_code(self): return f'AUC-INS-{self.pk:06d}' if self.pk else '—'
+
+
 class AuctionEvaluation(models.Model):
  class Decision(models.TextChoices): CANDIDATE='CANDIDATE','کاندیدا'; NOT_CANDIDATE='NOT_CANDIDATE','غیرکاندیدا'; REVIEW_REQUIRED='REVIEW_REQUIRED','نیازمند بررسی'
  space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='auction_evaluations'); rule=models.ForeignKey(AuctionRule,on_delete=models.PROTECT); decision=models.CharField(max_length=30,choices=Decision.choices); readiness=models.CharField(max_length=30); reason_codes=models.JSONField(); snapshot=models.JSONField(); evaluated_at=models.DateTimeField(auto_now_add=True); evaluated_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
