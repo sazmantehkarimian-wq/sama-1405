@@ -6,10 +6,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from domains.contracts.models import Beneficiary
 from domains.identity.models import AuditEvent
 from domains.operations.models import (
-    Appraiser, AppraisalFee, ElectricityBill, ElectricityConsumptionCategory,
+    Appraiser, AppraisalFee, CommissionCase, CommissionDecision, CommissionFollowUp,
+    CommissionMember, CommissionSession, ElectricityBill, ElectricityConsumptionCategory,
     UtilityBill, UtilityConnection, UtilityMeasurement, UtilityParameterRule, UtilityUnit,
 )
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
+from services.commission import (
+    create_case, create_case_decision, create_followup, create_session, transition_followup,
+)
 from services.contracts import assign_beneficiary, create_contract
 from services.electricity import (
     create_electricity_bill, electricity_bill_issues, finalize_electricity_bill,
@@ -24,7 +28,9 @@ from services.utilities import create_utility_bill, create_utility_connection
 from ui.entry_forms import (
     AppraisalEntryForm, AppraisalFeeAmountForm, AppraisalFeeCreateForm, AppraisalFeeTransitionForm,
     AppraiserForm, BeneficiaryAssignmentForm, BeneficiaryForm,
-    CenterForm, CommercialSpaceForm, ContractEntryForm, ElectricityAllocationForm, ExpertFeeBatchForm,
+    CenterForm, CommercialSpaceForm, CommissionCaseForm, CommissionDecisionForm,
+    CommissionFollowUpForm, CommissionFollowUpTransitionForm, CommissionMemberForm,
+    CommissionSessionForm, ContractEntryForm, ElectricityAllocationForm, ExpertFeeBatchForm,
     ElectricityBillForm, MotherPropertyForm, RegionForm, UtilityBillForm,
     UtilityConnectionForm, UtilityMeasurementForm, UtilityParameterRuleForm, UtilityUnitForm,
 )
@@ -1032,4 +1038,148 @@ def expert_fee_batch_create(request):
         "form":form,"title":"ارسال گروهی حق‌الزحمه به مالی",
         "subtitle":"فقط رکوردهای «آماده ارسال» انتخاب می‌شوند و هر رکورد فقط در یک Batch فعال عضو است.",
         "cancel_url":"expert-fee-dashboard",
+    })
+
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+@transaction.atomic
+def commission_member_create(request):
+    form=CommissionMemberForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        member=form.save(commit=False);member.created_by=request.user;member.save()
+        AuditEvent.objects.create(
+            actor=request.user,action="COMMISSION_MEMBER_CREATE",entity_type="CommissionMember",
+            entity_id=str(member.pk),after={"code":member.sama_code,"name":member.name,"position":member.position,"sign_order":member.sign_order},
+            ip_address=_ip(request),
+        )
+        messages.success(request,f"عضو کمیسیون {member.name} ثبت شد.")
+        return redirect("commission-workspace")
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":"ثبت عضو کمیسیون",
+        "subtitle":"عضو مرجع از جلسه مستقل است؛ ترکیب هر جلسه به‌صورت Snapshot تاریخی ذخیره می‌شود.",
+        "cancel_url":"commission-workspace",
+    })
+
+
+@login_required
+@transaction.atomic
+def commission_session_create(request):
+    form=CommissionSessionForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        session=create_session(
+            actor=request.user,values=form.cleaned_data,members=form.cleaned_data.get("members"),
+            ip_address=_ip(request),
+        )
+        messages.success(request,f"جلسه {session.sama_code} ایجاد شد و اعضا Snapshot شدند.")
+        return redirect("commission-session-detail",session_id=session.pk)
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":"ثبت جلسه کمیسیون معاملات",
+        "subtitle":"اعضای انتخاب‌شده با نام، سمت، نقش و ترتیب امضای همین جلسه Snapshot می‌شوند.",
+        "cancel_url":"commission-workspace",
+    })
+
+
+@login_required
+def commission_session_detail(request,session_id):
+    session=get_object_or_404(
+        CommissionSession.objects.prefetch_related(
+            "member_snapshots","cases__spaces","cases__contracts","cases__beneficiaries",
+            "cases__auction_periods","cases__decisions__responsible","cases__decisions__followups__history"
+        ),pk=session_id,
+    )
+    audit=AuditEvent.objects.filter(
+        entity_type__in=["CommissionSession","CommissionCase","CommissionDecision","CommissionFollowUp"]
+    ).order_by("-created_at")[:200]
+    return render(request,"ui/commission_session_detail.html",{
+        "session":session,"audit_events":audit,
+    })
+
+
+@login_required
+@transaction.atomic
+def commission_case_create(request,session_id):
+    session=get_object_or_404(CommissionSession,pk=session_id)
+    form=CommissionCaseForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        case=create_case(
+            session=session,actor=request.user,values=form.cleaned_data,
+            spaces=form.cleaned_data["spaces"],contracts=form.cleaned_data["contracts"],
+            beneficiaries=form.cleaned_data["beneficiaries"],auction_periods=form.cleaned_data["auction_periods"],
+            ip_address=_ip(request),
+        )
+        messages.success(request,f"موضوع {case.sama_code} به جلسه افزوده شد.")
+        return redirect("commission-session-detail",session_id=session.pk)
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":f"ثبت موضوع برای {session.sama_code}",
+        "subtitle":"ارتباط با فضا، قرارداد، بهره‌بردار و دوره مزایده فقط با انتخاب صریح از بانک اصلی ثبت می‌شود.",
+        "cancel_url":"commission-session-detail","cancel_kwargs":{"session_id":session.pk},
+    })
+
+
+@login_required
+@transaction.atomic
+def commission_case_decision_create(request,case_id):
+    case=get_object_or_404(CommissionCase.objects.select_related("session"),pk=case_id)
+    form=CommissionDecisionForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            decision=create_case_decision(
+                case=case,actor=request.user,values=form.cleaned_data,
+                document=form.cleaned_data.get("document"),ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,f"تصمیم {decision.sama_code} ثبت شد.")
+            return redirect("commission-session-detail",session_id=case.session_id)
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":f"ثبت تصمیم برای {case.sama_code}",
+        "subtitle":"متن رسمی تصمیم مستقل از توضیحات کاربر و وضعیت اجرای آن ساختاری است.",
+        "cancel_url":"commission-session-detail","cancel_kwargs":{"session_id":case.session_id},
+    })
+
+
+@login_required
+@transaction.atomic
+def commission_followup_create(request,decision_id):
+    decision=get_object_or_404(CommissionDecision.objects.select_related("case__session"),pk=decision_id)
+    form=CommissionFollowUpForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        followup=create_followup(
+            decision=decision,actor=request.user,values=form.cleaned_data,ip_address=_ip(request),
+        )
+        messages.success(request,"پیگیری اجرای مصوبه ثبت شد.")
+        return redirect("commission-session-detail",session_id=decision.case.session_id if decision.case_id else 0)
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":f"ثبت پیگیری برای {decision.sama_code}",
+        "subtitle":"هر پیگیری مستقل است و تغییر وضعیت آن تاریخچه جداگانه دارد.",
+        "cancel_url":"commission-session-detail","cancel_kwargs":{"session_id":decision.case.session_id},
+    })
+
+
+@login_required
+@transaction.atomic
+def commission_followup_transition(request,followup_id):
+    followup=get_object_or_404(CommissionFollowUp.objects.select_related("decision__case__session"),pk=followup_id)
+    form=CommissionFollowUpTransitionForm(request.POST or None,initial={"status":followup.status})
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            transition_followup(
+                followup=followup,actor=request.user,new_status=form.cleaned_data["status"],
+                completed_date=form.cleaned_data.get("completed_date",""),result=form.cleaned_data.get("result",""),
+                note=form.cleaned_data.get("note",""),ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,"وضعیت پیگیری با حفظ تاریخچه تغییر کرد.")
+            return redirect("commission-session-detail",session_id=followup.decision.case.session_id)
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":"تغییر وضعیت پیگیری مصوبه",
+        "subtitle":f"وضعیت فعلی: {followup.get_status_display()}",
+        "cancel_url":"commission-session-detail","cancel_kwargs":{"session_id":followup.decision.case.session_id},
     })
