@@ -366,3 +366,31 @@ class AppraisalEntryForm(forms.Form):
         if cleaned.get("is_current") and (not cleaned.get("appraisal_date") or cleaned.get("amount_rial") is None):
             raise ValidationError("کارشناسی مرجع باید تاریخ خود کارشناسی و مبلغ کارشناسی داشته باشد.")
         return cleaned
+
+
+
+class BeneficiaryAssignmentForm(forms.Form):
+    beneficiary = forms.ModelChoiceField(
+        label="بهره‌بردار",
+        queryset=Beneficiary.objects.none(),
+        empty_label="انتخاب بهره‌بردار ثبت‌شده",
+    )
+    start_date = JalaliDateField(label="تاریخ شروع ارتباط", required=True)
+    basis = forms.CharField(
+        label="مبنای ارتباط",
+        max_length=120,
+        required=False,
+        help_text="مثال: بهره‌برداری جاری، دستور اداری یا قرارداد مرتبط",
+    )
+    termination_reason = forms.CharField(
+        label="علت خاتمه رابطه قبلی",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 2}),
+        help_text="فقط هنگام جایگزینی بهره‌بردار جاری الزامی است.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["beneficiary"].queryset = Beneficiary.objects.filter(
+            archived_at__isnull=True
+        ).order_by("name")
