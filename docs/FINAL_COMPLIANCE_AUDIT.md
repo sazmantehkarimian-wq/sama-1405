@@ -23,6 +23,9 @@
 | RBAC/user administration | PASS | مدیریت بومی create/reset/activate، اجبار تعویض رمز، staff enforcement و audit |
 | Backup/restore | PASS | DB/media/config manifest، lock نوشتن، pre-restore، integrity/FK و rollback tests |
 | Browser/print/concurrency/security | PASS | Chromium واقعی و screenshot، PDF ساختاری، login throttle، پنج read/report و پنج write هم‌زمان پاس |
-| Windows portable/prerelease asset | PENDING | workflow کاندید `v5.0.0-uat.6` پس از push commit نهایی اجرا و ZIP منتشرشده مستقل بازبینی می‌شود. |
+| Windows portable/prerelease asset | PASS | workflow [`36839370829`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36839370829) روی runtime commit `5b672c6` پاس شد. `v5.0.0-uat.6` prerelease دارای ZIP ۵۰٬۹۹۰٬۷۴۰ بایتی است؛ SHA-256 دانلود مستقل `1c558b90e04a350576059c6a1ff3f2d92aa051eefb851a2d150c098da23ff6d5` است. |
 
 اصلاحات فنی UAT.6 شامل نگاشت semantic قرارداد/بهره‌بردار/کارشناسی، timeline، ارائه مرکزی، خروجی رسمی RTL و بازبینی Chromium واقعی است. وضعیت تا پذیرش انسانی مالک همچنان UAT REMEDIATION IN PROGRESS می‌ماند؛ PR شماره ۲ نباید ادغام شود و این نسخه آماده Production/LAN نیست.
+
+
+یادداشت زنجیره انتشار: runtime و محتوای بسته از commit `5b672c6` ساخته شده است. commit بعدی فقط همین شواهد ممیزی را ثبت می‌کند و هیچ ورودی runtime/code/build را تغییر نمی‌دهد؛ بنابراین بازسازی artifact لازم نیست.
