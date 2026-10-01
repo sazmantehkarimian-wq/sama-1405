@@ -294,6 +294,30 @@ def dashboard(request):
  return render(request,'ui/dashboard.html',context)
 
 @login_required
+def mother_property_excel(request, pk):
+ item=get_object_or_404(MotherProperty.objects.select_related('region'),pk=pk)
+ from services.mother_property_reports import build_mother_property_sections
+ sections=build_mother_property_sections(item)
+ AuditEvent.objects.create(
+  actor=request.user,action='MOTHER_PROPERTY_REPORT_EXPORT',entity_type='MotherProperty',entity_id=item.identifier,
+  after={'format':'XLSX','section_count':len(sections)},ip_address=request.META.get('REMOTE_ADDR'),
+ )
+ payload=multi_sheet_excel(f'پرونده ملک مادر {item.identifier}',sections)
+ return HttpResponse(payload,content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':f'attachment; filename="mother-property-{item.identifier}.xlsx"'})
+
+@login_required
+def mother_property_pdf(request, pk):
+ item=get_object_or_404(MotherProperty.objects.select_related('region'),pk=pk)
+ from services.mother_property_reports import build_mother_property_sections
+ sections=build_mother_property_sections(item)
+ AuditEvent.objects.create(
+  actor=request.user,action='MOTHER_PROPERTY_REPORT_EXPORT',entity_type='MotherProperty',entity_id=item.identifier,
+  after={'format':'PDF','section_count':len(sections)},ip_address=request.META.get('REMOTE_ADDR'),
+ )
+ payload=multi_section_pdf(f'پرونده ملک مادر {item.identifier}',sections)
+ return HttpResponse(payload,content_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="mother-property-{item.identifier}.pdf"'})
+
+@login_required
 def global_search(request):
  q=(request.GET.get('q') or '').strip()
  spaces=CommercialSpace.objects.none()
