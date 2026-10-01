@@ -8,7 +8,7 @@ from services.file_movement import current_holder
 
 
 @pytest.mark.django_db
-def test_new_file_handover_closes_previous_and_keeps_single_current_holder(client):
+def test_second_file_handover_is_blocked_until_current_holder_returns_file(client):
     user=get_user_model().objects.create_user("file-holder-user",password="A-very-safe-password")
     client.force_login(user)
     space=CommercialSpace.objects.create(code="8201",name="فضای پرونده",status="ACTIVE")
@@ -28,12 +28,20 @@ def test_new_file_handover_closes_previous_and_keeps_single_current_holder(clien
     })
     assert second.status_code==302
     first_record.refresh_from_db()
-    assert first_record.returned_at is not None
+    assert first_record.returned_at is None
     assert FileMovement.objects.filter(space=space,returned_at__isnull=True).count()==1
+    assert current_holder(space).holder=="کارشناس الف"
+    assert AuditEvent.objects.filter(action="FILE_MOVEMENT_CREATE",entity_id=space.code).count()==1
+
+    assert client.post("/spaces/8201/movement/return/",{"reason":"تحویل به مدیر"}).status_code==302
+    third=client.post("/spaces/8201/movement/",{
+        "location":"مدیریت اقتصادی","holder":"مدیر ب","delivered_by":"کارشناس الف","received_by":"مدیر ب",
+        "signature_state":"تحویل با امضا","direction":"OUT","next_action":"امضا","due_date":"1405/07/25",
+    })
+    assert third.status_code==302
     holder=current_holder(space)
     assert holder.holder=="مدیر ب" and holder.location=="مدیریت اقتصادی"
     assert holder.duration_days==0
-
     assert AuditEvent.objects.filter(action="FILE_MOVEMENT_CREATE",entity_id=space.code).count()==2
     assert TimelineEvent.objects.filter(space=space,event_type="FILE_MOVEMENT_CREATE").count()==2
 
