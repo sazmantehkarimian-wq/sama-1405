@@ -2,7 +2,10 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from domains.contracts.models import Beneficiary, Contract
-from domains.operations.models import Appraiser, AppraisalNotification
+from domains.operations.models import (
+    Appraiser, AppraisalNotification, ElectricityAllocation,
+    ElectricityConsumptionCategory, UtilityMeasurement, UtilityUnit,
+)
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
 from services.text import normalize_digits, normalize_persian_text, normalize_space_code
 from ui.fields import JalaliDateField
@@ -394,3 +397,140 @@ class BeneficiaryAssignmentForm(forms.Form):
         self.fields["beneficiary"].queryset = Beneficiary.objects.filter(
             archived_at__isnull=True
         ).order_by("name")
+
+
+
+class UtilityUnitForm(forms.ModelForm):
+    class Meta:
+        model = UtilityUnit
+        fields = ["name", "kind", "region", "center", "active"]
+        labels = {
+            "name": "نام واحد",
+            "kind": "نوع واحد",
+            "region": "منطقه",
+            "center": "مرکز خاص",
+            "active": "فعال",
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        kind = cleaned.get("kind")
+        region = cleaned.get("region")
+        center = cleaned.get("center")
+        if kind == UtilityUnit.Kind.REGION and not region:
+            self.add_error("region", "برای واحد نوع منطقه، انتخاب منطقه الزامی است.")
+        if kind == UtilityUnit.Kind.CENTER and not center:
+            self.add_error("center", "برای واحد نوع مرکز خاص، انتخاب مرکز الزامی است.")
+        if region and center and center.region_id and center.region_id != region.id:
+            self.add_error("center", "مرکز انتخاب‌شده متعلق به منطقه انتخاب‌شده نیست.")
+        return cleaned
+
+
+class ElectricityBillForm(forms.Form):
+    unit = forms.ModelChoiceField(
+        label="واحد",
+        queryset=UtilityUnit.objects.none(),
+        empty_label="انتخاب واحد",
+    )
+    period_start = JalaliDateField(label="شروع دوره", required=True)
+    period_end = JalaliDateField(label="پایان دوره", required=True)
+    bill_date = JalaliDateField(label="تاریخ قبض", required=False)
+    amount_rial = forms.DecimalField(label="مبلغ قبض (ریال)", min_value=0, decimal_places=0, max_digits=24)
+    beneficiary_share_percent = forms.DecimalField(label="درصد سهم بهره‌برداران", min_value=0, max_value=100, decimal_places=4, max_digits=7)
+    organization_share_percent = forms.DecimalField(label="درصد سهم سازمان", min_value=0, max_value=100, decimal_places=4, max_digits=7)
+    notes = forms.CharField(label="توضیحات", required=False, widget=forms.Textarea(attrs={"rows": 3}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["unit"].queryset = UtilityUnit.objects.filter(active=True).order_by("name")
+        self.fields["amount_rial"].widget.attrs.update({"inputmode": "numeric", "min": "0"})
+        for key in ("beneficiary_share_percent", "organization_share_percent"):
+            self.fields[key].widget.attrs.update({"inputmode": "decimal", "min": "0", "max": "100", "step": "0.0001"})
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("period_start"), cleaned.get("period_end")
+        if start and end and start > end:
+            self.add_error("period_end", "پایان دوره نمی‌تواند قبل از شروع دوره باشد.")
+        beneficiary = cleaned.get("beneficiary_share_percent")
+        organization = cleaned.get("organization_share_percent")
+        if beneficiary is not None and organization is not None and beneficiary + organization != 100:
+            raise ValidationError("جمع سهم بهره‌برداران و سازمان باید دقیقاً ۱۰۰٪ باشد.")
+        return cleaned
+
+
+class UtilityMeasurementForm(forms.Form):
+    utility_type = forms.ChoiceField(label="نوع انشعاب", choices=UtilityMeasurement.Type.choices, initial=UtilityMeasurement.Type.ELECTRICITY)
+    period_start = JalaliDateField(label="شروع دوره", required=True)
+    period_end = JalaliDateField(label="پایان دوره", required=True)
+    consumption = forms.DecimalField(label="مقدار مصرف", min_value=0, decimal_places=3, max_digits=20)
+    reading_date = JalaliDateField(label="تاریخ قرائت", required=True)
+    meter_number = forms.CharField(label="شماره کنتور", max_length=120, required=False)
+    measurement_unit = forms.CharField(label="واحد اندازه‌گیری", max_length=40, initial="kWh")
+    source = forms.CharField(label="منبع ثبت", max_length=120, required=False)
+    is_submeter = forms.BooleanField(label="زیرکنتور", required=False)
+    is_valid = forms.BooleanField(label="Measurement معتبر است", required=False, initial=True)
+    notes = forms.CharField(label="توضیحات", required=False, widget=forms.Textarea(attrs={"rows": 3}))
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("period_start") and cleaned.get("period_end") and cleaned["period_start"] > cleaned["period_end"]:
+            self.add_error("period_end", "پایان دوره نمی‌تواند قبل از شروع دوره باشد.")
+        return cleaned
+
+
+class ElectricityAllocationForm(forms.Form):
+    space = forms.ModelChoiceField(
+        label="فضای تجاری",
+        queryset=CommercialSpace.objects.none(),
+        empty_label="انتخاب کد فضا",
+    )
+    eligible = forms.BooleanField(label="مشمول قبض", required=False, initial=True)
+    category = forms.ModelChoiceField(
+        label="دسته مصرف",
+        queryset=ElectricityConsumptionCategory.objects.none(),
+        required=False,
+        empty_label="ثبت نشده",
+    )
+    effective_area = forms.DecimalField(label="متراژ مؤثر", required=False, min_value=0, decimal_places=2, max_digits=16)
+    eui = forms.DecimalField(label="EUI", required=False, min_value=0, decimal_places=6, max_digits=16)
+    operational_factor = forms.DecimalField(label="ضریب بهره‌برداری", required=False, min_value=0, decimal_places=6, max_digits=12)
+    special_consumption = forms.DecimalField(label="مصرف ویژه / تجهیزات", required=False, min_value=0, decimal_places=3, max_digits=20)
+    measurement = forms.ModelChoiceField(
+        label="Measurement معتبر",
+        queryset=UtilityMeasurement.objects.none(),
+        required=False,
+        empty_label="بدون Measurement",
+    )
+    manual_override_percent = forms.DecimalField(
+        label="درصد Override دستی",
+        required=False,
+        min_value=0,
+        max_value=100,
+        decimal_places=4,
+        max_digits=7,
+        help_text="خالی یعنی Override وجود ندارد؛ صفر یک مقدار معتبر است.",
+    )
+    override_reason = forms.CharField(label="علت Override", required=False, widget=forms.Textarea(attrs={"rows": 2}))
+    notes = forms.CharField(label="توضیحات", required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, bill=None, **kwargs):
+        self.bill = bill
+        super().__init__(*args, **kwargs)
+        self.fields["space"].queryset = CommercialSpace.objects.order_by("code")
+        self.fields["category"].queryset = ElectricityConsumptionCategory.objects.filter(active=True).order_by("name")
+        measurements = UtilityMeasurement.objects.filter(utility_type=UtilityMeasurement.Type.ELECTRICITY, is_valid=True)
+        if bill:
+            measurements = measurements.filter(period_start__lte=bill.period_end, period_end__gte=bill.period_start)
+        self.fields["measurement"].queryset = measurements.select_related("space").order_by("-reading_date", "-id")
+
+    def clean(self):
+        cleaned = super().clean()
+        measurement = cleaned.get("measurement")
+        space = cleaned.get("space")
+        if measurement and space and measurement.space_id != space.pk:
+            self.add_error("measurement", "Measurement باید متعلق به همان کد فضا باشد.")
+        override = cleaned.get("manual_override_percent")
+        if override is not None and not cleaned.get("override_reason"):
+            self.add_error("override_reason", "برای Override دستی، علت الزامی است.")
+        return cleaned
