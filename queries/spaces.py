@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django.db.models import OuterRef, Q, Subquery
 
 from domains.contracts.models import BeneficiaryAssignment, Contract
+from domains.operations.models import Appraisal
 from domains.properties.models import CommercialSpace
 from services.dates import today_jalali
 
@@ -51,6 +52,7 @@ def filter_spaces(params):
         .order_by("-start_date", "-pk")
     )
     latest_assignments = BeneficiaryAssignment.objects.filter(space=OuterRef("pk")).order_by("-start_date", "-pk")
+    current_appraisals = Appraisal.objects.filter(space=OuterRef("pk"), is_current=True).order_by("-appraisal_date", "-pk")
     qs = (
         CommercialSpace.objects.select_related("region", "center")
         .annotate(
@@ -61,6 +63,8 @@ def filter_spaces(params):
             latest_beneficiary_name=Subquery(latest_assignments.values("beneficiary__name")[:1]),
             latest_contract_number=Subquery(latest_contracts.values("number")[:1]),
             latest_contract_end=Subquery(latest_contracts.values("end_date")[:1]),
+            current_appraisal_id=Subquery(current_appraisals.values("pk")[:1]),
+            current_appraisal_date=Subquery(current_appraisals.values("appraisal_date")[:1]),
         )
         .all()
     )
@@ -98,6 +102,18 @@ def filter_spaces(params):
     appraisal_presence = params.get("appraisal_presence")
     if appraisal_presence == "empty": clauses.append(Q(appraisals__isnull=True))
     elif appraisal_presence == "nonempty": clauses.append(Q(appraisals__isnull=False))
+    current_contract_presence = params.get("current_contract")
+    if current_contract_presence == "present":
+        clauses.append(Q(current_contract_number__isnull=False))
+    elif current_contract_presence == "empty":
+        clauses.append(Q(current_contract_number__isnull=True))
+
+    current_appraisal_presence = params.get("current_appraisal")
+    if current_appraisal_presence == "present":
+        clauses.append(Q(current_appraisal_id__isnull=False))
+    elif current_appraisal_presence == "empty":
+        clauses.append(Q(current_appraisal_id__isnull=True))
+
 
     try:
         if params.get("area_min"):
@@ -112,6 +128,29 @@ def filter_spaces(params):
         for clause in clauses[1:]:
             combined = (combined | clause) if params.get("logic", "and").lower() == "or" else (combined & clause)
         qs = qs.filter(combined)
+
+    contract_bucket = params.get("contract_bucket", "")
+    if contract_bucket:
+        matching_space_ids = []
+        current_contract_rows = Contract.objects.filter(
+            start_date__lte=today,
+            end_date__gte=today,
+        ).exclude(status__in=["باطل", "فسخ‌شده"]).select_related("space")
+        for contract in current_contract_rows:
+            remaining = contract.remaining_days
+            if remaining is None:
+                continue
+            if contract_bucket == "TODAY" and remaining == 0:
+                matching_space_ids.append(contract.space_id)
+            elif contract_bucket == "1_30" and 1 <= remaining <= 30:
+                matching_space_ids.append(contract.space_id)
+            elif contract_bucket == "31_60" and 31 <= remaining <= 60:
+                matching_space_ids.append(contract.space_id)
+            elif contract_bucket == "61_90" and 61 <= remaining <= 90:
+                matching_space_ids.append(contract.space_id)
+            elif contract_bucket == "LONG_TERM" and contract.is_long_term:
+                matching_space_ids.append(contract.space_id)
+        qs = qs.filter(pk__in=matching_space_ids)
 
     allowed = {"code", "name", "status", "area", "current_usage"}
     requested = _values(params, "sort") or ["code"]
