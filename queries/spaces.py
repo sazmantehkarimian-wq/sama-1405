@@ -44,6 +44,7 @@ def filter_spaces(params):
         .exclude(status__in=["باطل", "فسخ‌شده"])
         .order_by("-start_date", "-pk")
     )
+    latest_contracts = Contract.objects.filter(space=OuterRef("pk")).order_by("-end_date", "-start_date", "-pk")
     qs = (
         CommercialSpace.objects.select_related("region", "center")
         .annotate(
@@ -51,6 +52,9 @@ def filter_spaces(params):
             current_contract_number=Subquery(current_contracts.values("number")[:1]),
             current_contract_start=Subquery(current_contracts.values("start_date")[:1]),
             current_contract_end=Subquery(current_contracts.values("end_date")[:1]),
+            latest_beneficiary_name=Subquery(latest_contracts.values("beneficiary__name")[:1]),
+            latest_contract_number=Subquery(latest_contracts.values("number")[:1]),
+            latest_contract_end=Subquery(latest_contracts.values("end_date")[:1]),
         )
         .all()
     )
