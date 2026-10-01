@@ -158,3 +158,18 @@ def test_post_go_live_contract_appraisal_amendment_and_alert_are_typed_and_audit
  space.refresh_from_db();assert space.status=='OUT_OF_CYCLE'
  history=space.status_history.latest('id');assert history.previous_state=='ACTIVE' and history.responsible_user==user
  assert TimelineEvent.objects.filter(space=space,event_type='SPACE_STATUS_TRANSITION',previous_state='ACTIVE',new_state='OUT_OF_CYCLE').exists()
+
+@pytest.mark.django_db
+def test_specialist_beneficiary_registration_is_audited_and_returns_to_dossier(client):
+ from domains.contracts.models import Beneficiary,BeneficiaryAssignment
+ from domains.identity.models import AuditEvent
+ from domains.operations.models import TimelineEvent
+ user=get_user_model().objects.create_user('beneficiary-operator',password='A-very-safe-password')
+ space=CommercialSpace.objects.create(code='BEN-OP',name='فضای بهره‌بردار',status='ACTIVE',source_row=1,source_classification='authority')
+ client.force_login(user)
+ response=client.post(f'/spaces/{space.code}/beneficiaries/',{'name':'شرکت نمونه مستند','kind':'LEGAL','identity_number':'101010','role':'بهره‌بردار','start_date':'1405/01/01'})
+ assert response.status_code==302 and response.url==f'/spaces/{space.code}/'
+ beneficiary=Beneficiary.objects.get(name='شرکت نمونه مستند');assert beneficiary.kind=='LEGAL'
+ assert BeneficiaryAssignment.objects.filter(space=space,beneficiary=beneficiary,start_date='1405/01/01').exists()
+ assert AuditEvent.objects.filter(action='BENEFICIARY_CREATE',entity_id=str(beneficiary.pk)).exists()
+ assert TimelineEvent.objects.filter(space=space,event_type='BENEFICIARY_CREATE').exists()

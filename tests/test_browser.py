@@ -68,6 +68,13 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
                 page.screenshot(path=evidence / f"{name}-{width}.png", full_page=True)
         page.goto(f"{live_server.url}/spaces/");page.get_by_label("جست‌وجوی سراسری").fill("BROWSER-501");page.get_by_role("button",name="جست‌وجو").click();page.get_by_role("link",name="مشاهده پرونده").click()
         assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()
+        for label,title in (("ثبت قرارداد جدید","ثبت قرارداد جدید"),("ثبت کارشناسی جدید","ثبت کارشناسی جدید"),("بارگذاری سند","بارگذاری سند"),("ثبت انشعاب / مصرف","ثبت انشعاب یا مصرف"),("ثبت تحویل","ثبت تحویل پرونده"),("ثبت مورد پیگیری","ثبت مورد نیازمند پیگیری")):
+            page.get_by_role("link",name=label,exact=True).click()
+            assert page.get_by_role("heading",name=title,exact=True).is_visible()
+            assert "پرونده فضای BROWSER-501" in page.locator(".page-header").inner_text()
+            if label == "ثبت قرارداد جدید": page.screenshot(path=evidence / "contract-operation-context-1366.png", full_page=True)
+            page.get_by_role("link",name="بازگشت به پرونده").click()
+            assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()
     finally:
         browser.close();manager.stop()
 

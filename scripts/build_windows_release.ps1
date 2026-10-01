@@ -1,5 +1,5 @@
 param(
-  [string]$Version = "5.0.0-uat.7",
+  [string]$Version = "5.0.0-uat.8",
   [string]$OutputRoot = "build"
 )
 $ErrorActionPreference = "Stop"

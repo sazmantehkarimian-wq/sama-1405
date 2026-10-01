@@ -26,3 +26,6 @@ button,.button{min-height:var(--control-standard);border:var(--border-width) sol
 
 /* UAT header alignment and dossier hierarchy contracts */
 .account{width:100%}.account-name{max-width:7rem}.detail-grid>div{display:grid;grid-template-rows:auto 1fr;gap:var(--space-1);align-content:start}.detail-grid>div>small{display:block}.detail-grid>div>strong{display:block}
+
+/* Read-only dossier summaries and dedicated operation workspace */
+.section-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);margin-block-end:var(--space-3)}.section-heading h2,.section-heading p{margin:0}.record-summary{display:grid;gap:var(--space-1);padding-block:var(--space-3);border-block-end:var(--border-width) solid var(--color-border)}.record-summary:last-child{border-block-end:0}.record-summary>span{font-size:var(--font-size-body)}.record-summary>small{font-size:var(--font-size-helper)}.record-summary>.button{justify-self:start}.operation-card{max-width:60rem;margin-inline:auto}.operation-card .form-actions{grid-column:1/-1;display:flex;align-items:center;gap:var(--space-2);padding-block-start:var(--space-3);border-block-start:var(--border-width) solid var(--color-border)}

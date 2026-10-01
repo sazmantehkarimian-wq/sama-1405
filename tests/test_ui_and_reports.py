@@ -84,3 +84,23 @@ def test_saved_report_and_immutable_snapshot(client,user,settings,tmp_path):
  assert snapshot.query_context['filters']=={'status':['ACTIVE']}
  assert AuditEvent.objects.filter(action='REPORT_DEFINITION_CREATE').exists()
  assert AuditEvent.objects.filter(action='REPORT_SNAPSHOT_CREATE').exists()
+
+@pytest.mark.django_db
+def test_dossier_is_read_only_and_specialist_operations_preserve_space_context(client,user):
+ s=CommercialSpace.objects.create(code='CTX-1',name='فضای زمینه',status='ACTIVE',source_row=1,source_classification='authority')
+ client.force_login(user);response=client.get(f'/spaces/{s.code}/');body=response.content.decode()
+ for forbidden in ('action="/spaces/CTX-1/contracts/"','action="/spaces/CTX-1/appraisals/"','action="/spaces/CTX-1/utilities/"','action="/spaces/CTX-1/documents/"','action="/spaces/CTX-1/movement/"','action="/spaces/CTX-1/alerts/"'):
+  assert forbidden not in body
+ for action,label in (('contract','ثبت قرارداد جدید'),('appraisal','ثبت کارشناسی جدید'),('document','بارگذاری سند'),('utility','ثبت انشعاب / مصرف'),('movement','ثبت تحویل'),('alert','ثبت مورد پیگیری')):
+  assert label in body
+  operation=client.get(f'/operations/{action}/?space={s.code}')
+  assert operation.status_code==200 and f'پرونده فضای {s.code}' in operation.content.decode()
+  assert f'/spaces/{s.code}/' in operation.content.decode()
+
+@pytest.mark.django_db
+def test_specialist_module_entry_without_context_requires_structured_space_selection(client,user):
+ CommercialSpace.objects.create(code='SELECT-1',name='فضای انتخاب',status='ACTIVE',source_row=1,source_classification='authority')
+ client.force_login(user)
+ for domain,action in (('contracts','contract'),('appraisals','appraisal'),('utilities','utility'),('documents','document'),('alerts','alert')):
+  listing=client.get(f'/records/{domain}/').content.decode();assert f'/operations/{action}/' in listing
+  page=client.get(f'/operations/{action}/').content.decode();assert 'انتخاب فضای تجاری' in page and 'SELECT-1' in page

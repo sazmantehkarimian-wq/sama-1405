@@ -5,7 +5,8 @@ from django.contrib.auth import update_session_auth_hash
 from django.core.paginator import Paginator
 from django.http import HttpResponse, FileResponse
 from django.shortcuts import render,get_object_or_404,redirect
-from django.db.models import Count
+from django.urls import reverse
+from django.db.models import Count,Q
 from domains.properties.models import CommercialSpace,Region,Center,MotherProperty
 from domains.registry.models import Discrepancy
 from domains.identity.models import UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
@@ -32,6 +33,38 @@ def space_list(request):
  requested=set(request.GET.getlist('column')) & allowed_columns
  visible=requested or allowed_columns
  return render(request,'ui/space_list.html',{'page':page,'regions':Region.objects.all(),'centers':Center.objects.filter(is_special=True),'total':qs.count(),'dataset_total':CommercialSpace.objects.count(),'saved_filters':SavedFilter.objects.filter(owner=request.user,domain='spaces'),'visible_columns':visible})
+
+OPERATION_CONFIG={
+ 'contract':{'title':'ثبت قرارداد جدید','submit_label':'ثبت قرارداد','domain':'contracts','module_title':'قراردادها','section':'contracts','requires_space':True,'post_name':'add-contract'},
+ 'beneficiary':{'title':'ثبت و پیوند بهره‌بردار','submit_label':'ثبت بهره‌بردار','domain':'beneficiaries','module_title':'بهره‌برداران','section':'contracts','requires_space':True,'post_name':'add-beneficiary'},
+ 'appraisal':{'title':'ثبت کارشناسی جدید','submit_label':'ثبت کارشناسی','domain':'appraisals','module_title':'کارشناسی','section':'appraisals','requires_space':True,'post_name':'add-appraisal'},
+ 'appraisal_fee':{'title':'ثبت حق‌الزحمه کارشناسی','submit_label':'ثبت حق‌الزحمه','domain':'fees','module_title':'حق‌الزحمه کارشناسی','section':'appraisals','requires_space':False,'post_name':'add-appraisal-fee'},
+ 'amendment':{'title':'ثبت الحاقیه قرارداد','submit_label':'ثبت الحاقیه','domain':'contracts','module_title':'قراردادها','section':'contracts','requires_space':False,'post_name':'add-contract-amendment'},
+ 'document':{'title':'بارگذاری سند','submit_label':'بارگذاری امن سند','domain':'documents','module_title':'مدارک و مستندات','section':'documents','requires_space':True,'post_name':'upload-document'},
+ 'utility':{'title':'ثبت انشعاب یا مصرف','submit_label':'ثبت اطلاعات مصرف','domain':'utilities','module_title':'انشعابات و مصرف','section':'utilities','requires_space':True,'post_name':'add-utility'},
+ 'movement':{'title':'ثبت تحویل پرونده','submit_label':'ثبت تحویل','domain':'workflows','module_title':'پیگیری پرونده','section':'workflows','requires_space':True,'post_name':'add-movement'},
+ 'workflow':{'title':'ثبت فرایند پیگیری','submit_label':'ثبت فرایند','domain':'workflows','module_title':'پیگیری پرونده','section':'workflows','requires_space':True,'post_name':'workflow-create'},
+ 'alert':{'title':'ثبت مورد نیازمند پیگیری','submit_label':'ثبت مورد پیگیری','domain':'alerts','module_title':'موارد نیازمند پیگیری','section':'alerts','requires_space':True,'post_name':'add-alert'},
+}
+
+@login_required
+def operation_create(request,action):
+ operation=OPERATION_CONFIG.get(action)
+ if not operation:return HttpResponse(status=404)
+ space=None;contract=None;appraisal=None;beneficiary=None
+ if request.GET.get('space'):space=get_object_or_404(CommercialSpace,code=request.GET['space'])
+ kwargs={}
+ if action=='beneficiary' and request.GET.get('beneficiary'):
+  beneficiary=get_object_or_404(Beneficiary,pk=request.GET['beneficiary']);assignment=beneficiary.beneficiaryassignment_set.select_related('space').order_by('-pk').first();space=assignment.space if assignment else space
+  operation={**operation,'title':'ویرایش مشخصات بهره‌بردار','submit_label':'ثبت ویرایش'};kwargs={'beneficiary_id':beneficiary.pk};operation['post_name']='update-beneficiary'
+ if action=='amendment':
+  contract=get_object_or_404(Contract.objects.select_related('space'),pk=request.GET.get('contract'));space=contract.space;kwargs={'contract_id':contract.pk}
+ elif action=='appraisal_fee':
+  appraisal=get_object_or_404(Appraisal.objects.select_related('space'),pk=request.GET.get('appraisal'));space=appraisal.space;kwargs={'appraisal_id':appraisal.pk}
+ elif space:kwargs={'code':space.code}
+ operation={**operation,'post_url':reverse(operation['post_name'],kwargs=kwargs) if kwargs else ''}
+ return render(request,'ui/operation_form.html',{'action':action,'operation':operation,'space':space,'contract':contract,'appraisal':appraisal,'beneficiary':beneficiary,'spaces':CommercialSpace.objects.order_by('code')})
+
 @login_required
 def space_detail(request,code):
  s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','contracts__beneficiary','beneficiary_assignments__beneficiary','appraisals__fee__supporting_document','auctions','utilities__supporting_document','utility_obligations','decisions','commission_decisions__spaces','timeline__document','alerts__assigned_to','file_movements','workflows','source_documents','property_links__mother_property'),code=code)
@@ -102,7 +135,8 @@ def _search_domain(qs,domain,q):
  if domain in {'appraisals','fees','auctions','utilities','workflows','alerts'}:
   field='appraisal__space__code__iexact' if domain=='fees' else 'space__code__iexact'
   return qs.filter(**{field:q})
- if domain=='beneficiaries':return qs.filter(name__icontains=q)
+ if domain=='beneficiaries':return qs.filter(Q(name__icontains=q)|Q(beneficiaryassignment__space__code__iexact=q)).distinct()
+ if domain=='documents':return qs.filter(Q(title__icontains=q)|Q(entity_type='CommercialSpace',entity_id__iexact=q))
  return qs
 @login_required
 def domain_list(request,domain):
@@ -110,9 +144,18 @@ def domain_list(request,domain):
  dataset_count=qs.count()
  q=request.GET.get('q','').strip()
  qs=_search_domain(qs,domain,q)
+ if domain=='alerts' and request.GET.get('state')=='OPEN':qs=qs.exclude(status='RESOLVED')
+ if domain=='workflows' and request.GET.get('state')=='OPEN':qs=qs.filter(state='OPEN')
  page=Paginator(qs.order_by('-pk'),30).get_page(request.GET.get('page'))
- rows=[{'object':obj,'values':[_value(obj,key) for key,_ in columns]} for obj in page]
- return render(request,'ui/domain_list.html',{'title':title,'headers':[label for _,label in columns],'rows':rows,'page':page,'domain':domain,'dataset_count':dataset_count,'has_filter':bool(q)})
+ rows=[]
+ for obj in page:
+  space=getattr(obj,'space',None)
+  if domain=='fees':space=obj.appraisal.space
+  elif domain=='documents' and obj.entity_type=='CommercialSpace':space=CommercialSpace.objects.filter(code=obj.entity_id).first()
+  elif domain=='beneficiaries':space=CommercialSpace.objects.filter(beneficiary_assignments__beneficiary=obj).order_by('code').first()
+  rows.append({'object':obj,'values':[_value(obj,key) for key,_ in columns],'space_code':space.code if space else ''})
+ actions={'contracts':('contract','ثبت قرارداد'),'beneficiaries':('beneficiary','ثبت بهره‌بردار'),'appraisals':('appraisal','ثبت کارشناسی'),'utilities':('utility','ثبت انشعاب / مصرف'),'workflows':('movement','ثبت تحویل پرونده'),'documents':('document','بارگذاری سند'),'alerts':('alert','ثبت مورد پیگیری')}
+ return render(request,'ui/domain_list.html',{'title':title,'headers':[label for _,label in columns],'rows':rows,'page':page,'domain':domain,'dataset_count':dataset_count,'has_filter':bool(q) or bool(request.GET.get('state')),'create_action':actions.get(domain)})
 
 @login_required
 def domain_excel(request,domain):
@@ -208,7 +251,7 @@ def commission_create(request):
 @login_required
 def report_builder(request):
  fields=[('code','کد فضا'),('name','نام فضا / مرکز'),('status','وضعیت'),('region','منطقه'),('current_usage','کاربری'),('area','مساحت')]
- return render(request,'ui/report_builder.html',{'fields':fields,'saved':SavedReport.objects.filter(owner=request.user)})
+ return render(request,'ui/report_builder.html',{'fields':fields,'saved':SavedReport.objects.filter(owner=request.user),'report_domains':[(key,DOMAIN_LISTS[key][0]) for key in ('contracts','beneficiaries','appraisals','fees','auctions','utilities','workflows','documents','alerts')]})
 @login_required
 @require_POST
 def report_save(request):
@@ -291,6 +334,40 @@ def upload_document(request,code):
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
  else:messages.success(request,'سند با ثبت checksum بارگذاری شد.')
  return redirect('space-detail',code=code)
+
+@login_required
+@require_POST
+def update_beneficiary(request,beneficiary_id):
+ from domains.identity.models import AuditEvent
+ beneficiary=get_object_or_404(Beneficiary,pk=beneficiary_id);name=request.POST.get('name','').strip();kind=request.POST.get('kind','')
+ if not name or kind not in Beneficiary.Kind.values:
+  messages.error(request,'نام و نوع بهره‌بردار معتبر الزامی است.');return redirect(f"{reverse('operation-create',kwargs={'action':'beneficiary'})}?beneficiary={beneficiary.pk}")
+ before={'name':beneficiary.name,'kind':beneficiary.kind,'identity_number':beneficiary.identity_number,'contact':beneficiary.contact}
+ beneficiary.name=name;beneficiary.kind=kind;beneficiary.identity_number=request.POST.get('identity_number','').strip();beneficiary.contact=request.POST.get('contact','').strip();beneficiary.save(update_fields=['name','kind','identity_number','contact'])
+ AuditEvent.objects.create(actor=request.user,action='BENEFICIARY_UPDATE',entity_type='Beneficiary',entity_id=str(beneficiary.pk),before=before,after={'name':name,'kind':kind},ip_address=request.META.get('REMOTE_ADDR'))
+ assignment=beneficiary.beneficiaryassignment_set.select_related('space').order_by('-pk').first();messages.success(request,'مشخصات بهره‌بردار ویرایش شد.')
+ return redirect('space-detail',code=assignment.space.code) if assignment else redirect('domain-list',domain='beneficiaries')
+
+@login_required
+@require_POST
+def add_beneficiary(request,code):
+ from django.core.exceptions import ValidationError
+ from django.db import transaction
+ from services.dates import normalize_jalali
+ from domains.contracts.models import BeneficiaryAssignment
+ from domains.identity.models import AuditEvent
+ from domains.operations.models import TimelineEvent
+ space=get_object_or_404(CommercialSpace,code=code);name=request.POST.get('name','').strip();kind=request.POST.get('kind','')
+ if not name or kind not in Beneficiary.Kind.values:
+  messages.error(request,'نام و نوع بهره‌بردار معتبر الزامی است.');return redirect('operation-create',action='beneficiary')
+ try:start=normalize_jalali(request.POST.get('start_date','')) if request.POST.get('start_date','') else '';end=normalize_jalali(request.POST.get('end_date','')) if request.POST.get('end_date','') else ''
+ except ValueError:messages.error(request,'تاریخ رابطه معتبر نیست.');return redirect(f"{reverse('operation-create',kwargs={'action':'beneficiary'})}?space={space.code}")
+ with transaction.atomic():
+  beneficiary=Beneficiary.objects.create(name=name,kind=kind,identity_number=request.POST.get('identity_number','').strip(),contact=request.POST.get('contact','').strip())
+  assignment=BeneficiaryAssignment.objects.create(space=space,beneficiary=beneficiary,role=request.POST.get('role','').strip(),start_date=start,end_date=end,status='ACTIVE',created_by=request.user)
+  AuditEvent.objects.create(actor=request.user,action='BENEFICIARY_CREATE',entity_type='Beneficiary',entity_id=str(beneficiary.pk),after={'space':space.code,'kind':kind},ip_address=request.META.get('REMOTE_ADDR'))
+  TimelineEvent.objects.create(space=space,event_type='BENEFICIARY_CREATE',jalali_date=start,source_entity='BeneficiaryAssignment',source_entity_id=str(assignment.pk),title=f'ثبت بهره‌بردار: {name}',new_state='ACTIVE',responsible_person=request.user.get_full_name() or request.user.username,provenance='ثبت عملیاتی')
+ messages.success(request,'بهره‌بردار و ارتباط پرونده ثبت شد.');return redirect('space-detail',code=space.code)
 
 @login_required
 @require_POST

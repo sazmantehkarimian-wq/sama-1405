@@ -58,3 +58,13 @@ def test_header_and_dossier_navigation_geometry_contracts():
   assert contract in app
  assert base.index('class="brand-shell"') < base.index('class="topnav"') < base.index('class="account"')
  assert '.tabs{display:flex;direction:rtl;justify-content:center;align-items:center;flex-wrap:nowrap' in app
+
+def test_dossier_is_read_only_and_operations_use_shared_specialist_workspace():
+ dossier=(ROOT/'ui/templates/ui/space_detail.html').read_text()
+ for endpoint in ('add-contract','add-appraisal','add-utility','upload-document','add-movement','add-alert','workflow-create'):
+  assert f"url '{endpoint}'" not in dossier
+ assert "url 'operation-create'" in dossier
+ operation=(ROOT/'ui/templates/ui/operation_form.html').read_text()
+ assert '<style' not in operation and ' style=' not in operation
+ for action in ('contract','appraisal','document','utility','movement','workflow','alert','beneficiary'):
+  assert f"action == '{action}'" in operation
