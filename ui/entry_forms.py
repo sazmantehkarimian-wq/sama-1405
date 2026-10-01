@@ -2,6 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from domains.contracts.models import Beneficiary, Contract
+from domains.documents.models import Document
 from domains.operations.models import (
     Appraiser, AppraisalNotification, ElectricityAllocation,
     ElectricityConsumptionCategory, UtilityBill, UtilityConnection, UtilityMeasurement,
@@ -595,6 +596,7 @@ class UtilityBillForm(forms.Form):
     amount_rial=forms.DecimalField(label="مبلغ قبض (ریال)",min_value=0,decimal_places=0,max_digits=24)
     consumption=forms.DecimalField(label="مصرف",required=False,min_value=0,decimal_places=3,max_digits=20)
     measurement=forms.ModelChoiceField(label="Measurement مرتبط",queryset=UtilityMeasurement.objects.none(),required=False,empty_label="بدون Measurement")
+    supporting_document=forms.ModelChoiceField(label="سند قبض",queryset=Document.objects.none(),required=False,empty_label="بدون سند")
     payment_status=forms.ChoiceField(label="وضعیت پرداخت",choices=UtilityBill.PaymentStatus.choices,initial=UtilityBill.PaymentStatus.UNKNOWN)
     payment_date=JalaliDateField(label="تاریخ پرداخت",required=False)
     notes=forms.CharField(label="توضیحات",required=False,widget=forms.Textarea(attrs={"rows":3}))
@@ -608,6 +610,10 @@ class UtilityBillForm(forms.Form):
                 space=connection.space,utility_type=connection.utility_type,is_valid=True
             ).order_by("-reading_date","-id")
         self.fields["measurement"].queryset=qs
+        docs=Document.objects.none()
+        if connection:
+            docs=Document.objects.filter(entity_type="CommercialSpace",entity_id=connection.space.code,archived_at__isnull=True).order_by("-uploaded_at")
+        self.fields["supporting_document"].queryset=docs
         self.fields["amount_rial"].widget.attrs.update({"inputmode":"numeric","min":"0"})
 
     def clean(self):
