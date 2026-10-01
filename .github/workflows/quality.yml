@@ -25,7 +25,10 @@ jobs:
             MotherPropertyOwnership, MotherPropertyOwnershipDocument,
             MotherPropertyUsageHistory, CommercialSpace,
           )
-          from domains.contracts.models import Contract, Beneficiary
+          from domains.contracts.models import (
+            Contract, Beneficiary, ContractCirculation, ContractCustodyTransfer,
+            ContractFinalApproval, ContractSignatureStep,
+          )
           from domains.operations.models import (
             Appraisal, AppraisalFee, ExpertFeePaymentBatch, ExpertFeeBatchItem,
             Auction, UtilityRecord, UtilityConnection, UtilityBill,
@@ -43,6 +46,10 @@ jobs:
             'commercial_spaces':CommercialSpace.objects.count(),
             'contracts':Contract.objects.count(),
             'beneficiaries':Beneficiary.objects.count(),
+            'contract_circulations':ContractCirculation.objects.count(),
+            'contract_custody':ContractCustodyTransfer.objects.count(),
+            'contract_signatures':ContractSignatureStep.objects.count(),
+            'contract_final_approvals':ContractFinalApproval.objects.count(),
             'appraisals':Appraisal.objects.count(),
             'appraisal_fees':AppraisalFee.objects.count(),
             'fee_batches':ExpertFeePaymentBatch.objects.count(),
