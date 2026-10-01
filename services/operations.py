@@ -8,7 +8,8 @@ from django.utils import timezone
 from domains.identity.models import AuditEvent
 from domains.documents.models import Document
 from domains.operations.models import (
-    Alert, Appraisal, AppraisalFee, AppraisalNotification, CommissionDecision, OperationalHistory,
+    Alert, Appraisal, AppraisalFee, AppraisalNotification, CommissionDecision,
+    ExpertFeeBatchItem, ExpertFeePaymentBatch, OperationalHistory,
     TimelineEvent, UtilityRecord, WorkflowInstance,
 )
 from services.dates import normalize_jalali
@@ -41,27 +42,183 @@ def _timeline(*, space, actor, event_type, source, source_id, title, date="", de
 
 @retry_locked
 @transaction.atomic
-def record_appraisal_fee(*, appraisal: Appraisal, actor, amount: str, payment_status: str,
+def create_appraisal_fee(*, appraisal: Appraisal, actor, amount, notes="", document: Document | None = None,
+                         follow_up_date="", ip_address=None) -> AppraisalFee:
+    if hasattr(appraisal, "fee"):
+        raise ValidationError("برای این کارشناسی قبلاً پرونده حق‌الزحمه ثبت شده است.")
+    if not appraisal.appraiser_ref_id:
+        raise ValidationError("کارشناسی بدون کارشناس ثبت‌شده نمی‌تواند پرونده حق‌الزحمه داشته باشد.")
+    fee = AppraisalFee.objects.create(
+        appraisal=appraisal,
+        amount_rial=_money(amount, "حق‌الزحمه"),
+        status=AppraisalFee.Status.FEE_ENTERED,
+        follow_up_date=_date(follow_up_date),
+        notes=(notes or "").strip(),
+        supporting_document=document,
+        created_by=actor,
+    )
+    AuditEvent.objects.create(
+        actor=actor, action="APPRAISAL_FEE_CREATE", entity_type="AppraisalFee",
+        entity_id=str(fee.pk),
+        after={"code":fee.sama_code,"space":appraisal.space.code,"appraiser_id":appraisal.appraiser_ref_id,
+               "amount_rial":str(fee.amount_rial),"status":fee.status},
+        ip_address=ip_address,
+    )
+    OperationalHistory.objects.create(
+        entity_type="AppraisalFee",entity_id=str(fee.pk),action="CREATED",
+        previous_state=None,new_state={"amount_rial":str(fee.amount_rial),"status":fee.status},responsible=actor,
+    )
+    _timeline(
+        space=appraisal.space,actor=actor,event_type="APPRAISAL_FEE_CREATE",source="AppraisalFee",source_id=fee.pk,
+        title=f"ثبت حق‌الزحمه {fee.sama_code}",date=fee.follow_up_date,new=fee.status,document=document,
+    )
+    return fee
+
+
+def record_appraisal_fee(*, appraisal: Appraisal, actor, amount: str, payment_status: str = "",
                          payment_date: str = "", payment_reference: str = "",
                          follow_up_date: str = "", notes: str = "", document: Document | None = None,
                          ip_address=None) -> AppraisalFee:
-    if hasattr(appraisal, "fee"):
-        raise ValidationError("برای این کارشناسی قبلاً پرونده حق‌الزحمه ثبت شده است.")
-    fee = AppraisalFee.objects.create(
-        appraisal=appraisal, amount_rial=_money(amount, "حق‌الزحمه"),
-        payment_status=payment_status.strip(), payment_date=_date(payment_date),
-        payment_reference=payment_reference.strip(), follow_up_date=_date(follow_up_date), notes=notes.strip(),
-        supporting_document=document,
+    """Compatibility entry point; new records always start at FEE_ENTERED unless a valid full payment is requested."""
+    fee=create_appraisal_fee(
+        appraisal=appraisal,actor=actor,amount=amount,notes=notes,document=document,
+        follow_up_date=follow_up_date,ip_address=ip_address,
     )
-    AuditEvent.objects.create(actor=actor, action="APPRAISAL_FEE_CREATE", entity_type="AppraisalFee",
-                              entity_id=str(fee.pk), after={"space": appraisal.space.code,
-                              "amount_rial": str(fee.amount_rial), "payment_status": fee.payment_status},
-                              ip_address=ip_address)
-    OperationalHistory.objects.create(entity_type="AppraisalFee", entity_id=str(fee.pk),
-        action="CREATED", previous_state=None, new_state={"payment_status": fee.payment_status},
-        responsible=actor)
-    _timeline(space=appraisal.space,actor=actor,event_type="APPRAISAL_FEE_CREATE",source="AppraisalFee",source_id=fee.pk,title="ثبت حق‌الزحمه کارشناسی",date=fee.payment_date or fee.follow_up_date,new=fee.payment_status,document=document)
+    if payment_status == "PAID":
+        return transition_appraisal_fee(
+            fee=fee,actor=actor,new_status=AppraisalFee.Status.PAID,
+            values={"payment_date":payment_date,"paid_amount_rial":amount,"payment_reference":payment_reference},
+            reason="ثبت پرداخت همزمان با ایجاد پرونده",ip_address=ip_address,
+        )
     return fee
+
+
+@retry_locked
+@transaction.atomic
+def update_appraisal_fee_amount(*,fee:AppraisalFee,actor,amount,reason,ip_address=None):
+    reason=(reason or "").strip()
+    if not reason:raise ValidationError("علت اصلاح مبلغ الزامی است.")
+    if fee.status in {AppraisalFee.Status.PAID,AppraisalFee.Status.CLOSED}:
+        raise ValidationError("پس از پرداخت یا مختومه‌شدن، اصلاح مستقیم مبلغ مجاز نیست.")
+    new_amount=_money(amount,"حق‌الزحمه")
+    before=str(fee.amount_rial)
+    fee.amount_rial=new_amount
+    fee.save(update_fields=["amount_rial","updated_at"])
+    AuditEvent.objects.create(
+        actor=actor,action="APPRAISAL_FEE_AMOUNT_UPDATE",entity_type="AppraisalFee",entity_id=str(fee.pk),
+        reason=reason,before={"amount_rial":before},after={"amount_rial":str(new_amount)},ip_address=ip_address,
+    )
+    OperationalHistory.objects.create(
+        entity_type="AppraisalFee",entity_id=str(fee.pk),action="AMOUNT_UPDATED",
+        previous_state={"amount_rial":before},new_state={"amount_rial":str(new_amount)},reason=reason,responsible=actor,
+    )
+    return fee
+
+
+_ALLOWED_FEE_TRANSITIONS={
+    AppraisalFee.Status.FEE_ENTERED:{AppraisalFee.Status.READY_TO_SEND,AppraisalFee.Status.NEEDS_CORRECTION,AppraisalFee.Status.STOPPED,AppraisalFee.Status.CANCELLED,AppraisalFee.Status.PAID},
+    AppraisalFee.Status.READY_TO_SEND:{AppraisalFee.Status.SENT_TO_FINANCE,AppraisalFee.Status.NEEDS_CORRECTION,AppraisalFee.Status.STOPPED,AppraisalFee.Status.CANCELLED},
+    AppraisalFee.Status.SENT_TO_FINANCE:{AppraisalFee.Status.IN_PROGRESS,AppraisalFee.Status.PAID,AppraisalFee.Status.NEEDS_CORRECTION,AppraisalFee.Status.STOPPED},
+    AppraisalFee.Status.IN_PROGRESS:{AppraisalFee.Status.PAID,AppraisalFee.Status.NEEDS_CORRECTION,AppraisalFee.Status.STOPPED},
+    AppraisalFee.Status.NEEDS_CORRECTION:{AppraisalFee.Status.FEE_ENTERED,AppraisalFee.Status.READY_TO_SEND,AppraisalFee.Status.CANCELLED},
+    AppraisalFee.Status.STOPPED:{AppraisalFee.Status.READY_TO_SEND,AppraisalFee.Status.CANCELLED},
+    AppraisalFee.Status.PAID:{AppraisalFee.Status.CLOSED},
+    AppraisalFee.Status.CLOSED:set(),
+    AppraisalFee.Status.CANCELLED:set(),
+}
+
+
+@retry_locked
+@transaction.atomic
+def transition_appraisal_fee(*,fee:AppraisalFee,actor,new_status,values=None,reason="",ip_address=None):
+    values=values or {}
+    if new_status not in AppraisalFee.Status.values:raise ValidationError("وضعیت حق‌الزحمه معتبر نیست.")
+    if new_status not in _ALLOWED_FEE_TRANSITIONS.get(fee.status,set()):
+        raise ValidationError("این تغییر وضعیت در گردش حق‌الزحمه مجاز نیست.")
+    reason=(reason or values.get("reason") or "").strip()
+    before={
+        "status":fee.status,"sent_to_finance_date":fee.sent_to_finance_date,"letter_number":fee.letter_number,
+        "letter_date":fee.letter_date,"payment_date":fee.payment_date,
+        "paid_amount_rial":str(fee.paid_amount_rial) if fee.paid_amount_rial is not None else None,
+        "payment_reference":fee.payment_reference,
+    }
+    if new_status==AppraisalFee.Status.SENT_TO_FINANCE:
+        sent=_date(values.get("sent_to_finance_date"),required=True)
+        letter=(values.get("letter_number") or "").strip()
+        letter_date=_date(values.get("letter_date"),required=True)
+        if not letter:raise ValidationError("شماره نامه / گردش برای ارسال به مالی الزامی است.")
+        fee.sent_to_finance_date=sent;fee.letter_number=letter;fee.letter_date=letter_date
+    if new_status==AppraisalFee.Status.PAID:
+        payment_date=_date(values.get("payment_date"),required=True)
+        paid=_money(values.get("paid_amount_rial"),"مبلغ پرداخت‌شده")
+        reference=(values.get("payment_reference") or "").strip()
+        if not reference:raise ValidationError("مرجع پرداخت الزامی است.")
+        if paid!=fee.amount_rial:
+            raise ValidationError("مبلغ پرداخت‌شده باید دقیقاً با مبلغ حق‌الزحمه برابر باشد.")
+        fee.payment_date=payment_date;fee.paid_amount_rial=paid;fee.payment_reference=reference
+    if new_status in {AppraisalFee.Status.NEEDS_CORRECTION,AppraisalFee.Status.STOPPED,AppraisalFee.Status.CANCELLED} and not reason:
+        raise ValidationError("علت تغییر وضعیت الزامی است.")
+    previous=fee.status
+    fee.status=new_status
+    fee.save(update_fields=[
+        "status","sent_to_finance_date","letter_number","letter_date","payment_date",
+        "paid_amount_rial","payment_reference","updated_at",
+    ])
+    AuditEvent.objects.create(
+        actor=actor,action="APPRAISAL_FEE_TRANSITION",entity_type="AppraisalFee",entity_id=str(fee.pk),
+        reason=reason,before=before,after={
+            "status":fee.status,"sent_to_finance_date":fee.sent_to_finance_date,"letter_number":fee.letter_number,
+            "letter_date":fee.letter_date,"payment_date":fee.payment_date,
+            "paid_amount_rial":str(fee.paid_amount_rial) if fee.paid_amount_rial is not None else None,
+            "payment_reference":fee.payment_reference,
+        },ip_address=ip_address,
+    )
+    OperationalHistory.objects.create(
+        entity_type="AppraisalFee",entity_id=str(fee.pk),action="TRANSITION",
+        previous_state={"status":previous},new_state={"status":fee.status},reason=reason,responsible=actor,
+    )
+    _timeline(
+        space=fee.appraisal.space,actor=actor,event_type="APPRAISAL_FEE_TRANSITION",source="AppraisalFee",source_id=fee.pk,
+        title=f"تغییر وضعیت حق‌الزحمه {fee.sama_code}",date=fee.payment_date or fee.sent_to_finance_date,
+        previous=previous,new=fee.status,description=reason,
+    )
+    return fee
+
+
+@retry_locked
+@transaction.atomic
+def create_fee_payment_batch(*,fees,actor,sent_date,letter_number,letter_date,notes="",ip_address=None):
+    fee_ids=[fee.pk for fee in fees]
+    locked=list(AppraisalFee.objects.select_for_update().filter(pk__in=fee_ids).select_related("appraisal__space","appraisal__appraiser_ref"))
+    if not locked:raise ValidationError("حداقل یک حق‌الزحمه باید انتخاب شود.")
+    if len(locked)!=len(set(fee_ids)):raise ValidationError("یک یا چند رکورد حق‌الزحمه معتبر نیست.")
+    if any(fee.status!=AppraisalFee.Status.READY_TO_SEND for fee in locked):
+        raise ValidationError("فقط رکوردهای «آماده ارسال» می‌توانند وارد Batch شوند.")
+    if ExpertFeeBatchItem.objects.filter(fee__in=locked,active=True).exists():
+        raise ValidationError("حداقل یک رکورد در Batch فعال دیگری عضو است.")
+    sent=_date(sent_date,required=True);letter_date_value=_date(letter_date,required=True)
+    letter=(letter_number or "").strip()
+    if not letter:raise ValidationError("شماره نامه / گردش Batch الزامی است.")
+    batch=ExpertFeePaymentBatch.objects.create(
+        sent_date=sent,letter_number=letter,letter_date=letter_date_value,
+        status=ExpertFeePaymentBatch.Status.SENT,notes=(notes or "").strip(),created_by=actor,
+    )
+    year=sent[:4]
+    batch.code=f"PAY-{year}-{batch.pk:03d}"
+    batch.save(update_fields=["code","updated_at"])
+    for fee in locked:
+        ExpertFeeBatchItem.objects.create(batch=batch,fee=fee,active=True,added_by=actor)
+        transition_appraisal_fee(
+            fee=fee,actor=actor,new_status=AppraisalFee.Status.SENT_TO_FINANCE,
+            values={"sent_to_finance_date":sent,"letter_number":letter,"letter_date":letter_date_value},
+            reason=f"ارسال گروهی در {batch.code}",ip_address=ip_address,
+        )
+    AuditEvent.objects.create(
+        actor=actor,action="APPRAISAL_FEE_BATCH_CREATE",entity_type="ExpertFeePaymentBatch",entity_id=str(batch.pk),
+        after={"code":batch.code,"fee_ids":[fee.pk for fee in locked],"count":len(locked),"letter_number":letter},
+        ip_address=ip_address,
+    )
+    return batch
 
 
 @retry_locked
