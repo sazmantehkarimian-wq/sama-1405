@@ -74,7 +74,7 @@ def delete_space_filter(request,filter_id):
 
 DOMAIN_LISTS={
  'properties':('املاک مادر',MotherProperty.objects.select_related('region'),(('identifier','شناسه ملک'),('name','نام'),('region.name','منطقه'),('primary_usage','کاربری'),('area','مساحت'))),
- 'discrepancies':('بررسی مغایرت‌های داده',Discrepancy.objects.select_related('source_file','assigned_to'),(('entity_key','شناسه رکورد'),('field_key','فیلد'),('observed_value','مقدار موجود'),('expected_value','مقدار مورد انتظار'),('reason','علت'),('severity','اهمیت'),('status','وضعیت'))),
+ 'discrepancies':('بررسی مغایرت‌های داده',Discrepancy.objects.select_related('assigned_to'),(('entity_key','شناسه رکورد'),('field_key','فیلد'),('observed_value','مقدار موجود'),('expected_value','مقدار مورد انتظار'),('reason','علت'),('severity','اهمیت'),('status','وضعیت'))),
  'contracts':('قراردادها',Contract.objects.select_related('space'),(('number','شماره'),('space.code','کد فضا'),('start_date','شروع'),('end_date','پایان'),('status','وضعیت'))),
  'beneficiaries':('بهره‌برداران',Beneficiary.objects.all(),(('name','نام'),('identity_number','شناسه'),('kind','نوع'),('contact','تماس'))),
  'appraisals':('کارشناسی',Appraisal.objects.select_related('space'),(('space.code','کد فضا'),('appraisal_date','تاریخ'),('appraiser','کارشناس'),('amount_rial','مبلغ (ریال)'),('status','وضعیت'))),
