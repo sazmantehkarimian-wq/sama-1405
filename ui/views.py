@@ -5,7 +5,7 @@ from django.contrib.auth import update_session_auth_hash
 from django.core.paginator import Paginator
 from django.http import HttpResponse, FileResponse
 from django.shortcuts import render,get_object_or_404,redirect
-from django.db.models import Count
+from django.db.models import Count, Q
 from domains.properties.models import CommercialSpace,Region,Center,MotherProperty
 from domains.registry.models import Discrepancy
 from domains.identity.models import UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
@@ -106,14 +106,36 @@ def _value(obj,path):
  if obj in ('',None):return '—'
  if path.endswith(('amount_rial','investment_commitment_rial','bill_amount_rial')):return format_rial(obj)
  return obj
+def _system_pk(query,prefix):
+ value=query.strip().upper()
+ if value.startswith(prefix):
+  suffix=value[len(prefix):].lstrip('-')
+  if suffix.isdigit():return int(suffix)
+ return None
+
 def _search_domain(qs,domain,q):
  if not q:return qs
- if domain=='contracts':return qs.filter(Q(number__icontains=q)|Q(space__code__iexact=q)|Q(beneficiary__name__icontains=q)|Q(beneficiary__identity_number__iexact=q))
- if domain=='appraisers':return qs.filter(Q(first_name__icontains=q)|Q(last_name__icontains=q)|Q(national_id__iexact=q)|Q(license_number__icontains=q)|Q(specialty__icontains=q))
- if domain in {'appraisals','fees','auctions','utilities','workflows','alerts'}:
-  field='appraisal__space__code__iexact' if domain=='fees' else 'space__code__iexact'
-  return qs.filter(**{field:q})
- if domain=='beneficiaries':return qs.filter(Q(name__icontains=q)|Q(identity_number__iexact=q))
+ if domain=='contracts':
+  return qs.filter(Q(number__icontains=q)|Q(space__code__iexact=q)|Q(space__name__icontains=q)|Q(beneficiary__name__icontains=q)|Q(beneficiary__identity_number__iexact=q))
+ if domain=='appraisers':
+  condition=Q(first_name__icontains=q)|Q(last_name__icontains=q)|Q(national_id__iexact=q)|Q(license_number__icontains=q)|Q(specialty__icontains=q)
+  pk=_system_pk(q,'EXP')
+  if pk:condition|=Q(pk=pk)
+  return qs.filter(condition)
+ if domain=='appraisals':
+  condition=Q(space__code__iexact=q)|Q(space__name__icontains=q)|Q(appraiser__icontains=q)|Q(appraiser_ref__first_name__icontains=q)|Q(appraiser_ref__last_name__icontains=q)|Q(response_number__icontains=q)|Q(notifications__number__icontains=q)
+  pk=_system_pk(q,'APR')
+  if pk:condition|=Q(pk=pk)
+  return qs.filter(condition).distinct()
+ if domain=='fees':
+  return qs.filter(Q(appraisal__space__code__iexact=q)|Q(appraisal__appraiser__icontains=q)|Q(payment_reference__icontains=q))
+ if domain in {'auctions','utilities','workflows','alerts'}:
+  return qs.filter(space__code__iexact=q)
+ if domain=='beneficiaries':
+  condition=Q(name__icontains=q)|Q(identity_number__iexact=q)
+  pk=_system_pk(q,'B')
+  if pk:condition|=Q(pk=pk)
+  return qs.filter(condition)
  return qs
 @login_required
 def domain_list(request,domain):
