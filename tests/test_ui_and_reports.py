@@ -20,7 +20,7 @@ def test_advanced_space_filters_and_saved_view(client,user):
  CommercialSpace.objects.create(code='1010',name='فضای بزرگ',status='ACTIVE',area=100,region=region,address='تهران')
  CommercialSpace.objects.create(code='2020',name='فضای کوچک',status='OUT_OF_CYCLE',area=20)
  client.force_login(user)
- response=client.get('/spaces/',{'code':'A','code_op':'starts','status':['ACTIVE'],'area_min':'50','address_presence':'nonempty'})
+ response=client.get('/spaces/',{'code':'10','code_op':'starts','status':['ACTIVE'],'area_min':'50','address_presence':'nonempty'})
  assert response.status_code==200 and '1010' in response.content.decode() and '2020' not in response.content.decode()
  response=client.post('/spaces/filters/save/',{'name':'فضاهای منتخب','status':['ACTIVE'],'area_min':'50'})
  assert response.status_code==302
