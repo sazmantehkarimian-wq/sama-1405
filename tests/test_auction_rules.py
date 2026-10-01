@@ -49,7 +49,7 @@ def test_missing_appraisal_is_review_not_silent_exclusion(auction_context):
 
 @pytest.mark.django_db
 def test_out_of_cycle_space_is_not_auto_candidate(auction_context):
-    user, _, rule = auction_context
+    user, rule = auction_context
     space = _space("8202"); space.status = "OUT_OF_CYCLE"; space.save(update_fields=["status"])
     result = evaluate_space(space=space, on_date="1405/07/01", actor=user, rule=rule)
     assert result.decision == "NOT_CANDIDATE"
