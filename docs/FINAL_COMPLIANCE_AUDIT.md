@@ -25,7 +25,7 @@
 | Browser/print/concurrency/security | PASS | Chromium واقعی و screenshot، PDF ساختاری، login throttle، پنج read/report و پنج write هم‌زمان پاس |
 | Windows portable/prerelease asset | PASS | workflow [`36850270141`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36850270141) روی runtime commit `9fd74aa` پاس شد. `v5.0.0-uat.7` prerelease دارای ZIP ۵۴٬۵۳۶٬۰۹۴ بایتی است؛ SHA-256 دانلود مستقل `5aa2d3c402c49e6c42c62c6927baaa92e8f5c88c30405fda6c6ef32fac89d0bb` است. |
 
-اصلاحات فنی UAT.6 شامل نگاشت semantic قرارداد/بهره‌بردار/کارشناسی، timeline، ارائه مرکزی، خروجی رسمی RTL و بازبینی Chromium واقعی است. وضعیت تا پذیرش انسانی مالک همچنان UAT REMEDIATION IN PROGRESS می‌ماند؛ PR شماره ۲ نباید ادغام شود و این نسخه آماده Production/LAN نیست.
+اصلاحات فنی UAT.7 شامل نگاشت semantic قرارداد/بهره‌بردار/کارشناسی، timeline، ارائه مرکزی، خروجی رسمی RTL و بازبینی Chromium واقعی است. وضعیت تا پذیرش انسانی مالک همچنان UAT REMEDIATION IN PROGRESS می‌ماند؛ PR شماره ۲ نباید ادغام شود و این نسخه آماده Production/LAN نیست.
 
 
 ## قفل حساب مالک در UAT
