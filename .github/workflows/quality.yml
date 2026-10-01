@@ -22,7 +22,11 @@ jobs:
           import django; django.setup()
           from domains.properties.models import MotherProperty, CommercialSpace
           from domains.contracts.models import Contract, Beneficiary
-          from domains.operations.models import Appraisal, Auction, UtilityRecord, FileMovement, TimelineEvent
+          from domains.operations.models import (
+            Appraisal, Auction, UtilityRecord, UtilityMeasurement, UtilityUnit,
+            ElectricityBill, ElectricityAllocation, ElectricityCalculationSnapshot,
+            FileMovement, TimelineEvent,
+          )
           checks={
             'mother_properties':MotherProperty.objects.count(),
             'commercial_spaces':CommercialSpace.objects.count(),
@@ -31,6 +35,11 @@ jobs:
             'appraisals':Appraisal.objects.count(),
             'auctions':Auction.objects.count(),
             'utilities':UtilityRecord.objects.count(),
+            'utility_units':UtilityUnit.objects.count(),
+            'measurements':UtilityMeasurement.objects.count(),
+            'electricity_bills':ElectricityBill.objects.count(),
+            'electricity_allocations':ElectricityAllocation.objects.count(),
+            'electricity_snapshots':ElectricityCalculationSnapshot.objects.count(),
             'movements':FileMovement.objects.count(),
             'timeline':TimelineEvent.objects.count(),
           }
