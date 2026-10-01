@@ -24,8 +24,8 @@
 | یک کارشناسی مرجع جاری + تاریخچه | PASS | unique conditional DB constraint + سرویس تغییر مرجع؛ سابقه قبلی حفظ می‌شود. |
 | تاریخ‌های کارشناسی مستقل | PASS | تاریخ ابلاغ، تاریخ جواب و تاریخ خود کارشناسی فیلدهای جدا و Validation مستقل دارند. |
 | حق‌الزحمه کارشناسی | CORE PASS | گردش FROZEN شامل مبلغ دستی مستقل، وضعیت‌های کنترل‌شده، ارسال به مالی با نامه/تاریخ، پرداخت کامل با شرط برابری مبلغ، اصلاح مبلغ با Audit، Batch گروهی با عضویت فعال یکتا، KPI/Filter/Drill-down و XLSX رسمی پیاده و تست شد. PDF/Print اختصاصی این گزارش در Gate خروجی نهایی باز می‌ماند. |
-| مزایده و Rule Registry | موجود / نیازمند بازبینی نهایی | موتور نسخه‌دار و snapshot موجود است؛ باید بعد از تکمیل فرم‌های کارشناسی و قرارداد روی Zero-Data دوباره Gate نهایی شود. |
-| کمیسیون معاملات | موجود / نیازمند بازبینی نهایی | ایجاد/Transition/Audit موجود؛ بازبینی فرم‌ها و Reference Data باقی است. |
+| مزایده — Candidate / Instruction / Period Selection | CORE PASS | موتور deterministic و fail-safe، Rule سالانه نسخه‌دار، کارشناسی مرجع جاری، کنترل اعتبار در تاریخ مزایده، Reason Code/Snapshot، دستورات هم‌تراز مدیر/کمیسیون، تعارض رسمی، Manual Include/Exclude، جلوگیری از حضور هم‌زمان فضا در چند دوره باز، انتخاب از Candidate و افزودن دستی مجاز با علت/مرجع/Audit پیاده و تست شد. Golden Master اسناد رسمی، Readiness کامل Lot و خروجی‌های جلسه هنوز Gate جدا دارند. |
+| کمیسیون معاملات | CORE PASS | اعضای مستقل، Snapshot اعضای جلسه، جلسه/موضوع، ارتباط صریح با فضا/قرارداد/بهره‌بردار/مزایده، تصمیم، مسئول/مهلت، Follow-up append-only، وضعیت اجرا و Audit/Timeline پیاده و تست شد. صورتجلسه Golden Master و بسته اسناد/چاپ تخصصی هنوز Gate جدا دارد. |
 | برق — Bill / Allocation / Measurement / Snapshot | PASS | مدل FROZEN برق روی Zero-Data پیاده شد: UtilityUnit، ElectricityBill، Allocation، Measurement، Category، Rule Registry، اولویت داده واقعی، Override مجاز، کنترل ۱۰۰٪، کنترل ریالی، Final/Reopen و Snapshot نسخه‌دار. |
 | آب / گاز — Connection / Bill / Measurement | PASS | معماری مستقل آب و گاز بدون استفاده از فرمول برق پیاده شد؛ اشتراک، قبض، دوره، مبلغ، مصرف، Measurement، پرداخت و Audit پوشش داده شده‌اند. |
 | گزارش‌ها و فیلترهای تخصصی آب / گاز | PASS | داشبورد مستقل آب/گاز/سایر، فیلتر نوع/پرداخت/Measurement/منطقه/مرکز/دوره/مبلغ، مقایسه با دوره قبلی همان اشتراک، سند قبض و خروجی رسمی Excel 2019 پیاده و تست شد. |
@@ -48,7 +48,7 @@
 1. سبز نگه‌داشتن Quality Gate پس از هر تغییر Schema/Workflow.
 2. تکمیل بهره‌بردار مستقل از قرارداد و نمایش Current/History.
 3. تکمیل قرارداد، کارشناسان و کارشناسی بر اساس اسناد FROZEN.
-4. تکمیل اسناد تخصصی، هشدارها، Workflow، کمیسیون و مزایده روی مدل Zero-Data.
+4. تکمیل اسناد تخصصی، هشدارها و Workflow؛ سپس Readiness کامل Lot و Golden Masterهای مزایده/کمیسیون.
 5. تکمیل خروجی‌های PDF/Print تخصصی، از جمله حق‌الزحمه و انشعابات.
 6. بازآزمایی Search/Filter/Report/Print روی schema نهایی.
 7. Backup/Restore و Security regression.
