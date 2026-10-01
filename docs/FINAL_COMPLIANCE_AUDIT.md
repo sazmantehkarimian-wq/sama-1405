@@ -1,31 +1,53 @@
-# Final Compliance Audit
+# Compliance Audit — Zero-Data Foundation
 
-## وضعیت جاری: UAT REMEDIATION IN PROGRESS
+## وضعیت جاری: DEVELOPMENT / UAT NOT YET APPROVED
 
-پذیرش UI/UX و Design System در UAT مالک رد شده است. وضعیت‌های PASS زیر شواهد فنی پیشین را ثبت می‌کنند و به معنی آمادگی Production/LAN یا مجوز ادغام نیستند. انتشار جدید فقط پس از تکمیل اصلاحات، بازبینی واقعی مرورگر و تأیید دوباره همه Gateها مجاز است.
+این سند فقط شاخه `work/zero-data-foundation` را ارزیابی می‌کند. شواهد مربوط به Importهای قدیمی، شمارش workbookها و prereleaseهای UAT قبلی در این خط مبنای Compliance نیستند.
 
-| الزام بحرانی | وضعیت | شاهد/شکاف |
+### اصول تثبیت‌شده
+
+| الزام | وضعیت | شاهد / محدودیت |
 |---|---|---|
-| جدایی معماری از Legacy | PASS | `LEGACY_BOUNDARY.md`; root commit مستقل؛ آزمون الگوهای ممنوع |
-| Authority/hash/data baseline | PASS | بازخوانی مستقیم workbook: ۲۲۵ / ۳۵۰ / ۱۵۱ / ۵۰۱، بدون overlap/duplicate |
-| Raw provenance | PASS | ۸۴٬۶۱۸ cell غیرتهی با منبع، مختصات و fingerprint |
-| Registry | PASS | ۱۲۴ کلید: ۷۷ mapped، ۳۱ reference-only و ۱۶ unresolved audit-only برای سلول‌های خارج جدول بدون heading؛ raw evidence محفوظ است |
-| Typed canonical domains | PASS | مدل‌های رابطه‌ای و migrations؛ JSON فقط برای پیکربندی/ممیزی است |
-| Design system/navigation/dossier | PASS | token enforcement، Vazirmatn محلی، navigation افقی و dossier یکپارچه |
-| Historical contracts/beneficiaries/appraisals/auctions | PASS | import رابطه‌ای با provenance |
-| Appraisal fees/utilities/workflow | PASS | ثبت تراکنشی، سند، override، تاریخچه، Audit، گزارش Excel و dossier با تست |
-| Commission lifecycle | PASS | UI ایجاد، پیوند چند فضا، شرکت‌کنندگان/سند، اقدام بعدی، transition و Audit با تست |
-| File movement/current holder | PASS | ثبت ممیزی‌شده و current-holder مشتق از آخرین movement باز |
-| Documents/alerts/audit | PASS | upload امن server-side و checksum؛ اقدام هشدار و audit موجود |
-| Advanced filters/saved views | PASS | operatorهای متنی، خالی/ناخالی، ranges، multi-select/sort، AND/OR، column chooser و فیلتر ذخیره‌شده |
-| Auction engine | PASS | موتور نسخه‌دار fail-safe، snapshot، تست مرزی و UI ارزیابی/دوره/lot |
-| Official exports | PASS | XLSX/DOCX/PDF واقعی server-side، فیلتر/ستون جاری و header رسمی |
-| RBAC/user administration | PASS | مدیریت بومی create/reset/activate، اجبار تعویض رمز، staff enforcement و audit |
-| Backup/restore | PASS | DB/media/config manifest، lock نوشتن، pre-restore، integrity/FK و rollback tests |
-| Browser/print/concurrency/security | PASS | Chromium واقعی و screenshot، PDF ساختاری، login throttle، پنج read/report و پنج write هم‌زمان پاس |
-| Windows portable/prerelease asset | PASS | workflow [`36839370829`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36839370829) روی runtime commit `5b672c6` پاس شد. `v5.0.0-uat.6` prerelease دارای ZIP ۵۰٬۹۹۰٬۷۴۰ بایتی است؛ SHA-256 دانلود مستقل `1c558b90e04a350576059c6a1ff3f2d92aa051eefb851a2d150c098da23ff6d5` است. |
+| معماری بدون داده عملیاتی اولیه | PASS | Fresh migration + automated zero-row gate. |
+| عدم Import Excel/CSV | PASS | Import runtime/CLI/schema حذف شده و authority workbooks داخل بسته اجرایی قرار نمی‌گیرند. |
+| CommercialSpace.code یکتا و immutable | PASS | Form validation + DB trigger + automated tests. |
+| MotherProperty مستقل | PASS | وابستگی اجباری به CommercialSpace وجود ندارد. |
+| ورود دستی کنترل‌شده | PASS برای ماژول‌های بازطراحی‌شده | Space، MotherProperty، Beneficiary، Contract، Appraiser و Appraisal از فرم/سرویس کنترل‌شده عبور می‌کنند. |
+| Audit Trail | PASS برای جریان‌های بازطراحی‌شده | ایجاد/ویرایش و رخدادهای اصلی Audit می‌شوند؛ Contract/Appraisal/Beneficiary relation دارای Timeline نیز هستند. |
+| عدم overwrite تاریخچه | PASS برای قرارداد/کارشناسی/بهره‌بردار | قرارداد جدید رکورد جدید است؛ کارشناسی مرجع قبلی حفظ می‌شود؛ تغییر بهره‌بردار ارتباط قبلی را خاتمه می‌دهد. |
+| قرارداد هم‌پوشان | PASS | overlap برای یک کد فضا رد می‌شود. |
+| استقلال بهره‌بردار و قرارداد | PASS* | BeneficiaryAssignment مستقل پیاده شده و آخرین CI پس از این تغییر باید سبز باشد. |
+| کارشناسی ساختاری | PASS | Appraiser مستقل، ابلاغ 1:N، جواب و تاریخ کارشناسی مستقل، current appraisal واحد. |
+| active / out-of-cycle | PASS* | Viewهای جدا و نمایش current/latest context پیاده شده؛ آخرین CI باید تأیید کند. |
+| Search / Filter | PARTIAL | جست‌وجوی کلیدهای اصلی توسعه یافته؛ فیلتر تخصصی همه ماژول‌ها کامل نیست. |
+| Documents / FileMovement / Alerts / Workflow | EXISTING — REVIEW REQUIRED | پیاده‌سازی پایه موجود است؛ تطبیق نهایی Zero-Data/FROZEN هنوز باز است. |
+| Auction / Commission | EXISTING — REVIEW REQUIRED | موتور و گردش پایه وجود دارد؛ Gate نهایی بعد از تکمیل دامنه‌های وابسته لازم است. |
+| Utilities / Consumption | INCOMPLETE | مدل کامل FROZEN قبض/Allocation/Measurement/Snapshot هنوز تکمیل نشده است. |
+| Official reports | REVIEW REQUIRED | موتور گزارش موجود است، ولی schema و ستون‌های جدید باید end-to-end بازآزمایی شوند. |
+| Backup / Restore | REVIEW REQUIRED | سازوکار موجود است؛ بعد از تثبیت migration chain باید Regression نهایی شود. |
+| Security / Auth | PASS در Quality tests | Password hashing، CSRF، throttle و user-management تست دارند. |
+| Portable LAN method | FROZEN | START_SAMA/Waitress/8765 حفظ می‌شود. |
+| Windows Zero-Data build | PENDING | بسته Windows جدید هنوز ساخته و UAT نشده است. |
+| Owner acceptance | PENDING | فقط Owner می‌تواند UAT را تأیید کند. |
+| Production/LAN-ready | NOT APPROVED | تا Windows gate + Owner UAT ممنوع است. |
 
-اصلاحات فنی UAT.6 شامل نگاشت semantic قرارداد/بهره‌بردار/کارشناسی، timeline، ارائه مرکزی، خروجی رسمی RTL و بازبینی Chromium واقعی است. وضعیت تا پذیرش انسانی مالک همچنان UAT REMEDIATION IN PROGRESS می‌ماند؛ PR شماره ۲ نباید ادغام شود و این نسخه آماده Production/LAN نیست.
+`PASS*` به معنی پیاده‌سازی انجام‌شده با انتظار تأیید آخرین Quality run همان head است.
 
+## مواردی که عمداً دیگر Evidence محسوب نمی‌شوند
 
-یادداشت زنجیره انتشار: runtime و محتوای بسته از commit `5b672c6` ساخته شده است. commit بعدی فقط همین شواهد ممیزی را ثبت می‌کند و هیچ ورودی runtime/code/build را تغییر نمی‌دهد؛ بنابراین بازسازی artifact لازم نیست.
+- شمار ۲۲۵ / ۳۵۰ / ۱۵۱ / ۵۰۱ از workbookها؛ این اعداد متعلق به مسیر Import قبلی بودند.
+- RawCell / SourceFile / ImportBatch؛ از Runtime Zero-Data حذف شده‌اند.
+- prerelease `v5.0.0-uat.6`؛ این بسته بر schema قبلی ساخته شده و مجوز استفاده به‌عنوان Zero-Data build ندارد.
+- PR #2؛ نباید برای این مسیر Merge یا مبنای انتشار تلقی شود.
+
+## شرط اعلام آمادگی
+
+اعلام «LAN-ready» یا «Production-ready» فقط بعد از همه موارد زیر مجاز است:
+
+1. تکمیل دامنه‌های FROZEN باقی‌مانده.
+2. Quality Gate سبز روی head نهایی.
+3. Fresh DB + migrate + zero-data assertion.
+4. Backup/Restore regression.
+5. Browser RTL/UAT regression.
+6. Windows Portable build و تست واقعی روی Windows 10/LAN.
+7. پذیرش انسانی Owner.
