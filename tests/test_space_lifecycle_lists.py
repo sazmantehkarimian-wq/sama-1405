@@ -4,7 +4,7 @@ import jdatetime
 import pytest
 from django.contrib.auth import get_user_model
 
-from domains.contracts.models import Beneficiary, Contract
+from domains.contracts.models import Beneficiary, BeneficiaryAssignment, Contract
 from domains.properties.models import CommercialSpace
 
 
@@ -28,9 +28,17 @@ def test_active_and_out_of_cycle_lists_are_separate_and_show_correct_contract_co
         space=active, beneficiary=current_beneficiary, number="CUR-1",
         start_date=jdate(-10), end_date=jdate(30),
     )
+    BeneficiaryAssignment.objects.create(
+        space=active, beneficiary=current_beneficiary, role="بهره‌بردار",
+        start_date=jdate(-10), end_date="", status="ACTIVE",
+    )
     Contract.objects.create(
         space=inactive, beneficiary=old_beneficiary, number="OLD-1",
         start_date=jdate(-400), end_date=jdate(-20),
+    )
+    BeneficiaryAssignment.objects.create(
+        space=inactive, beneficiary=old_beneficiary, role="بهره‌بردار",
+        start_date=jdate(-400), end_date=jdate(-20), status="ENDED",
     )
 
     active_response = client.get("/spaces/active/")
