@@ -490,8 +490,11 @@ def appraiser_edit(request, pk):
 
 @login_required
 def appraiser_detail(request, pk):
+    from django.db.models import Sum
     appraiser = get_object_or_404(Appraiser, pk=pk, archived_at__isnull=True)
-    appraisals = appraiser.appraisals.select_related("space").order_by("-appraisal_date", "-id")
+    appraisals = appraiser.appraisals.select_related("space","fee").order_by("-appraisal_date", "-id")
+    fees = AppraisalFee.objects.filter(appraisal__appraiser_ref=appraiser).select_related("appraisal__space").order_by("-created_at","-pk")
+    totals=fees.aggregate(total=Sum("amount_rial"),paid=Sum("paid_amount_rial"))
     audit = AuditEvent.objects.filter(entity_type="Appraiser", entity_id=str(appraiser.pk)).order_by("-created_at")[:100]
     return render(
         request,
@@ -499,6 +502,14 @@ def appraiser_detail(request, pk):
         {
             "appraiser": appraiser,
             "appraisals": appraisals,
+            "fees":fees,
+            "fee_count":fees.count(),
+            "fee_paid_count":fees.filter(status__in=[AppraisalFee.Status.PAID,AppraisalFee.Status.CLOSED]).count(),
+            "fee_progress_count":fees.filter(status__in=[AppraisalFee.Status.SENT_TO_FINANCE,AppraisalFee.Status.IN_PROGRESS]).count(),
+            "fee_ready_count":fees.filter(status=AppraisalFee.Status.READY_TO_SEND).count(),
+            "fee_total":totals["total"] or 0,
+            "fee_paid":totals["paid"] or 0,
+            "fee_pending":(totals["total"] or 0)-(totals["paid"] or 0),
             "audit_events": audit,
         },
     )
