@@ -26,10 +26,13 @@
   </div>
   <div class="button-row">
     <button class="emphasized" type="submit">ثبت اطلاعات</button>
+    {% if secondary_action_url %}<a class="button tertiary" href="{% url secondary_action_url %}">{{ secondary_action_label }}</a>{% endif %}
     {% if cancel_url == 'space-detail' %}
       <a class="button secondary" href="{% url cancel_url code=cancel_kwargs.code %}">انصراف</a>
     {% elif cancel_url == 'domain-list' %}
       <a class="button secondary" href="{% url cancel_url domain=cancel_kwargs.domain %}">انصراف</a>
+    {% elif cancel_url == 'beneficiary-detail' %}
+      <a class="button secondary" href="{% url cancel_url pk=cancel_kwargs.pk %}">انصراف</a>
     {% else %}
       <a class="button secondary" href="{% url cancel_url %}">انصراف</a>
     {% endif %}
