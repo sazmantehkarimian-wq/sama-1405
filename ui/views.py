@@ -447,7 +447,14 @@ def auction_lot_add(request,period_id):
 
 @login_required
 def commission_workspace(request):
- sessions=CommissionSession.objects.prefetch_related('cases__decisions').order_by('-session_date','-id')
+ sessions=CommissionSession.objects.prefetch_related('cases__decisions').annotate(
+  topic_count=Count('cases',distinct=True),
+  open_decision_count_row=Count('cases__decisions',filter=Q(cases__decisions__execution_status__in=[
+   CommissionDecision.ExecutionStatus.ACTION_REQUIRED,
+   CommissionDecision.ExecutionStatus.IN_PROGRESS,
+   CommissionDecision.ExecutionStatus.REVIEW_REQUIRED,
+  ]),distinct=True),
+ ).order_by('-session_date','-id')
  q=request.GET.get('q','').strip()
  status=request.GET.get('status','').strip()
  if q:sessions=sessions.filter(Q(number__icontains=q)|Q(title__icontains=q)|Q(cases__title__icontains=q)|Q(cases__spaces__code__iexact=q)).distinct()
