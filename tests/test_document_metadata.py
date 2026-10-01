@@ -92,3 +92,5 @@ def test_document_archive_keeps_file_and_audits_without_hard_delete(client,tmp_p
     dossier=client.get("/spaces/8903/").content.decode()
     assert "بایگانی‌شده" in dossier
     assert "REF-1" in dossier
+    download=client.get(f"/documents/{document.pk}/download/")
+    assert download.status_code==200
