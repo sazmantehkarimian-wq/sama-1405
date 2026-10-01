@@ -23,7 +23,7 @@
 | RBAC/user administration | PASS | مدیریت بومی create/reset/activate، اجبار تعویض رمز، staff enforcement و audit |
 | Backup/restore | PASS | DB/media/config manifest، lock نوشتن، pre-restore، integrity/FK و rollback tests |
 | Browser/print/concurrency/security | PASS | Chromium واقعی و screenshot، PDF ساختاری، login throttle، پنج read/report و پنج write هم‌زمان پاس |
-| Windows portable/prerelease asset | PENDING | کاندید `v5.0.0-uat.8` پس از عبور workflow ویندوز و تأیید دانلود مستقل منتشر می‌شود. |
+| Windows portable/prerelease asset | PASS | workflow [`36867980923`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36867980923) روی runtime commit `385d13b` پاس شد. `v5.0.0-uat.8` prerelease دارای ZIP ۵۸٬۳۶۹٬۷۸۰ بایتی است؛ SHA-256 دانلود مستقل `b3a8e06dde07d3af465236c30236288f8e57699396e8ebe41c7019e0af07b4c2` است. |
 
 اصلاحات فنی UAT.8 شامل نگاشت semantic قرارداد/بهره‌بردار/کارشناسی، timeline، ارائه مرکزی، خروجی رسمی RTL و بازبینی Chromium واقعی است. وضعیت تا پذیرش انسانی مالک همچنان UAT REMEDIATION IN PROGRESS می‌ماند؛ PR شماره ۲ نباید ادغام شود و این نسخه آماده Production/LAN نیست.
 
@@ -34,3 +34,6 @@
 
 
 معماری UAT.8 پرونده را نمای ۳۶۰ درجه فقط‌خواندنی و ماژول‌های تخصصی را محل ثبت عملیات می‌داند. تعریف، جمعیت، predicate و drill-down همه شاخص‌های داشبورد در `docs/DASHBOARD_KPI_CATALOG.md` ثبت شده است. وضعیت همچنان UAT REMEDIATION IN PROGRESS است.
+
+
+یادداشت زنجیره انتشار UAT.8: runtime و تمام اصلاحات پرونده/ماژول از commit `385d13b` بسته‌بندی شده‌اند. commit بعدی فقط شواهد workflow و checksum را ثبت می‌کند و محتوای runtime را تغییر نمی‌دهد.

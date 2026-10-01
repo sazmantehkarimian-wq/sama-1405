@@ -28,5 +28,5 @@
 | Auction candidate rules/lifecycle | PASS | Rule نسخه‌دار، تست مرزها و fail-safe، snapshot، UI ارزیابی، دوره و lot؛ participant/proposal schema |
 | Browser/print QA | PASS | Chromium واقعی RTL/login/filter/dossier و screenshot؛ PDF server-side واقعی با صفحه، metadata و نبود URL |
 | Five-user application concurrency | PASS | پنج کاربر authenticated در read/search/report و پنج write عملیاتی هم‌زمان با retry محدود SQLite |
-| Clean Windows UAT prerelease | PENDING | کاندید `v5.0.0-uat.8` شامل معماری پرونده فقط‌خواندنی و workspaceهای تخصصی است و پس از عبور workflow منتشر می‌شود. |
+| Clean Windows UAT prerelease | PASS | اجرای Windows [`36867980923`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36867980923) روی runtime commit `385d13b` پاس شد؛ `v5.0.0-uat.8` prerelease با ZIP برابر ۵۸٬۳۶۹٬۷۸۰ بایت و SHA-256 برابر `b3a8e06dde07d3af465236c30236288f8e57699396e8ebe41c7019e0af07b4c2` منتشر و پس از دانلود تأیید شد. |
 | Owner UI/UX and Design System UAT | UAT REMEDIATION IN PROGRESS | اصلاح فنی UAT.8، ردگیری داده واقعی و بازبینی Chromium در سه viewport انجام شده است؛ فقط پذیرش انسانی مالک باز است؛ prerelease ویندوزی مجوز Production/LAN نیست. |
