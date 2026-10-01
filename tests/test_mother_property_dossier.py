@@ -55,8 +55,8 @@ def test_mother_property_create_uses_controlled_reference_data_and_stays_indepen
     assert dossier.status_code==200
     body=dossier.content.decode()
     assert "این پرونده مستقل از کدهای فضای تجاری است" in body
-    assert "کارشناسی" not in body
-    assert "مزایده" not in body
+    assert 'id="appraisals"' not in body
+    assert 'id="auctions"' not in body
 
 
 @pytest.mark.django_db
