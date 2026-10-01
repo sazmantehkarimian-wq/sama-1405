@@ -250,6 +250,55 @@ class ElectricityCalculationSnapshot(models.Model):
   constraints=[models.UniqueConstraint(fields=['bill','version'],name='uniq_electricity_snapshot_version')]
 
 
+
+class UtilityConnection(models.Model):
+ class Type(models.TextChoices):
+  WATER='WATER','آب';GAS='GAS','گاز';OTHER='OTHER','سایر'
+ class Status(models.TextChoices):
+  ACTIVE='ACTIVE','فعال';INACTIVE='INACTIVE','غیرفعال'
+ space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='utility_connections')
+ utility_type=models.CharField(max_length=20,choices=Type.choices)
+ account_number=models.CharField(max_length=120)
+ meter_number=models.CharField(max_length=120,blank=True)
+ provider=models.CharField(max_length=255,blank=True)
+ status=models.CharField(max_length=20,choices=Status.choices,default=Status.ACTIVE)
+ notes=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT)
+ created_at=models.DateTimeField(auto_now_add=True);updated_at=models.DateTimeField(auto_now=True)
+ class Meta:
+  ordering=['utility_type','account_number','pk']
+  constraints=[
+   models.UniqueConstraint(fields=['utility_type','account_number'],name='uniq_utility_connection_type_account'),
+  ]
+ def __str__(self): return f'{self.get_utility_type_display()} — {self.account_number}'
+
+
+class UtilityBill(models.Model):
+ class PaymentStatus(models.TextChoices):
+  UNPAID='UNPAID','پرداخت‌نشده';PAID='PAID','پرداخت‌شده';UNKNOWN='UNKNOWN','نامشخص'
+ connection=models.ForeignKey(UtilityConnection,on_delete=models.PROTECT,related_name='bills')
+ period_start=models.CharField(max_length=10);period_end=models.CharField(max_length=10)
+ bill_date=models.CharField(max_length=10,blank=True)
+ amount_rial=models.DecimalField(max_digits=24,decimal_places=0)
+ consumption=models.DecimalField(max_digits=20,decimal_places=3,null=True,blank=True)
+ measurement=models.ForeignKey(UtilityMeasurement,null=True,blank=True,on_delete=models.PROTECT,related_name='utility_bills')
+ payment_status=models.CharField(max_length=20,choices=PaymentStatus.choices,default=PaymentStatus.UNKNOWN)
+ payment_date=models.CharField(max_length=10,blank=True)
+ supporting_document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='generic_utility_bills')
+ notes=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT)
+ created_at=models.DateTimeField(auto_now_add=True)
+ class Meta:
+  ordering=['-period_end','-id']
+  constraints=[
+   models.UniqueConstraint(fields=['connection','period_start','period_end'],name='uniq_utility_bill_connection_period'),
+   models.CheckConstraint(condition=models.Q(amount_rial__gte=0),name='utility_bill_amount_nonnegative'),
+   models.CheckConstraint(condition=models.Q(consumption__isnull=True)|models.Q(consumption__gte=0),name='utility_bill_consumption_nonnegative'),
+  ]
+ @property
+ def sama_code(self): return f'UTB-{self.pk:06d}' if self.pk else '—'
+
+
 class FileMovement(models.Model):
  space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='file_movements'); location=models.CharField(max_length=255); holder=models.CharField(max_length=255); delivered_by=models.CharField(max_length=255); received_by=models.CharField(max_length=255); handover_at=models.DateTimeField(); returned_at=models.DateTimeField(null=True); signature_state=models.CharField(max_length=50); direction=models.CharField(max_length=20); next_action=models.CharField(max_length=255,blank=True); due_date=models.CharField(max_length=10,blank=True); notes=models.TextField(blank=True); created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
 class TimelineEvent(models.Model):
