@@ -12,8 +12,8 @@ from domains.operations.models import (
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
 from services.contracts import assign_beneficiary, create_contract
 from services.electricity import (
-    create_electricity_bill, finalize_electricity_bill, record_measurement,
-    recalculate_electricity_bill, reopen_electricity_bill, update_electricity_bill,
+    create_electricity_bill, electricity_bill_issues, finalize_electricity_bill,
+    record_measurement, recalculate_electricity_bill, reopen_electricity_bill, update_electricity_bill,
     upsert_electricity_allocation,
 )
 from services.operations import create_appraisal
@@ -572,6 +572,9 @@ def beneficiary_assign(request, code):
 @login_required
 def electricity_dashboard(request):
     bills = ElectricityBill.objects.select_related("unit", "created_by").prefetch_related("allocations").order_by("-period_end", "-id")
+    status_filter = request.GET.get("status", "").strip()
+    if status_filter in ElectricityBill.Status.values:
+        bills = bills.filter(status=status_filter)
     units = UtilityUnit.objects.filter(active=True).order_by("name")
     context = {
         "bills": bills[:200],
@@ -703,6 +706,7 @@ def electricity_bill_detail(request, bill_id):
             "allocation_form": allocation_form,
             "allocations": bill.allocations.select_related("space", "measurement", "category").order_by("space__code"),
             "snapshots": bill.snapshots.all(),
+            "issues": electricity_bill_issues(bill),
         },
     )
 
