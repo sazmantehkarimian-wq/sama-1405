@@ -447,10 +447,20 @@ def auction_lot_add(request,period_id):
 
 @login_required
 def commission_workspace(request):
+ sessions=CommissionSession.objects.prefetch_related('cases__decisions').order_by('-session_date','-id')
+ q=request.GET.get('q','').strip()
+ status=request.GET.get('status','').strip()
+ if q:sessions=sessions.filter(Q(number__icontains=q)|Q(title__icontains=q)|Q(cases__title__icontains=q)|Q(cases__spaces__code__iexact=q)).distinct()
+ if status in CommissionSession.Status.values:sessions=sessions.filter(status=status)
+ decisions=CommissionDecision.objects.filter(case__isnull=False)
+ open_statuses=[CommissionDecision.ExecutionStatus.ACTION_REQUIRED,CommissionDecision.ExecutionStatus.IN_PROGRESS,CommissionDecision.ExecutionStatus.REVIEW_REQUIRED]
  return render(request,'ui/commission_workspace.html',{
-  'decisions':CommissionDecision.objects.prefetch_related('spaces').order_by('-id')[:100],
-  'documents':Document.objects.filter(archived_at__isnull=True).order_by('-uploaded_at')[:100],
-  'spaces':CommercialSpace.objects.order_by('code'),
+  'sessions':sessions[:100],
+  'members':CommissionMember.objects.order_by('sign_order','name')[:100],
+  'session_count':sessions.count(),
+  'open_decision_count':decisions.filter(execution_status__in=open_statuses).count(),
+  'overdue_followup_count':CommissionFollowUp.objects.filter(status__in=open_statuses,due_date__lt=__import__('services.dates',fromlist=['today_jalali']).today_jalali()).exclude(due_date='').count(),
+  'status_choices':CommissionSession.Status.choices,
  })
 
 @login_required
