@@ -64,7 +64,86 @@ class AppraisalNotification(models.Model):
 
 
 class AppraisalFee(models.Model):
- appraisal=models.OneToOneField(Appraisal,on_delete=models.PROTECT,related_name='fee'); amount_rial=models.DecimalField(max_digits=24,decimal_places=0); payment_status=models.CharField(max_length=30); payment_date=models.CharField(max_length=10,blank=True); payment_reference=models.CharField(max_length=255,blank=True); follow_up_date=models.CharField(max_length=10,blank=True); notes=models.TextField(blank=True); supporting_document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='appraisal_fees')
+ class Status(models.TextChoices):
+  FEE_ENTERED='FEE_ENTERED','مبلغ ثبت شده'
+  READY_TO_SEND='READY_TO_SEND','آماده ارسال'
+  SENT_TO_FINANCE='SENT_TO_FINANCE','ارسال شده به مالی'
+  IN_PROGRESS='IN_PROGRESS','در دست اقدام'
+  PAID='PAID','پرداخت شده'
+  CLOSED='CLOSED','مختومه'
+  NEEDS_CORRECTION='NEEDS_CORRECTION','نیازمند اصلاح'
+  STOPPED='STOPPED','متوقف'
+  CANCELLED='CANCELLED','لغو شده'
+ appraisal=models.OneToOneField(Appraisal,on_delete=models.PROTECT,related_name='fee')
+ amount_rial=models.DecimalField(max_digits=24,decimal_places=0)
+ status=models.CharField(max_length=30,choices=Status.choices,default=Status.FEE_ENTERED)
+ sent_to_finance_date=models.CharField(max_length=10,blank=True)
+ letter_number=models.CharField(max_length=120,blank=True)
+ letter_date=models.CharField(max_length=10,blank=True)
+ payment_date=models.CharField(max_length=10,blank=True)
+ paid_amount_rial=models.DecimalField(max_digits=24,decimal_places=0,null=True,blank=True)
+ payment_reference=models.CharField(max_length=255,blank=True)
+ follow_up_date=models.CharField(max_length=10,blank=True)
+ notes=models.TextField(blank=True)
+ supporting_document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='appraisal_fees')
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='created_appraisal_fees')
+ created_at=models.DateTimeField(auto_now_add=True)
+ updated_at=models.DateTimeField(auto_now=True)
+ class Meta:
+  ordering=['-created_at','-id']
+  constraints=[
+   models.CheckConstraint(condition=models.Q(amount_rial__gt=0),name='appraisal_fee_amount_positive'),
+   models.CheckConstraint(condition=models.Q(paid_amount_rial__isnull=True)|models.Q(paid_amount_rial__gte=0),name='appraisal_fee_paid_nonnegative'),
+  ]
+ @property
+ def sama_code(self):return f'FEE-{self.pk:06d}' if self.pk else '—'
+ @property
+ def expert(self):return self.appraisal.appraiser_ref
+ @property
+ def space(self):return self.appraisal.space
+ @property
+ def pending_amount_rial(self):
+  return self.amount_rial-(self.paid_amount_rial or 0)
+
+
+class ExpertFeePaymentBatch(models.Model):
+ class Status(models.TextChoices):
+  DRAFT='DRAFT','پیش‌نویس'
+  SENT='SENT','ارسال شده'
+  CLOSED='CLOSED','مختومه'
+  CANCELLED='CANCELLED','لغو شده'
+ code=models.CharField(max_length=40,null=True,blank=True,unique=True)
+ sent_date=models.CharField(max_length=10)
+ letter_number=models.CharField(max_length=120)
+ letter_date=models.CharField(max_length=10)
+ status=models.CharField(max_length=20,choices=Status.choices,default=Status.SENT)
+ notes=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,related_name='created_fee_batches')
+ created_at=models.DateTimeField(auto_now_add=True)
+ updated_at=models.DateTimeField(auto_now=True)
+ class Meta:ordering=['-created_at','-id']
+ @property
+ def sama_code(self):return self.code or (f'PAY-{self.pk:06d}' if self.pk else '—')
+ @property
+ def total_amount_rial(self):
+  from django.db.models import Sum
+  return self.items.filter(active=True).aggregate(total=Sum('fee__amount_rial'))['total'] or 0
+
+
+class ExpertFeeBatchItem(models.Model):
+ batch=models.ForeignKey(ExpertFeePaymentBatch,on_delete=models.PROTECT,related_name='items')
+ fee=models.ForeignKey(AppraisalFee,on_delete=models.PROTECT,related_name='batch_items')
+ active=models.BooleanField(default=True)
+ added_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,related_name='added_fee_batch_items')
+ created_at=models.DateTimeField(auto_now_add=True)
+ removed_at=models.DateTimeField(null=True,blank=True)
+ removal_reason=models.TextField(blank=True)
+ class Meta:
+  ordering=['batch_id','fee_id']
+  constraints=[
+   models.UniqueConstraint(fields=['batch','fee'],name='uniq_fee_in_batch'),
+   models.UniqueConstraint(fields=['fee'],condition=models.Q(active=True),name='one_active_batch_per_fee'),
+  ]
 class Auction(models.Model):
  space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='auctions'); year=models.CharField(max_length=4,blank=True); sequence=models.CharField(max_length=20,blank=True); stage=models.CharField(max_length=120,blank=True); result=models.CharField(max_length=120,blank=True); notes=models.TextField(blank=True)
 class AuctionRule(models.Model):
