@@ -13,6 +13,7 @@ path('properties/<int:pk>/ownership/new/',entry_views.mother_property_ownership_
 path('properties/<int:pk>/ownership-documents/new/',entry_views.mother_property_ownership_document_create,name='mother-property-ownership-document-create'),
 path('properties/<int:pk>/usage/change/',entry_views.mother_property_usage_change,name='mother-property-usage-change'),
 path('properties/<int:pk>/correspondence/new/',entry_views.mother_property_correspondence_create,name='mother-property-correspondence-create'),
+path('properties/correspondence/<int:record_id>/transition/',entry_views.mother_property_correspondence_transition,name='mother-property-correspondence-transition'),
 path('properties/<int:pk>/notes/new/',entry_views.mother_property_note_create,name='mother-property-note-create'),
 path('properties/<int:pk>/documents/',entry_views.mother_property_document_upload,name='mother-property-document-upload'),
 path('beneficiaries/new/',entry_views.beneficiary_create,name='beneficiary-create'),
