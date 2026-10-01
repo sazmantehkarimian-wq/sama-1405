@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.db.models import OuterRef, Q, Subquery
 
-from domains.contracts.models import Contract
+from domains.contracts.models import BeneficiaryAssignment, Contract
 from domains.properties.models import CommercialSpace
 from services.dates import today_jalali
 
@@ -45,14 +45,20 @@ def filter_spaces(params):
         .order_by("-start_date", "-pk")
     )
     latest_contracts = Contract.objects.filter(space=OuterRef("pk")).order_by("-end_date", "-start_date", "-pk")
+    current_assignments = (
+        BeneficiaryAssignment.objects.filter(space=OuterRef("pk"), start_date__lte=today)
+        .filter(Q(end_date="") | Q(end_date__gte=today))
+        .order_by("-start_date", "-pk")
+    )
+    latest_assignments = BeneficiaryAssignment.objects.filter(space=OuterRef("pk")).order_by("-start_date", "-pk")
     qs = (
         CommercialSpace.objects.select_related("region", "center")
         .annotate(
-            current_beneficiary_name=Subquery(current_contracts.values("beneficiary__name")[:1]),
+            current_beneficiary_name=Subquery(current_assignments.values("beneficiary__name")[:1]),
             current_contract_number=Subquery(current_contracts.values("number")[:1]),
             current_contract_start=Subquery(current_contracts.values("start_date")[:1]),
             current_contract_end=Subquery(current_contracts.values("end_date")[:1]),
-            latest_beneficiary_name=Subquery(latest_contracts.values("beneficiary__name")[:1]),
+            latest_beneficiary_name=Subquery(latest_assignments.values("beneficiary__name")[:1]),
             latest_contract_number=Subquery(latest_contracts.values("number")[:1]),
             latest_contract_end=Subquery(latest_contracts.values("end_date")[:1]),
         )
