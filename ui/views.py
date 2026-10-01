@@ -25,7 +25,7 @@ def _filtered_utility_bills(params):
   period_end__lt=OuterRef('period_start'),
  ).order_by('-period_end','-pk')
  qs=UtilityBill.objects.select_related(
-  'connection','connection__space','connection__space__region','connection__space__center','measurement'
+  'connection','connection__space','connection__space__region','connection__space__center','measurement','supporting_document'
  ).annotate(
   previous_amount_rial=Subquery(previous.values('amount_rial')[:1]),
   previous_consumption=Subquery(previous.values('consumption')[:1]),
@@ -90,7 +90,7 @@ def utility_dashboard(request):
 @login_required
 def utility_bills_excel(request):
  qs=_filtered_utility_bills(request.GET)
- labels=['کد قبض','نوع انشعاب','کد فضا','نام فضا','منطقه','مرکز','شماره اشتراک','شماره کنتور','شروع دوره','پایان دوره','تاریخ قبض','مبلغ قبض (ریال)','مصرف','وضعیت پرداخت','تاریخ پرداخت','Measurement']
+ labels=['کد قبض','نوع انشعاب','کد فضا','نام فضا','منطقه','مرکز','شماره اشتراک','شماره کنتور','شروع دوره','پایان دوره','تاریخ قبض','مبلغ قبض (ریال)','مصرف','وضعیت پرداخت','تاریخ پرداخت','Measurement','سند قبض']
  def data():
   for item in qs[:10000]:
    yield [
@@ -100,6 +100,7 @@ def utility_bills_excel(request):
     item.connection.account_number,item.connection.meter_number or '—',item.period_start,item.period_end,item.bill_date or '—',
     item.amount_rial,item.consumption if item.consumption is not None else '—',item.get_payment_status_display(),item.payment_date or '—',
     f'{item.measurement.consumption} {item.measurement.measurement_unit}' if item.measurement_id else '—',
+    item.supporting_document.title if item.supporting_document_id else '—',
    ]
  return HttpResponse(
   tabular_excel('قبوض آب و گاز',labels,data()),
