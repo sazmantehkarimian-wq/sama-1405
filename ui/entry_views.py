@@ -7,7 +7,7 @@ from domains.contracts.models import Beneficiary
 from domains.identity.models import AuditEvent
 from domains.operations.models import (
     Appraiser, ElectricityBill, ElectricityConsumptionCategory,
-    UtilityMeasurement, UtilityUnit,
+    UtilityMeasurement, UtilityParameterRule, UtilityUnit,
 )
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
 from services.contracts import assign_beneficiary, create_contract
@@ -21,7 +21,7 @@ from ui.entry_forms import (
     AppraisalEntryForm, AppraiserForm, BeneficiaryAssignmentForm, BeneficiaryForm,
     CenterForm, CommercialSpaceForm, ContractEntryForm, ElectricityAllocationForm,
     ElectricityBillForm, MotherPropertyForm, RegionForm, UtilityMeasurementForm,
-    UtilityUnitForm,
+    UtilityParameterRuleForm, UtilityUnitForm,
 )
 
 
@@ -576,6 +576,8 @@ def electricity_dashboard(request):
     context = {
         "bills": bills[:200],
         "units": units,
+        "rules": UtilityParameterRule.objects.order_by("key", "-effective_from", "-id")[:100],
+        "rule_form": UtilityParameterRuleForm(),
         "bill_count": bills.count(),
         "final_count": bills.filter(status=ElectricityBill.Status.FINAL).count(),
         "review_count": bills.filter(status=ElectricityBill.Status.REVIEW_REQUIRED).count(),
@@ -835,3 +837,36 @@ def electricity_bill_update(request, bill_id):
         else:
             messages.success(request, "مبلغ و درصدهای قبض با ثبت Audit اصلاح شد.")
     return redirect("electricity-bill-detail", bill_id=bill.pk)
+
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+@transaction.atomic
+def utility_rule_create(request):
+    form = UtilityParameterRuleForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        rule = form.save(commit=False)
+        rule.created_by = request.user
+        rule.save()
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="UTILITY_RULE_CREATE",
+            entity_type="UtilityParameterRule",
+            entity_id=str(rule.pk),
+            after={
+                "key": rule.key,
+                "value_decimal": str(rule.value_decimal) if rule.value_decimal is not None else None,
+                "value_text": rule.value_text,
+                "effective_from": rule.effective_from,
+                "effective_to": rule.effective_to,
+                "active": rule.active,
+            },
+            ip_address=_ip(request),
+        )
+        messages.success(request, "Rule / Parameter جدید با تاریخ اثر ثبت شد.")
+    else:
+        for errors in form.errors.values():
+            for error in errors:
+                messages.error(request, error)
+    return redirect("electricity-dashboard")
