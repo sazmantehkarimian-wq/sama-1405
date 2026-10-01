@@ -45,7 +45,7 @@ _EVENT_LABELS = {
     'COMMISSION_SESSION_CREATE':'ثبت جلسه کمیسیون','COMMISSION_CASE_CREATE':'طرح موضوع کمیسیون',
     'COMMISSION_DECISION_CREATE':'ثبت تصمیم کمیسیون','COMMISSION_FOLLOWUP_CREATE':'ایجاد پیگیری مصوبه',
     'COMMISSION_FOLLOWUP_TRANSITION':'تغییر وضعیت پیگیری مصوبه',
-    'DOCUMENT_UPLOAD':'بارگذاری سند',
+    'DOCUMENT_UPLOAD':'بارگذاری سند','AUCTION_LOT_MANUAL_ADD':'افزودن دستی به دوره مزایده',
 }
 
 
