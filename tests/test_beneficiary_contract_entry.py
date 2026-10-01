@@ -101,3 +101,18 @@ def test_beneficiary_detail_keeps_space_and_contract_links(client):
     assert beneficiary.sama_code in body
     assert "فضاهای جاری و سابقه ارتباط" in body
     assert "قراردادها" in body
+
+
+@pytest.mark.django_db
+def test_beneficiary_and_contract_search_use_identity_fields(client):
+    user=get_user_model().objects.create_user("search-contracts",password="A-very-safe-password")
+    client.force_login(user)
+    space=CommercialSpace.objects.create(code="6109",name="فضای جست‌وجو",status="ACTIVE")
+    beneficiary=Beneficiary.objects.create(kind="LEGAL",name="شرکت جست‌وجو",legal_name="شرکت جست‌وجو",identity_number="12345678902")
+    Contract.objects.create(space=space,beneficiary=beneficiary,number="CNT-SEARCH",start_date="1405/01/01",end_date="1405/12/29")
+
+    by_code=client.get("/records/beneficiaries/",{"q":beneficiary.sama_code})
+    assert "شرکت جست‌وجو" in by_code.content.decode()
+
+    by_identity=client.get("/records/contracts/",{"q":"12345678902"})
+    assert "CNT-SEARCH" in by_identity.content.decode()
