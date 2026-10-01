@@ -179,6 +179,7 @@ class PropertyReferenceValueForm(BaseNormalizedModelForm):
 class MotherPropertyOwnershipForm(BaseNormalizedModelForm):
     start_date = JalaliDateField(label="تاریخ شروع", required=False)
     end_date = JalaliDateField(label="تاریخ پایان", required=False)
+    share_percent = forms.DecimalField(label="سهم مالکیت (%)", required=False, min_value=0, max_value=100, decimal_places=4, max_digits=7)
 
     class Meta:
         model = MotherPropertyOwnership
@@ -204,6 +205,7 @@ class MotherPropertyOwnershipForm(BaseNormalizedModelForm):
 
 class MotherPropertyOwnershipDocumentForm(BaseNormalizedModelForm):
     document_date = JalaliDateField(label="تاریخ سند / مدرک", required=False)
+    documented_area = forms.DecimalField(label="مساحت مندرج در سند", required=False, min_value=0, decimal_places=2, max_digits=16)
 
     class Meta:
         model = MotherPropertyOwnershipDocument
