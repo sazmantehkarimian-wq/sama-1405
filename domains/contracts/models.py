@@ -33,7 +33,7 @@ class Beneficiary(models.Model):
 
     archived_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey("auth.User", null=True, blank=True, on_delete=models.PROTECT, related_name="created_beneficiaries")
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -134,7 +134,7 @@ class ContractAmendment(models.Model):
     number = models.CharField(max_length=120)
     effective_date = models.CharField(max_length=10)
     description = models.TextField()
-    amount_change_rial = models.DecimalField(max_digits=24, decimal_places=0, null=True, blank=True, validators=[MinValueValidator(Decimal("0"))])
+    amount_change_rial = models.DecimalField(max_digits=24, decimal_places=0, null=True, blank=True)
 
     class Meta:
         ordering = ["-effective_date", "-id"]
