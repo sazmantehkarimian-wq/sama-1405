@@ -437,13 +437,24 @@ def auction_period_create(request):
 @login_required
 @require_POST
 def auction_lot_add(request,period_id):
- from django.core.exceptions import ValidationError
- from services.auctions import add_evaluated_lot
+ from django.core.exceptions import PermissionDenied, ValidationError
+ from services.auctions import add_evaluated_lot, add_manual_lot
  period=get_object_or_404(AuctionPeriod,pk=period_id)
- evaluation=get_object_or_404(AuctionEvaluation,pk=request.POST.get('evaluation_id'))
- try:add_evaluated_lot(period=period,evaluation=evaluation,actor=request.user,ip_address=request.META.get('REMOTE_ADDR'))
+ mode=request.POST.get('mode','EVALUATED')
+ try:
+  if mode=='MANUAL':
+   space=get_object_or_404(CommercialSpace,code=request.POST.get('space_code','').strip())
+   add_manual_lot(
+    period=period,space=space,actor=request.user,
+    reason=request.POST.get('reason',''),reference=request.POST.get('reference',''),
+    ip_address=request.META.get('REMOTE_ADDR'),
+   )
+  else:
+   evaluation=get_object_or_404(AuctionEvaluation,pk=request.POST.get('evaluation_id'))
+   add_evaluated_lot(period=period,evaluation=evaluation,actor=request.user,ip_address=request.META.get('REMOTE_ADDR'))
+ except PermissionDenied as exc:messages.error(request,str(exc))
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
- else:messages.success(request,'فضای ارزیابی‌شده به دوره افزوده شد.')
+ else:messages.success(request,'فضا به دوره مزایده افزوده شد.')
  return redirect('auction-workspace')
 
 @login_required
