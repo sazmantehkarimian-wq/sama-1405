@@ -39,6 +39,11 @@ def test_space_document_upload_keeps_structured_metadata_and_audit(client, tmp_p
     assert "1405/123" in dossier
     assert "1405/07/15" in dossier
 
+    registry = client.get("/records/documents/", {"q": "1405/123"})
+    assert registry.status_code == 200
+    assert registry.context["page"].paginator.count == 1
+    assert "نامه مصوب" in registry.content.decode()
+
 
 @pytest.mark.django_db
 def test_document_upload_rejects_invalid_jalali_date(client, tmp_path, settings):
