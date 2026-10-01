@@ -162,6 +162,11 @@ def test_fee_dashboard_filters_and_excel_export(client):
     assert appraiser.full_name in values
     assert sheet.sheet_view.rightToLeft is True
 
+    pdf=client.get("/fees/export.pdf",{"q":space.code})
+    assert pdf.status_code==200
+    assert pdf["Content-Type"]=="application/pdf"
+    assert pdf.content.startswith(b"%PDF")
+
 
 @pytest.mark.django_db
 def test_fee_creation_requires_registered_appraiser(client):
