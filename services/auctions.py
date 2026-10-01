@@ -4,6 +4,7 @@ from decimal import Decimal
 import jdatetime
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 
 from domains.identity.models import AuditEvent
 from domains.operations.models import Appraisal, AuctionEvaluation, AuctionInstruction, AuctionLot, AuctionPeriod, AuctionRule, TimelineEvent
@@ -97,7 +98,7 @@ def evaluate_space(*, space, on_date: str, actor, rule: AuctionRule | None = Non
 
     instructions = list(
         space.auction_instructions.filter(active=True,effective_from__lte=on_date)
-        .filter(__import__('django.db.models',fromlist=['Q']).Q(effective_to="")|__import__('django.db.models',fromlist=['Q']).Q(effective_to__gte=on_date))
+        .filter(Q(effective_to="")|Q(effective_to__gte=on_date))
         .order_by("-effective_from","-pk")
     )
     directions={item.direction for item in instructions}
