@@ -7,8 +7,8 @@ from django.db.models import Q
 class Migration(migrations.Migration):
     dependencies=[
         ('operations','0009_structured_appraisals'),
-        ('properties','0005_commercialspace_immutable_code_trigger'),
-        ('documents','0002_zero_data_manual_entry'),
+        ('properties','0003_immutable_business_keys'),
+        ('documents','0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
