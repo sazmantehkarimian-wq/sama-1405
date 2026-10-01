@@ -27,3 +27,34 @@ def store_document(*,uploaded,title,document_type,entity_type,entity_id,user,ref
   space=CommercialSpace.objects.filter(code=str(entity_id)).first()
   if space:TimelineEvent.objects.create(space=space,event_type='DOCUMENT_UPLOAD',occurred_at=document.uploaded_at,source_entity='Document',source_entity_id=str(document.pk),title=f'بارگذاری سند: {document.title}',description=document.document_type,responsible_person=user.get_full_name() or user.username,document=document,provenance='سند بارگذاری‌شده در سامانه',target_url=f'/documents/{document.pk}/download/')
  return document
+
+
+
+@transaction.atomic
+def archive_document(*,document,user,reason,ip_address=None):
+ reason=(reason or "").strip()
+ if not reason:
+  raise ValidationError("علت بایگانی سند الزامی است.")
+ if document.archived_at:
+  raise ValidationError("این سند قبلاً بایگانی شده است.")
+ from django.utils import timezone
+ document.archived_at=timezone.now()
+ document.save(update_fields=["archived_at"])
+ AuditEvent.objects.create(
+  actor=user,action="DOCUMENT_ARCHIVE",entity_type=document.entity_type,entity_id=str(document.entity_id),
+  reason=reason,before={"document_id":document.pk,"status":"ACTIVE"},
+  after={"document_id":document.pk,"status":"ARCHIVED","archived_at":document.archived_at.isoformat()},
+  ip_address=ip_address,
+ )
+ if document.entity_type=="CommercialSpace":
+  from domains.operations.models import TimelineEvent
+  from domains.properties.models import CommercialSpace
+  space=CommercialSpace.objects.filter(code=str(document.entity_id)).first()
+  if space:
+   TimelineEvent.objects.create(
+    space=space,event_type="DOCUMENT_ARCHIVE",occurred_at=document.archived_at,
+    source_entity="Document",source_entity_id=str(document.pk),title=f"بایگانی سند: {document.title}",
+    description=reason,responsible_person=user.get_full_name() or user.username,document=document,
+    provenance="سند بایگانی‌شده در سامانه",target_url=f"/spaces/{space.code}/",
+   )
+ return document
