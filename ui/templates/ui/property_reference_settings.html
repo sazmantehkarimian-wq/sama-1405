@@ -1,0 +1,17 @@
+{% extends 'ui/base.html' %}
+{% block title %}تعاریف پایه ملک مادر{% endblock %}
+{% block section_class %}section-properties{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>تعاریف پایه ملک مادر</h1><p>مقادیر انتخابی ملک مادر از این Reference Data خوانده می‌شوند تا ورود متن آزاد در فیلدهای طبقه‌بندی‌شده ممکن نباشد.</p></div><a class="button secondary compact" href="{% url 'domain-list' 'properties' %}">بازگشت به املاک مادر</a></div>
+<form method="post" class="card entity-form">
+  {% csrf_token %}
+  <div class="form-grid">{% for field in form %}<label class="field"><span>{{ field.label }}</span>{{ field }}{% for error in field.errors %}<small class="error-text">{{ error }}</small>{% endfor %}</label>{% endfor %}</div>
+  <button class="emphasized">ثبت مقدار مرجع</button>
+</form>
+<section class="card dossier-section">
+  <h2>مقادیر ثبت‌شده</h2>
+  <div class="table-wrap"><table><thead><tr><th>گروه</th><th>عنوان</th><th>ترتیب</th><th>وضعیت</th></tr></thead><tbody>
+  {% for row in values %}<tr><td>{{ row.get_category_display }}</td><td>{{ row.value }}</td><td>{{ row.sort_order }}</td><td>{% if row.active %}فعال{% else %}غیرفعال{% endif %}</td></tr>{% empty %}<tr><td colspan="4">هنوز مقدار مرجعی ثبت نشده است.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}
