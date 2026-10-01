@@ -168,7 +168,7 @@ def test_beneficiary_change_closes_previous_link_and_requires_reason(client):
     assert accepted.status_code==302
     old=first.space_assignments.get(space=space)
     new=second.space_assignments.get(space=space)
-    assert old.status=="ENDED" and old.end_date=="1405/07/31"
+    assert old.status=="ENDED" and old.end_date=="1405/07/30"
     assert old.termination_reason=="ابلاغ تغییر بهره‌بردار"
     assert new.status=="ACTIVE" and new.start_date=="1405/08/01"
 
