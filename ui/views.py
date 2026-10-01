@@ -636,6 +636,25 @@ def upload_document(request,code):
 
 @login_required
 @require_POST
+def archive_document_view(request,document_id):
+ from django.core.exceptions import ValidationError
+ from services.documents import archive_document
+ document=get_object_or_404(Document,pk=document_id)
+ try:
+  archive_document(
+   document=document,user=request.user,reason=request.POST.get('reason',''),
+   ip_address=request.META.get('REMOTE_ADDR'),
+  )
+ except ValidationError as exc:
+  messages.error(request,' '.join(exc.messages))
+ else:
+  messages.success(request,'سند بدون حذف فیزیکی بایگانی شد.')
+ if document.entity_type=='CommercialSpace':
+  return redirect('space-detail',code=document.entity_id)
+ return redirect('domain-list',domain='documents')
+
+@login_required
+@require_POST
 def add_contract(request,code):
  from django.core.exceptions import ValidationError
  from services.contracts import create_contract
