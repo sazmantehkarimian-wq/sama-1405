@@ -1,0 +1,55 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}جست‌وجوی موضوعی کد فضا{% endblock %}
+{% block section_class %}section-reports{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>جست‌وجوی موضوعی کد فضا</h1><p>کد فضا دقیق Resolve می‌شود؛ فقط حوزه‌های انتخاب‌شده Query و در خروجی درج می‌شوند.</p></div>
+  <a class="button secondary compact" href="{% url 'report-builder' %}">مرکز گزارش‌ها</a>
+</div>
+
+<form class="card entity-form no-print" method="get">
+  <div class="form-grid">
+    <label class="field"><span>کد فضا</span><input name="code" value="{{ code }}" inputmode="numeric" pattern="[1-9][0-9]*" required><small class="helper">کد مشابه یا نزدیک حدس زده نمی‌شود.</small></label>
+    <fieldset class="field full"><legend>حوزه‌های نمایش</legend><div class="check-grid">
+      {% for key,label in scoped_domains %}
+      <label class="check"><input type="checkbox" name="domain" value="{{ key }}" {% if key in selected_domains %}checked{% endif %}>{{ label }}</label>
+      {% endfor %}
+    </div></fieldset>
+  </div>
+  <div class="button-row"><button class="emphasized" type="submit">جست‌وجو</button><button class="secondary" type="submit" name="full" value="1">نمایش پرونده کامل</button></div>
+</form>
+
+{% if not_found %}
+<section class="card"><div class="notice"><strong>کد فضا پیدا نشد.</strong><p>هیچ فضای تجاری با کد دقیق {{ code }} وجود ندارد.</p></div></section>
+{% endif %}
+
+{% if space %}
+<div class="page-header">
+  <div><h2>پرونده فضای {{ space.code }}</h2><p>{{ space.name }} — {{ space.get_status_display }}</p></div>
+  <div class="button-row no-print">
+    <a class="button secondary compact" href="{% url 'space-scoped-excel' %}?{{ export_query }}">Excel چندحوزه‌ای</a>
+    <a class="button secondary compact" href="{% url 'space-scoped-pdf' %}?{{ export_query }}">PDF</a>
+    <a class="button tertiary compact" href="{% url 'space-detail' space.code %}">پرونده عملیاتی</a>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  {% for section in sections %}
+  <a class="card kpi" href="#scope-{{ section.key }}"><small>{{ section.title }}</small><strong>{{ section.count|fa_digits }}</strong></a>
+  {% endfor %}
+</div>
+
+{% for section in sections %}
+<section class="card dossier-section" id="scope-{{ section.key }}">
+  <h2>{{ section.title }}</h2>
+  {% if section.rows %}
+  <div class="table-wrap"><table><thead><tr>{% for label in section.labels %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>
+    {% for row in section.rows %}<tr>{% for value in row %}<td>{{ value|present }}</td>{% endfor %}</tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}
+  <p class="empty"><strong>کد فضا پیدا شد، اما در این حوزه داده‌ای ثبت نشده است.</strong></p>
+  {% endif %}
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}
