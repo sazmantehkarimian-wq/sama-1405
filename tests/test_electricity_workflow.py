@@ -93,6 +93,7 @@ def test_measurement_has_priority_over_approved_model_and_amounts_balance(electr
 @pytest.mark.django_db
 def test_null_override_and_zero_override_are_distinct(electricity_context):
     user,unit,s1,s2=electricity_context
+    user.is_staff=True;user.save(update_fields=["is_staff"])
     bill=create_electricity_bill(
         unit=unit,actor=user,
         values={
@@ -125,6 +126,7 @@ def test_null_override_and_zero_override_are_distinct(electricity_context):
 @pytest.mark.django_db
 def test_override_requires_reason(electricity_context):
     user,unit,s1,_=electricity_context
+    user.is_staff=True;user.save(update_fields=["is_staff"])
     bill=create_electricity_bill(
         unit=unit,actor=user,
         values={
@@ -224,3 +226,49 @@ def test_electricity_ui_flow_uses_structured_entities(client):
     allocation=ElectricityAllocation.objects.get(bill=bill,space=space)
     assert allocation.final_share_percent==Decimal("100.0000")
     assert allocation.payable_amount_rial==Decimal("1000000")
+
+
+@pytest.mark.django_db
+def test_manual_share_override_requires_authorized_user(electricity_context):
+    user,unit,s1,_=electricity_context
+    bill=create_electricity_bill(
+        unit=unit,actor=user,
+        values={
+            "period_start":"1405/12/01","period_end":"1405/12/29",
+            "amount_rial":"100000","beneficiary_share_percent":"50",
+            "organization_share_percent":"50",
+        },
+    )
+    with pytest.raises(PermissionDenied):
+        upsert_electricity_allocation(
+            bill=bill,space=s1,actor=user,
+            values={
+                "eligible":True,"effective_area":"10","eui":"1",
+                "manual_override_percent":"50","override_reason":"اصلاح مدیریتی",
+            },
+        )
+
+
+@pytest.mark.django_db
+def test_measurement_outside_bill_period_cannot_be_used(electricity_context):
+    user,unit,s1,_=electricity_context
+    bill=create_electricity_bill(
+        unit=unit,actor=user,
+        values={
+            "period_start":"1405/07/01","period_end":"1405/07/30",
+            "amount_rial":"100000","beneficiary_share_percent":"50",
+            "organization_share_percent":"50",
+        },
+    )
+    measurement=record_measurement(
+        space=s1,actor=user,
+        values={
+            "utility_type":"ELECTRICITY","period_start":"1405/09/01","period_end":"1405/09/30",
+            "consumption":"10","reading_date":"1405/09/30","is_valid":True,
+        },
+    )
+    with pytest.raises(ValidationError):
+        upsert_electricity_allocation(
+            bill=bill,space=s1,actor=user,
+            values={"eligible":True,"measurement":measurement},
+        )
