@@ -1,32 +1,55 @@
-# Master Execution Checklist
+# Master Execution Checklist — Zero-Data
 
-این جدول وضعیت واقعی خط پاک را ثبت می‌کند. «PASS» فقط با شاهد خودکار موجود به‌کار رفته است.
+این جدول فقط وضعیت خط جاری `work/zero-data-foundation` را ثبت می‌کند. «PASS» فقط برای مواردی استفاده می‌شود که شاهد خودکار روی همین معماری Zero-Data دارند. هیچ نتیجه‌ای از بسته‌های Import محور یا UAT قبلی به‌عنوان شاهد این خط محسوب نمی‌شود.
 
-| Gate | وضعیت | شاهد |
+| Gate | وضعیت | شاهد / توضیح |
 |---|---|---|
-| Authority SHA/Data Inventory | PASS | `verify_manifest` + `inspect_package` و `tests/test_authority.py`: شمارش مستقیم workbook، یکتایی و نبود overlap |
-| Lossless import / 225 + 350 + 151 | PASS | `tests/test_import_pipeline.py`; شمارش مستقیم workbook و همه cellهای غیرتهی |
-| Canonical Field Registry | PASS | ۱۲۴ کلید طبقه‌بندی‌شده: ۷۷ mapped، ۳۱ reference-only و ۱۶ unresolved audit-only برای سلول‌های خارج جدول با heading خالی؛ هیچ source cell حذف نمی‌شود |
-| Canonical typed domain schema | PASS | migrations و `tests/test_domain.py` |
-| Design System / local Vazirmatn | PASS | token enforcement، فونت محلی، `tests/test_design_enforcement.py` |
-| Shared UI components | PASS | shell، کنترل‌ها، filter، table، column chooser، dossier، timeline، dialog/disclosure و pagination فقط از Design System مشترک استفاده می‌کنند؛ enforcement test |
-| Horizontal Navigation | PASS | `ui/templates/ui/base.html`; enforcement test |
-| Dossier and imported history | PASS | dossier همه domainهای واردشده را پیوند می‌دهد؛ UI integration test |
-| Contracts / beneficiaries / appraisal / auction | PASS | typed import + ثبت عملیاتی، الحاقیه، تغییر وضعیت، timeline و audit؛ `tests/test_operational_flows.py` |
-| Decisions / source documents / utility obligations | PASS | typed import از workbook + full import gate |
-| Appraisal fee operational process | PASS | مبلغ/پرداخت/نامه/پیگیری/سند، تاریخچه، Audit و Excel رسمی؛ تست عملیاتی و export |
-| Utility consumption operational process | PASS | دوره/مصرف/سهم‌ها/پرداخت/سند، override کنترل‌شده، تاریخچه و Excel رسمی |
-| Commission operational process | PASS | UI تشکیل تصمیم، فضاها/شرکت‌کنندگان/سند/اقدام بعدی، transition و Audit |
-| File movement/current holder | PASS | فرم، تاریخچه، audit و current holder مشتق از آخرین حرکت باز |
-| Workflow | PASS | ایجاد فقط با نوع عملیاتی مجاز، transition تراکنشی، تاریخچه و Audit در dossier |
-| Documents / alerts / audit | PASS | upload امن server-side، checksum، permission، اقدام/مختومه‌سازی هشدار و Audit |
-| Search/filter/saved views | PASS | exact/contains/starts، empty/nonempty، multi-select، ranges، AND/OR، multi-sort، column chooser و فیلترهای ذخیره‌شده |
-| Official PDF/XLSX/DOCX engine | PASS | server-side structures, local Persian PDF font, exact filters/selected columns |
-| Report builder / archived snapshot | PASS | تعریف زنده، اجرای مجدد، نسخه ثابت XLSX با query context، تعداد ردیف، SHA-256 و Audit؛ `test_saved_report_and_immutable_snapshot` |
-| RBAC/user provisioning | PASS | native create/reset/activate UI، one-time passwords، forced change، staff gate و audit tests |
-| Backup/restore | PASS | DB/media manifests، checksum، integrity/FK، global write lock، pre-restore backup، atomic restore و rollback tests |
-| Auction candidate rules/lifecycle | PASS | Rule نسخه‌دار، تست مرزها و fail-safe، snapshot، UI ارزیابی، دوره و lot؛ participant/proposal schema |
-| Browser/print QA | PASS | Chromium واقعی RTL/login/filter/dossier و screenshot؛ PDF server-side واقعی با صفحه، metadata و نبود URL |
-| Five-user application concurrency | PASS | پنج کاربر authenticated در read/search/report و پنج write عملیاتی هم‌زمان با retry محدود SQLite |
-| Clean Windows UAT prerelease | PASS | اجرای Windows [`36839370829`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36839370829) روی runtime commit `5b672c6` پاس شد؛ `v5.0.0-uat.6` به‌صورت prerelease منتشر شد. ZIP برابر ۵۰٬۹۹۰٬۷۴۰ بایت و SHA-256 آن `1c558b90e04a350576059c6a1ff3f2d92aa051eefb851a2d150c098da23ff6d5` است. |
-| Owner UI/UX and Design System UAT | UAT REMEDIATION IN PROGRESS | اصلاح فنی UAT.6، ردگیری داده واقعی و بازبینی Chromium در دو viewport انجام شده است؛ فقط پذیرش انسانی مالک باز است؛ prerelease ویندوزی مجوز Production/LAN نیست. |
+| Fresh migration با داده عملیاتی صفر | PASS | Quality workflow پس از migration شمار املاک مادر، فضا، قرارداد، بهره‌بردار، کارشناسی، مزایده، مصرف، گردش و Timeline را صفر کنترل می‌کند. |
+| حذف Import Excel/CSV از Runtime | PASS | `import_pipeline` حذف شده؛ schemaهای `ImportBatch/SourceFile/RawCell` از Runtime حذف شده‌اند؛ Release بسته‌های Authority را حمل نمی‌کند. |
+| کد فضا به‌عنوان Business Key | PASS | فقط عدد مثبت بدون صفر ابتدایی، unique و immutable؛ Validation فرم + trigger دیتابیس + تست. |
+| استقلال املاک مادر و فضای تجاری | PASS | ارتباط اجباری/استنتاجی حذف شده؛ هر Entity فرم و شناسه مستقل دارد. |
+| ورود دستی فضای تجاری | PASS | فرم کنترل‌شده، normalization، validation، Audit و ویرایش با کد ثابت. |
+| ورود دستی ملک مادر | PASS | فرم مستقل، شناسه ثابت، Audit و کنترل مقادیر عددی. |
+| Reference Data منطقه / مرکز | PASS | تعریف کنترل‌شده توسط مدیر و استفاده در فرم‌های عملیاتی. |
+| تفکیک فضاهای فعال / خارج از چرخه | PASS* | Route و View مستقل، Scope جست‌وجو، پیام هدایت به گروه صحیح؛ تست lifecycle اضافه شده و باید در آخرین CI سبز باقی بماند. |
+| نمایش بهره‌بردار مستقل از قرارداد | PASS* | `BeneficiaryAssignment` مستقل، ثبت بهره‌بردار بدون قرارداد و تاریخچه تغییر؛ تست جاری در Quality Gate آخر. |
+| پرونده مستقل بهره‌بردار | PASS | شخص حقیقی/حقوقی، شناسه هویتی، کنترل Duplicate، Completeness، پرونده و Audit. |
+| تغییر بهره‌بردار بدون overwrite | PASS* | ارتباط قبلی خاتمه می‌یابد، علت و تاریخ حفظ می‌شود و ارتباط جدید ساخته می‌شود؛ تست جاری در Quality Gate آخر. |
+| قرارداد با بهره‌بردار ثبت‌شده | PASS | ایجاد قرارداد فقط با Beneficiary موجود، بدون ساخت ضمنی نام آزاد. |
+| ممنوعیت قرارداد هم‌پوشان | PASS | سرویس قرارداد overlap را قبل از ثبت رد می‌کند؛ قرارداد متوالی مجاز است. |
+| مدت / وضعیت زمانی / بلندمدت قرارداد | PASS | از تاریخ‌ها محاسبه می‌شود؛ مدت دستی وجود ندارد؛ بیش از 365 روز Long-term است. |
+| الحاقیه | PASS | رکورد مستقل، شماره یکتا در قرارداد، Audit/Timeline؛ قرارداد قبلی overwrite نمی‌شود. |
+| پرونده مستقل کارشناس | PASS | `Appraiser` با کد سیستمی، شناسه حرفه‌ای، Duplicate control، وضعیت همکاری و Audit. |
+| پرونده کارشناسی ساختاری | PASS | کد `APR`، کارشناس ثبت‌شده، ابلاغ 1:N، جواب، تاریخ خود کارشناسی و مبلغ مستقل. |
+| یک کارشناسی مرجع جاری + تاریخچه | PASS | unique conditional DB constraint + سرویس تغییر مرجع؛ سابقه قبلی حفظ می‌شود. |
+| تاریخ‌های کارشناسی مستقل | PASS | تاریخ ابلاغ، تاریخ جواب و تاریخ خود کارشناسی فیلدهای جدا و Validation مستقل دارند. |
+| حق‌الزحمه کارشناسی | موجود / نیازمند بازبینی نهایی | فرآیند قبلی تراکنشی و Auditدار باقی است؛ باید با پرونده جدید Appraiser/Appraisal از نظر UI و Reference Status نهایی تطبیق شود. |
+| مزایده و Rule Registry | موجود / نیازمند بازبینی نهایی | موتور نسخه‌دار و snapshot موجود است؛ باید بعد از تکمیل فرم‌های کارشناسی و قرارداد روی Zero-Data دوباره Gate نهایی شود. |
+| کمیسیون معاملات | موجود / نیازمند بازبینی نهایی | ایجاد/Transition/Audit موجود؛ بازبینی فرم‌ها و Reference Data باقی است. |
+| انشعابات و مصرف | در حال تکمیل | منطق پایه ثبت قبض/سهم و Audit موجود است، اما مدل کامل FROZEN شامل Bill/Allocation/Measurement/Snapshot هنوز باید روی Zero-Data بازطراحی شود. |
+| گردش پرونده / «الان دست کیه» | موجود / نیازمند بازبینی | FileMovement و current holder موجود است؛ باید فرم‌ها و قواعد handover/return نهایی شوند. |
+| اسناد و مدارک | موجود / نیازمند بازبینی | Upload امن، checksum و download کنترل‌شده موجود؛ اتصال تخصصی به Entityهای جدید باید تکمیل شود. |
+| هشدارها / Workflow | موجود / نیازمند بازبینی | سرویس‌های Auditدار موجود؛ Reference Status و UI نهایی باقی است. |
+| Search / Filter | PARTIAL PASS | کد فضا، بهره‌بردار، قرارداد، Appraiser و Appraisal توسعه یافته‌اند؛ فیلترهای تخصصی هر ماژول هنوز کامل نشده‌اند. |
+| گزارش XLSX/PDF/DOCX | موجود / نیازمند بازبینی | موتور خروجی رسمی موجود؛ باید با schema Zero-Data و ستون‌های جدید بازآزمایی شود. |
+| Hard delete policy | PASS در معماری | روابط عملیاتی با `PROTECT` و تاریخچه طراحی شده‌اند؛ UI حذف عادی برای رکوردهای اصلی ارائه نمی‌کند. |
+| Audit / Timeline | PASS برای جریان‌های بازطراحی‌شده | Space, MotherProperty, Beneficiary, Contract, Appraisal و تغییرات اصلی Audit/Timeline دارند. |
+| Security / Authentication | PASS در تست‌های جاری | CSRF، password hashing، login throttle، مدیریت کاربران و UAT policy توسط تست‌ها پوشش داده می‌شود. |
+| Backup / Restore | موجود / نیازمند Gate نهایی Zero-Data | سازوکار integrity/hash/rollback موجود است؛ بعد از تثبیت schema نهایی دوباره تست Release لازم است. |
+| Portable Windows/LAN | روش تثبیت‌شده، Build جدید PENDING | روش `START_SAMA.bat`، Waitress و پورت 8765 حفظ شده؛ هنوز بسته Windows جدید بر مبنای Zero-Data منتشر نشده است. |
+| Windows Zero-Data UAT package | PENDING | فقط بعد از تثبیت schema و عبور کامل CI ساخته می‌شود. |
+| Owner UAT | PENDING | نیازمند بسته جدید و پذیرش انسانی Owner است. |
+| Production/LAN-ready | NOT APPROVED | تا Windows gate و Owner UAT نباید Production/LAN-ready اعلام شود. |
+
+## ترتیب ادامه اجرا
+
+1. سبز نگه‌داشتن Quality Gate پس از هر تغییر Schema/Workflow.
+2. تکمیل بهره‌بردار مستقل از قرارداد و نمایش Current/History.
+3. تکمیل قرارداد، کارشناسان و کارشناسی بر اساس اسناد FROZEN.
+4. بازطراحی انشعابات/مصرف و Rule/Reference Data بدون داده Seed عملیاتی.
+5. تکمیل اسناد، گردش پرونده، هشدارها، کمیسیون و مزایده.
+6. بازآزمایی Search/Filter/Report/Print روی schema نهایی.
+7. Backup/Restore و Security regression.
+8. ساخت Portable Windows Zero-Data، UAT واقعی و سپس تصمیم Owner.
+
+> علامت `PASS*` یعنی پیاده‌سازی انجام شده ولی آخرین Quality workflow شاخه باید پس از آخرین commit سبز تأیید شود.
