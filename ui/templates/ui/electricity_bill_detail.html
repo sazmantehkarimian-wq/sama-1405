@@ -18,6 +18,20 @@
     <div><small>وضعیت محاسبه</small><strong>{{ bill.get_status_display }}</strong></div>
   </div>
   {% if bill.reopen_reason %}<div class="notice">علت آخرین بازگشایی: {{ bill.reopen_reason }}</div>{% endif %}
+{% if user.is_staff and bill.status != 'FINAL' %}
+  <details>
+    <summary class="button secondary compact">اصلاح مبلغ / درصدهای قبض</summary>
+    <form class="inline-form" method="post" action="{% url 'electricity-bill-update' bill.pk %}">
+      {% csrf_token %}
+      <label>مبلغ قبض (ریال)<input name="amount_rial" value="{{ bill.amount_rial }}" inputmode="numeric" required></label>
+      <label>سهم بهره‌برداران (%)<input name="beneficiary_share_percent" value="{{ bill.beneficiary_share_percent }}" inputmode="decimal" required></label>
+      <label>سهم سازمان (%)<input name="organization_share_percent" value="{{ bill.organization_share_percent }}" inputmode="decimal" required></label>
+      <label>توضیحات<input name="notes" value="{{ bill.notes }}"></label>
+      <label>علت اصلاح<textarea name="reason" required></textarea></label>
+      <button>ثبت اصلاح و باز‌محاسبه</button>
+    </form>
+  </details>
+  {% endif %}
 </section>
 
 {% if bill.status != 'FINAL' %}
