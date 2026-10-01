@@ -15,12 +15,21 @@ def test_colors_live_only_in_tokens():
 
 def test_official_product_name_and_account_navigation_are_enforced():
  templates='\n'.join(p.read_text() for p in (ROOT/'ui/templates').rglob('*.html'))
- assert 'سامانه مدیریت امور قراردادها' not in templates
- assert 'سامانه مدیریت قراردادها' in (ROOT/'ui/templates/ui/base.html').read_text()
+ for obsolete in ('سامانه مدیریت امور قراردادها','سامانه مدیریت قراردادها','سامانه جامع مدیریت املاک','SAMA NEXT','SAMA Next'):
+  assert obsolete not in templates
+ assert '<div class="brand-title">سما</div>' in (ROOT/'ui/templates/ui/base.html').read_text()
  base=(ROOT/'ui/templates/ui/base.html').read_text()
  nav=base.split('<nav class="topnav"',1)[1].split('</nav>',1)[0]
  assert '>خروج<' not in nav
  assert 'class="account"' in base and 'aria-current="page"' in base
+
+def test_official_report_engine_has_only_organizational_identity_and_rtl_contract():
+ engine=(ROOT/'reporting/engine.py').read_text()
+ assert "HEADERS=['سازمان فرهنگی هنری شهرداری تهران','مدیریت اقتصادی و املاک','اداره املاک و مستغلات']" in engine
+ for forbidden in ('سامانه مدیریت قراردادها','SAMA NEXT','SMK'):
+  assert forbidden not in engine
+ assert 'sheet_view.rightToLeft=True' in engine and "w:bidiVisual" in engine
+ assert 'data=[list(reversed(row)) for row in data]' in engine
 
 def test_design_system_has_semantic_sections_and_shared_components():
  tokens=(ROOT/'design_system/static/design_system/css/tokens.css').read_text()

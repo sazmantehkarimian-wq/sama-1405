@@ -3,7 +3,7 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.core.paginator import Paginator
-from django.http import HttpResponse
+from django.http import HttpResponse, FileResponse
 from django.shortcuts import render,get_object_or_404,redirect
 from django.db.models import Count
 from domains.properties.models import CommercialSpace,Region,Center,MotherProperty
@@ -16,6 +16,8 @@ from queries.spaces import filter_spaces
 from services.file_movement import current_holder
 from reporting.engine import excel,docx,pdf,tabular_excel
 from ui.forms import PersianPasswordChangeForm
+from core.uat import is_fixed_uat_admin
+from services.money import format_rial
 @login_required
 def dashboard(request):
  spaces=CommercialSpace.objects.all();active=spaces.filter(status='ACTIVE')
@@ -29,10 +31,10 @@ def space_list(request):
  allowed_columns={'name','status','region','usage','area'}
  requested=set(request.GET.getlist('column')) & allowed_columns
  visible=requested or allowed_columns
- return render(request,'ui/space_list.html',{'page':page,'regions':Region.objects.all(),'centers':Center.objects.filter(is_special=True),'total':qs.count(),'saved_filters':SavedFilter.objects.filter(owner=request.user,domain='spaces'),'visible_columns':visible})
+ return render(request,'ui/space_list.html',{'page':page,'regions':Region.objects.all(),'centers':Center.objects.filter(is_special=True),'total':qs.count(),'dataset_total':CommercialSpace.objects.count(),'saved_filters':SavedFilter.objects.filter(owner=request.user,domain='spaces'),'visible_columns':visible})
 @login_required
 def space_detail(request,code):
- s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','beneficiary_assignments__beneficiary','appraisals','auctions','utilities','utility_obligations','decisions','commission_decisions','timeline','alerts','file_movements','workflows','source_documents','property_links__mother_property'),code=code)
+ s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','contracts__beneficiary','beneficiary_assignments__beneficiary','appraisals__fee__supporting_document','auctions','utilities__supporting_document','utility_obligations','decisions','commission_decisions__spaces','timeline__document','alerts__assigned_to','file_movements','workflows','source_documents','property_links__mother_property'),code=code)
  timeline=s.timeline.all();event_type=request.GET.get('event_type','').strip()
  if event_type:timeline=timeline.filter(event_type=event_type)
  event_types=s.timeline.order_by().values_list('event_type',flat=True).distinct()
@@ -81,7 +83,7 @@ DOMAIN_LISTS={
  'commissions':('کمیسیون معاملات',CommissionDecision.objects.all(),(('identity','شناسه'),('decision_date','تاریخ'),('subject','موضوع'),('decision','تصمیم'))),
  'utilities':('انشعابات و مصرف',UtilityRecord.objects.select_related('space'),(('space.code','کد فضا'),('utility_type','نوع'),('account_number','اشتراک'),('bill_amount_rial','مبلغ قبض (ریال)'),('payment_status','پرداخت'))),
  'workflows':('گردش پرونده',WorkflowInstance.objects.select_related('space'),(('space.code','کد فضا'),('title','فرایند'),('state','وضعیت'),('next_action','اقدام بعدی'),('due_date','مهلت'))),
- 'alerts':('هشدارها',Alert.objects.select_related('space'),(('space.code','کد فضا'),('subject','موضوع'),('reason','علت'),('due_date','سررسید'),('status','وضعیت'))),
+ 'alerts':('موارد نیازمند پیگیری',Alert.objects.select_related('space','assigned_to'),(('space.code','کد فضا'),('subject','موضوع'),('reason','علت'),('due_date','سررسید'),('priority','اولویت'),('status','وضعیت'),('assigned_to.username','مسئول پیگیری'))),
  'documents':('اسناد بارگذاری‌شده',Document.objects.all(),(('title','عنوان'),('document_type','نوع'),('original_filename','نام فایل'),('uploaded_at','زمان بارگذاری'))),
 }
 def _value(obj,path):
@@ -91,25 +93,41 @@ def _value(obj,path):
   if display:return display()
   obj=getattr(obj,part,None)
   if obj is None:return '—'
- return obj if obj not in ('',None) else '—'
+ if obj in ('',None):return '—'
+ if path.endswith(('amount_rial','investment_commitment_rial','bill_amount_rial')):return format_rial(obj)
+ return obj
+def _search_domain(qs,domain,q):
+ if not q:return qs
+ if domain=='contracts':return qs.filter(Q(number__icontains=q)|Q(space__code__iexact=q))
+ if domain in {'appraisals','fees','auctions','utilities','workflows','alerts'}:
+  field='appraisal__space__code__iexact' if domain=='fees' else 'space__code__iexact'
+  return qs.filter(**{field:q})
+ if domain=='beneficiaries':return qs.filter(name__icontains=q)
+ return qs
 @login_required
 def domain_list(request,domain):
  title,qs,columns=DOMAIN_LISTS[domain]
+ dataset_count=qs.count()
  q=request.GET.get('q','').strip()
- if q and domain=='contracts':qs=qs.filter(number__icontains=q)
+ qs=_search_domain(qs,domain,q)
  page=Paginator(qs.order_by('-pk'),30).get_page(request.GET.get('page'))
  rows=[{'object':obj,'values':[_value(obj,key) for key,_ in columns]} for obj in page]
- return render(request,'ui/domain_list.html',{'title':title,'headers':[label for _,label in columns],'rows':rows,'page':page,'domain':domain})
+ return render(request,'ui/domain_list.html',{'title':title,'headers':[label for _,label in columns],'rows':rows,'page':page,'domain':domain,'dataset_count':dataset_count,'has_filter':bool(q)})
 
 @login_required
 def domain_excel(request,domain):
  if domain not in DOMAIN_LISTS:return HttpResponse(status=404)
  title,qs,columns=DOMAIN_LISTS[domain]
  q=request.GET.get('q','').strip()
- if q and domain=='contracts':qs=qs.filter(number__icontains=q)
+ qs=_search_domain(qs,domain,q)
  labels=[label for _,label in columns]
  data=([_value(item,key) for key,_ in columns] for item in qs.order_by('pk')[:10000])
  return HttpResponse(tabular_excel(title,labels,data),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':f'attachment; filename="{domain}.xlsx"'})
+
+@login_required
+def document_download(request,document_id):
+ document=get_object_or_404(Document,pk=document_id,archived_at__isnull=True)
+ return FileResponse(document.file.open('rb'),content_type=document.content_type,as_attachment=True,filename=document.original_filename)
 
 @login_required
 @require_POST
@@ -169,6 +187,7 @@ def commission_workspace(request):
  return render(request,'ui/commission_workspace.html',{
   'decisions':CommissionDecision.objects.prefetch_related('spaces').order_by('-id')[:100],
   'documents':Document.objects.filter(archived_at__isnull=True).order_by('-uploaded_at')[:100],
+  'spaces':CommercialSpace.objects.order_by('code'),
  })
 
 @login_required
@@ -176,7 +195,7 @@ def commission_workspace(request):
 def commission_create(request):
  from django.core.exceptions import ValidationError
  from services.operations import create_commission_decision
- codes=[value.strip() for value in request.POST.get('space_codes','').replace('،',',').split(',') if value.strip()]
+ codes=[part.strip() for value in request.POST.getlist('space_codes') for part in value.replace('،',',').split(',') if part.strip()]
  spaces=list(CommercialSpace.objects.filter(code__in=codes))
  if len(spaces)!=len(set(codes)):
   messages.error(request,'یک یا چند کد فضا معتبر نیست.');return redirect('commission-workspace')
@@ -224,7 +243,13 @@ def user_list(request):
  from django.contrib.auth import get_user_model
  return render(request,'ui/user_list.html',{'users':get_user_model().objects.select_related('profile')})
 @login_required
+def account_detail(request):
+ return render(request,'ui/account_detail.html')
+
+@login_required
 def password_change(request):
+ if is_fixed_uat_admin(request.user):
+  messages.info(request,'گذرواژه مدیر ثابت نسخه UAT از رابط کاربری قابل تغییر نیست.');return redirect('dashboard')
  form=PersianPasswordChangeForm(request.user,request.POST or None)
  if request.method=='POST' and form.is_valid():
   user=form.save();profile,_=UserProfile.objects.get_or_create(user=user,defaults={'display_name':user.get_full_name() or user.username});profile.must_change_password=False
@@ -306,7 +331,7 @@ def add_alert(request,code):
  from django.core.exceptions import ValidationError
  from services.operations import create_alert
  space=get_object_or_404(CommercialSpace,code=code)
- try:create_alert(space=space,actor=request.user,subject=request.POST.get('subject',''),reason=request.POST.get('reason',''),due_date=request.POST.get('due_date',''),ip_address=request.META.get('REMOTE_ADDR'))
+ try:create_alert(space=space,actor=request.user,subject=request.POST.get('subject',''),reason=request.POST.get('reason',''),due_date=request.POST.get('due_date',''),priority=request.POST.get('priority','MEDIUM'),ip_address=request.META.get('REMOTE_ADDR'))
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
  else:messages.success(request,'هشدار اقدام‌پذیر ثبت شد.')
  return redirect('space-detail',code=code)
@@ -422,7 +447,9 @@ def user_reset_password(request,user_id):
  from django.contrib.auth import get_user_model
  from domains.identity.models import AuditEvent
  import secrets
- target=get_object_or_404(get_user_model(),pk=user_id); temporary=secrets.token_urlsafe(18);target.set_password(temporary);target.save(update_fields=['password']); profile,_=UserProfile.objects.get_or_create(user=target,defaults={'display_name':target.get_full_name() or target.username});profile.must_change_password=True;profile.save(update_fields=['must_change_password'])
+ target=get_object_or_404(get_user_model(),pk=user_id)
+ if is_fixed_uat_admin(target):messages.error(request,'بازنشانی گذرواژه مدیر ثابت UAT مجاز نیست.');return redirect('user-list')
+ temporary=secrets.token_urlsafe(18);target.set_password(temporary);target.save(update_fields=['password']); profile,_=UserProfile.objects.get_or_create(user=target,defaults={'display_name':target.get_full_name() or target.username});profile.must_change_password=True;profile.save(update_fields=['must_change_password'])
  AuditEvent.objects.create(actor=request.user,action='USER_PASSWORD_RESET',entity_type='User',entity_id=str(target.pk),reason=request.POST.get('reason','بازنشانی مدیریتی').strip(),after={'must_change_password':True},ip_address=request.META.get('REMOTE_ADDR'))
  messages.success(request,f'گذرواژه موقت {target.username} فقط همین بار: {temporary}');return redirect('user-list')
 
@@ -433,6 +460,7 @@ def user_toggle_active(request,user_id):
  from django.contrib.auth import get_user_model
  from domains.identity.models import AuditEvent
  target=get_object_or_404(get_user_model(),pk=user_id)
+ if is_fixed_uat_admin(target):messages.error(request,'مدیر ثابت UAT باید فعال باقی بماند.');return redirect('user-list')
  if target==request.user:
   messages.error(request,'مدیر نمی‌تواند حساب جاری خود را غیرفعال کند.');return redirect('user-list')
  before=target.is_active;target.is_active=not before;target.save(update_fields=['is_active']);AuditEvent.objects.create(actor=request.user,action='USER_STATUS_CHANGE',entity_type='User',entity_id=str(target.pk),reason=request.POST.get('reason','تغییر وضعیت دسترسی').strip(),before={'active':before},after={'active':target.is_active},ip_address=request.META.get('REMOTE_ADDR'));messages.success(request,'وضعیت کاربر تغییر کرد.');return redirect('user-list')

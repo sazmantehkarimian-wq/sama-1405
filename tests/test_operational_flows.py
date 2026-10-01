@@ -21,8 +21,12 @@ def test_document_and_file_movement_are_server_side_audited(client,tmp_path,sett
  response=client.post('/spaces/501/documents/',{'title':'مدرک','document_type':'نامه','file':upload})
  assert response.status_code==302
  document=Document.objects.get();assert document.sha256 and document.file.storage.exists(document.file.name)
+ assert b''.join(client.get(f'/documents/{document.pk}/download/').streaming_content)==b'%PDF-1.4\nproof'
+ anonymous=Client();assert anonymous.get(f'/documents/{document.pk}/download/').status_code==302
  assert AuditEvent.objects.filter(action='FILE_MOVEMENT_CREATE').exists()
  assert AuditEvent.objects.filter(action='DOCUMENT_UPLOAD').exists()
+ from domains.operations.models import TimelineEvent
+ assert TimelineEvent.objects.filter(space=space,event_type='DOCUMENT_UPLOAD',document=document).exists()
 
 @pytest.mark.django_db(transaction=True)
 def test_five_authenticated_users_can_read_search_and_generate_reports():

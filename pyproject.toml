@@ -1,7 +1,7 @@
 [project]
 name = "sama-next"
-version = "5.0.0rc5"
-description = "سامانه مدیریت قراردادها"
+version = "5.0.0rc6"
+description = "سما — سامانه اداره املاک و مستغلات"
 requires-python = ">=3.11"
 dependencies = [
   "Django==5.2.7", "openpyxl==3.1.5", "python-docx==1.2.0", "reportlab==4.4.4",

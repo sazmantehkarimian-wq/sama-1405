@@ -1,5 +1,5 @@
 param(
-  [string]$Version = "5.0.0-uat.5",
+  [string]$Version = "5.0.0-uat.6",
   [string]$OutputRoot = "build"
 )
 $ErrorActionPreference = "Stop"
@@ -11,6 +11,7 @@ $directories = @("core", "design_system", "domains", "import_pipeline", "queries
 foreach ($directory in $directories) { Copy-Item $directory $package -Recurse }
 $files = @("manage.py", "pyproject.toml", "README.md", "LEGACY_BOUNDARY.md", "VERSION", "START_SAMA.bat", "STOP_SAMA.bat")
 foreach ($file in $files) { Copy-Item $file $package }
+"Owner UAT build - fixed test credential policy enabled" | Set-Content (Join-Path $package "UAT_BUILD") -Encoding utf8NoBOM
 
 New-Item (Join-Path $package "data") -ItemType Directory | Out-Null
 Copy-Item "data/sama.sqlite3" (Join-Path $package "data/sama.sqlite3")

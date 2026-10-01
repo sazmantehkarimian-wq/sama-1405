@@ -171,7 +171,9 @@ def resolve_alert(*, alert: Alert, actor, reason: str, ip_address=None) -> Alert
         raise ValidationError("شرح اقدام انجام‌شده الزامی است.")
     before = {"status": alert.status}
     alert.status = "RESOLVED"
-    alert.save(update_fields=["status"])
+    alert.assigned_to = alert.assigned_to or actor
+    alert.acknowledged_at = alert.acknowledged_at or timezone.now()
+    alert.save(update_fields=["status","assigned_to","acknowledged_at"])
     OperationalHistory.objects.create(entity_type="Alert", entity_id=str(alert.pk), action="RESOLVED",
         previous_state=before, new_state={"status": alert.status}, reason=reason.strip(), responsible=actor)
     AuditEvent.objects.create(actor=actor, action="ALERT_RESOLVE", entity_type="Alert",
@@ -227,9 +229,10 @@ def create_appraisal(*, space, actor, values, document=None, ip_address=None):
 
 @retry_locked
 @transaction.atomic
-def create_alert(*,space,actor,subject,reason,due_date='',target_url='',ip_address=None):
+def create_alert(*,space,actor,subject,reason,due_date='',priority='MEDIUM',target_url='',ip_address=None):
     if not subject.strip() or not reason.strip():raise ValidationError('موضوع و علت هشدار الزامی است.')
-    alert=Alert.objects.create(space=space,subject=subject.strip(),reason=reason.strip(),due_date=_date(due_date),status='OPEN',target_url=target_url or f'/spaces/{space.code}/')
+    if priority not in Alert.Priority.values:raise ValidationError('اولویت مورد پیگیری معتبر نیست.')
+    alert=Alert.objects.create(space=space,subject=subject.strip(),reason=reason.strip(),due_date=_date(due_date),priority=priority,status='OPEN',assigned_to=actor,target_url=target_url or f'/spaces/{space.code}/')
     AuditEvent.objects.create(actor=actor,action='ALERT_CREATE',entity_type='Alert',entity_id=str(alert.pk),after={'space':space.code,'due_date':alert.due_date},ip_address=ip_address)
     _timeline(space=space,actor=actor,event_type='ALERT_CREATE',source='Alert',source_id=alert.pk,title=f'ثبت مورد نیازمند پیگیری: {alert.subject}',date=alert.due_date,new=alert.status,description=alert.reason)
     return alert

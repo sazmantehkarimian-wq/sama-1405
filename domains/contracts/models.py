@@ -1,6 +1,8 @@
 from django.db import models
 class Beneficiary(models.Model):
- name=models.CharField(max_length=255,db_index=True); identity_number=models.CharField(max_length=30,blank=True); kind=models.CharField(max_length=30,default='PERSON'); contact=models.CharField(max_length=255,blank=True); archived_at=models.DateTimeField(null=True)
+ class Kind(models.TextChoices):
+  NATURAL='NATURAL','شخص حقیقی';LEGAL='LEGAL','شخص حقوقی';TRADE_NAME='TRADE_NAME','نام تجاری';UNSPECIFIED='UNSPECIFIED','نوع نامشخص در منبع'
+ name=models.CharField(max_length=255,db_index=True); identity_number=models.CharField(max_length=30,blank=True); kind=models.CharField(max_length=30,choices=Kind.choices,default=Kind.UNSPECIFIED); contact=models.CharField(max_length=255,blank=True); archived_at=models.DateTimeField(null=True)
 class BeneficiaryAssignment(models.Model):
  space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='beneficiary_assignments'); beneficiary=models.ForeignKey(Beneficiary,on_delete=models.PROTECT); role=models.CharField(max_length=120); start_date=models.CharField(max_length=10,blank=True); end_date=models.CharField(max_length=10,blank=True); status=models.CharField(max_length=40); source_file=models.ForeignKey('registry.SourceFile',null=True,blank=True,on_delete=models.PROTECT); source_row=models.PositiveIntegerField(null=True,blank=True); created_by=models.ForeignKey('auth.User',null=True,blank=True,on_delete=models.PROTECT); created_at=models.DateTimeField(auto_now_add=True,null=True)
 class Contract(models.Model):

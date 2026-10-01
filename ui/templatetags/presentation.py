@@ -13,6 +13,7 @@ _ADMIN_LABELS = {
     "PENDING": "در انتظار پرداخت", "PAID": "پرداخت‌شده", "UNPAID": "پرداخت‌نشده",
     "DRAFT": "پیش‌نویس", "DONE": "تکمیل‌شده", "CANCELLED": "لغوشده",
     "ACTIVE": "فعال", "OUT_OF_CYCLE": "خارج از چرخه",
+    "OUT": "خروج", "IN": "ورود",
     "READY": "آماده", "NOT_READY": "آماده نیست", "REVIEW_REQUIRED": "نیازمند بررسی",
     "CANDIDATE": "کاندیدای مزایده", "NOT_CANDIDATE": "غیرکاندیدا",
 }
@@ -25,6 +26,17 @@ _REASON_LABELS = {
     "NOT_CANDIDATE_LEVEL_JOZ": "سطح معامله مشمول مزایده نیست", "CANDIDATE_CONTRACT_WINDOW": "قرارداد در بازه زمانی مصوب پایان است",
     "REVIEW_MISSING_APPRAISAL": "کارشناسی معتبر ثبت نشده است", "NOT_CANDIDATE_OUTSIDE_TIME_WINDOW": "قرارداد خارج از بازه زمانی مصوب است",
     "CANDIDATE_NO_CONTRACT_VALID_APPRAISAL": "بدون قرارداد و دارای کارشناسی معتبر است", "CANDIDATE_STICKY_PREVIOUS_VALID_DECISION": "تصمیم معتبر پیشین حفظ شده است",
+}
+_EVENT_LABELS = {
+    'SOURCE_HISTORY':'سابقه منبع','BENEFICIARY_HISTORY':'سابقه بهره‌بردار','CONTRACT_HISTORY':'سابقه قرارداد',
+    'APPRAISAL_HISTORY':'سابقه کارشناسی','AUCTION_HISTORY':'سابقه مزایده','DECISION_HISTORY':'مصوبه یا دستور',
+    'UTILITY_OBLIGATION_HISTORY':'تعهد انشعاب','DOCUMENT_REFERENCE_HISTORY':'مرجع سند','CONTRACT_CREATE':'ثبت قرارداد',
+    'CONTRACT_AMENDMENT':'ثبت الحاقیه','APPRAISAL_CREATE':'ثبت کارشناسی','APPRAISAL_FEE_CREATE':'ثبت حق‌الزحمه',
+    'UTILITY_RECORD_CREATE':'ثبت مصرف','WORKFLOW_CREATE':'ایجاد فرایند','WORKFLOW_TRANSITION':'تغییر فرایند',
+    'COMMISSION_CREATE':'تصمیم کمیسیون','COMMISSION_TRANSITION':'تغییر تصمیم کمیسیون','ALERT_CREATE':'ثبت مورد پیگیری',
+    'ALERT_RESOLVE':'مختومه‌سازی مورد پیگیری','FILE_MOVEMENT_CREATE':'گردش فیزیکی پرونده','SPACE_STATUS_TRANSITION':'تغییر وضعیت فضا',
+    'AUCTION_EVALUATE':'بررسی آمادگی مزایده','AUCTION_LOT_ADD':'افزودن به دوره مزایده',
+    'DOCUMENT_UPLOAD':'بارگذاری سند',
 }
 
 
@@ -61,3 +73,8 @@ def administrative(value, empty="—"):
 @register.filter
 def reason_labels(values):
     return "، ".join(_REASON_LABELS.get(str(value), "نیازمند بررسی کارشناسی") for value in (values or []))
+
+
+@register.filter
+def event_label(value):
+    return _EVENT_LABELS.get(str(value), 'سابقه پرونده')

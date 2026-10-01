@@ -18,6 +18,7 @@ from django.core.management import call_command
 from django.db import transaction
 
 from domains.identity.models import UserProfile
+from core.uat import provision_fixed_uat_admin
 
 USERS = (
     ("aghorbani", "اکبر", "قربانی", False),
@@ -36,10 +37,13 @@ def password() -> str:
 
 def main() -> None:
     call_command("migrate", interactive=False, verbosity=0)
+    provision_fixed_uat_admin()
     credentials = []
     user_model = get_user_model()
     with transaction.atomic():
         for username, first, last, administrator in USERS:
+            if settings.SAMA_UAT_FIXED_ADMIN and username == settings.SAMA_UAT_ADMIN_USERNAME:
+                continue
             if user_model.objects.filter(username=username).exists():
                 continue
             temporary = password()

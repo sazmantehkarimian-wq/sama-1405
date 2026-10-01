@@ -15,3 +15,11 @@ button,.button{min-height:var(--control-standard);border:var(--border-width) sol
 @media(max-width:900px){.masthead,.container{padding-inline:var(--space-4)}.topnav{padding-inline:var(--space-2);overflow-x:auto}.account-name small{display:none}.filter-primary,.filter-advanced-content{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:1fr 1fr}.dashboard-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.brand-subtitle{display:none}.filter-primary,.filter-advanced-content,.kpis{grid-template-columns:1fr}.page-header{display:grid}.account-name{display:none}.saved-filters form{margin-inline-start:0;width:100%}.saved-filters input{flex:1}.button-row{align-items:stretch}}
 @media print{.shell-header,.footer,.no-print,.tabs{display:none!important}.container{max-width:none;padding:0}.card,.table-wrap{border-color:var(--color-print)}thead{display:table-header-group}tr{break-inside:avoid}th,td{border:1px solid var(--color-print)}}
+
+/* Shared UAT remediation components */
+.account summary::after { content: "⌄"; color: var(--color-text-muted); font-size: var(--font-size-caption); }
+.saved-filters { padding: 0; overflow: clip; }
+.saved-filters > summary { cursor: pointer; list-style: none; padding: var(--space-3) var(--space-4); font-weight: var(--font-weight-semibold); }
+.saved-filters > summary::-webkit-details-marker { display: none; }
+.saved-filter-content { border-block-start: 1px solid var(--color-border); padding: var(--space-3) var(--space-4); }
+.data-quality-panel { border-inline-start: 3px solid var(--color-warning); }

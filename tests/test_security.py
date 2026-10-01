@@ -33,3 +33,16 @@ def test_login_is_throttled_after_five_failures(client):
  for _ in range(5): assert client.post('/login/',payload).status_code==200
  response=client.post('/login/',payload)
  assert response.status_code==429
+
+@pytest.mark.django_db
+def test_uat_fixed_admin_is_idempotent_and_cannot_change_or_reset_password(client,settings):
+ settings.SAMA_UAT_FIXED_ADMIN=True;settings.SAMA_UAT_ADMIN_USERNAME='admin';settings.SAMA_UAT_ADMIN_PASSWORD='admin'
+ from core.uat import provision_fixed_uat_admin
+ first=provision_fixed_uat_admin();first.set_password('changed');first.save(update_fields=['password'])
+ fixed=provision_fixed_uat_admin();assert fixed.check_password('admin') and fixed.is_superuser and fixed.is_active
+ assert fixed.profile.must_change_password is False
+ assert client.login(username='admin',password='admin')
+ assert client.get('/account/password/').status_code==302
+ assert client.post(f'/users/{fixed.pk}/reset/',{'reason':'test'}).status_code==302
+ fixed.refresh_from_db();assert fixed.check_password('admin')
+ body=client.get('/').content.decode();assert 'تغییر گذرواژه' not in body and 'اطلاعات حساب' in body
