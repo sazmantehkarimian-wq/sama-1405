@@ -6,6 +6,7 @@ from django.core.paginator import Paginator
 from django.http import HttpResponse, FileResponse
 from django.shortcuts import render,get_object_or_404,redirect
 from django.db.models import Count, OuterRef, Q, Subquery, Sum
+from django.utils import timezone
 from domains.properties.models import CommercialSpace,Region,Center,MotherProperty
 from domains.registry.models import Discrepancy
 from domains.identity.models import AuditEvent, UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
@@ -288,8 +289,35 @@ def dashboard(request):
   'with_beneficiary_count':with_beneficiary_count,'without_beneficiary_count':without_beneficiary_count,
   'auction_candidate_count':auction_candidate_count,'auction_review_count':auction_review_count,'auction_action_count':auction_action_count,
   'region_rows':region_rows,
+  'refreshed_at':timezone.now(),
  }
  return render(request,'ui/dashboard.html',context)
+
+@login_required
+def global_search(request):
+ q=(request.GET.get('q') or '').strip()
+ spaces=CommercialSpace.objects.none()
+ contracts=Contract.objects.none()
+ beneficiaries=Beneficiary.objects.none()
+ appraisers=Appraiser.objects.none()
+ if q:
+  spaces=CommercialSpace.objects.select_related('region','center').filter(
+   Q(code__iexact=q)|Q(name__icontains=q)
+  ).order_by('code')[:20]
+  contracts=Contract.objects.select_related('space','beneficiary').filter(
+   Q(number__icontains=q)|Q(space__code__iexact=q)|Q(beneficiary__name__icontains=q)
+  ).order_by('-start_date','-pk')[:20]
+  beneficiaries=Beneficiary.objects.filter(
+   Q(name__icontains=q)|Q(identity_number__iexact=q)
+  ).order_by('name','pk')[:20]
+  appraisers=Appraiser.objects.filter(
+   Q(first_name__icontains=q)|Q(last_name__icontains=q)|Q(national_id__iexact=q)|
+   Q(license_number__icontains=q)|Q(specialty__icontains=q)
+  ).order_by('last_name','first_name','pk')[:20]
+ return render(request,'ui/global_search.html',{
+  'q':q,'spaces':spaces,'contracts':contracts,'beneficiaries':beneficiaries,'appraisers':appraisers,
+  'result_count':len(spaces)+len(contracts)+len(beneficiaries)+len(appraisers) if q else 0,
+ })
 
 @login_required
 def space_list(request,status_scope=None):
