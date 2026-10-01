@@ -5,11 +5,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from domains.contracts.models import Beneficiary
 from domains.identity.models import AuditEvent
+from domains.operations.models import Appraiser
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
 from services.contracts import create_contract
+from services.operations import create_appraisal
 from ui.entry_forms import (
-    BeneficiaryForm, CenterForm, CommercialSpaceForm, ContractEntryForm,
-    MotherPropertyForm, RegionForm,
+    AppraisalEntryForm, AppraiserForm, BeneficiaryForm, CenterForm,
+    CommercialSpaceForm, ContractEntryForm, MotherPropertyForm, RegionForm,
 )
 
 
@@ -383,5 +385,136 @@ def contract_create(request, code):
             "cancel_kwargs": {"code": space.code},
             "secondary_action_url": "beneficiary-create",
             "secondary_action_label": "ثبت بهره‌بردار جدید",
+        },
+    )
+
+
+
+@login_required
+@transaction.atomic
+def appraiser_create(request):
+    form = AppraiserForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        appraiser = form.save(commit=False)
+        appraiser.created_by = request.user
+        appraiser.save()
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="APPRAISER_CREATE",
+            entity_type="Appraiser",
+            entity_id=str(appraiser.pk),
+            after={
+                "code": appraiser.sama_code,
+                "name": appraiser.full_name,
+                "national_id": appraiser.national_id,
+                "license_number": appraiser.license_number,
+            },
+            ip_address=_ip(request),
+        )
+        messages.success(request, f"پرونده کارشناس {appraiser.sama_code} ایجاد شد.")
+        return redirect("appraiser-detail", pk=appraiser.pk)
+    return render(
+        request,
+        "ui/entity_form.html",
+        {
+            "form": form,
+            "title": "ثبت کارشناس",
+            "subtitle": "کنترل تکرار بر اساس کد ملی و شماره پروانه انجام می‌شود.",
+            "cancel_url": "domain-list",
+            "cancel_kwargs": {"domain": "appraisers"},
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def appraiser_edit(request, pk):
+    appraiser = get_object_or_404(Appraiser, pk=pk, archived_at__isnull=True)
+    before = {
+        "name": appraiser.full_name,
+        "national_id": appraiser.national_id,
+        "license_number": appraiser.license_number,
+        "specialty": appraiser.specialty,
+        "collaboration_status": appraiser.collaboration_status,
+    }
+    form = AppraiserForm(request.POST or None, instance=appraiser)
+    if request.method == "POST" and form.is_valid():
+        updated = form.save()
+        after = {
+            "name": updated.full_name,
+            "national_id": updated.national_id,
+            "license_number": updated.license_number,
+            "specialty": updated.specialty,
+            "collaboration_status": updated.collaboration_status,
+        }
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="APPRAISER_UPDATE",
+            entity_type="Appraiser",
+            entity_id=str(updated.pk),
+            before=before,
+            after=after,
+            reason=request.POST.get("change_reason", "").strip(),
+            ip_address=_ip(request),
+        )
+        messages.success(request, "اطلاعات کارشناس به‌روزرسانی شد.")
+        return redirect("appraiser-detail", pk=updated.pk)
+    return render(
+        request,
+        "ui/entity_form.html",
+        {
+            "form": form,
+            "title": f"ویرایش کارشناس {appraiser.sama_code}",
+            "subtitle": "سوابق کارشناسی قبلی حذف یا overwrite نمی‌شوند.",
+            "cancel_url": "appraiser-detail",
+            "cancel_kwargs": {"pk": appraiser.pk},
+            "show_change_reason": True,
+        },
+    )
+
+
+@login_required
+def appraiser_detail(request, pk):
+    appraiser = get_object_or_404(Appraiser, pk=pk, archived_at__isnull=True)
+    appraisals = appraiser.appraisals.select_related("space").order_by("-appraisal_date", "-id")
+    audit = AuditEvent.objects.filter(entity_type="Appraiser", entity_id=str(appraiser.pk)).order_by("-created_at")[:100]
+    return render(
+        request,
+        "ui/appraiser_detail.html",
+        {
+            "appraiser": appraiser,
+            "appraisals": appraisals,
+            "audit_events": audit,
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def appraisal_create(request, code):
+    space = get_object_or_404(CommercialSpace, code=code)
+    form = AppraisalEntryForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        appraisal = create_appraisal(
+            space=space,
+            appraiser=form.cleaned_data["appraiser"],
+            actor=request.user,
+            values=form.cleaned_data,
+            document=None,
+            ip_address=_ip(request),
+        )
+        messages.success(request, f"کارشناسی {appraisal.sama_code} ثبت شد.")
+        return redirect("space-detail", code=space.code)
+    return render(
+        request,
+        "ui/entity_form.html",
+        {
+            "form": form,
+            "title": f"ثبت کارشناسی برای فضای {space.code}",
+            "subtitle": "تاریخ ابلاغ، تاریخ جواب و تاریخ خود کارشناسی مستقل هستند و با یکدیگر جایگزین نمی‌شوند.",
+            "cancel_url": "space-detail",
+            "cancel_kwargs": {"code": space.code},
+            "secondary_action_url": "appraiser-create",
+            "secondary_action_label": "ثبت کارشناس جدید",
         },
     )
