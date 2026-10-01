@@ -1,0 +1,18 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}جست‌وجوی سراسری{% endblock %}
+{% block section_class %}section-search{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>جست‌وجوی سراسری</h1><p>جست‌وجو در کد/نام فضا، شماره قرارداد، بهره‌بردار و کارشناس.</p></div></div>
+<form class="card filter-panel" method="get">
+  <div class="filter-primary"><label>عبارت جست‌وجو<input name="q" value="{{ q }}" autofocus placeholder="مثال: 173، شماره قرارداد، نام بهره‌بردار یا کارشناس"></label><button class="emphasized">جست‌وجو</button></div>
+</form>
+{% if q %}
+<div class="kpi-grid"><div class="card kpi"><small>کل نتایج</small><strong>{{ result_count|fa_digits }}</strong></div></div>
+<section class="card dossier-section"><h2>فضاهای تجاری</h2>{% for item in spaces %}<p><a href="{% url 'space-detail' item.code %}"><strong>فضای {{ item.code }}</strong> — {{ item.name }}</a> — {{ item.get_status_display }}</p>{% empty %}<p class="empty">نتیجه‌ای در فضاهای تجاری نیست.</p>{% endfor %}</section>
+<section class="card dossier-section"><h2>قراردادها</h2>{% for item in contracts %}<p><a href="{% url 'space-detail' item.space.code %}#contracts"><strong>{{ item.number }}</strong> — فضای {{ item.space.code }}</a> — {{ item.beneficiary.name }} — {{ item.start_date }} تا {{ item.end_date }}</p>{% empty %}<p class="empty">نتیجه‌ای در قراردادها نیست.</p>{% endfor %}</section>
+<section class="card dossier-section"><h2>بهره‌برداران</h2>{% for item in beneficiaries %}<p><a href="{% url 'beneficiary-detail' item.pk %}"><strong>{{ item.sama_code }}</strong> — {{ item.name }}</a>{% if item.identity_number %} — {{ item.identity_number }}{% endif %}</p>{% empty %}<p class="empty">نتیجه‌ای در بهره‌برداران نیست.</p>{% endfor %}</section>
+<section class="card dossier-section"><h2>کارشناسان</h2>{% for item in appraisers %}<p><a href="{% url 'appraiser-detail' item.pk %}"><strong>{{ item.sama_code }}</strong> — {{ item.full_name }}</a>{% if item.license_number %} — پروانه {{ item.license_number }}{% endif %}</p>{% empty %}<p class="empty">نتیجه‌ای در کارشناسان نیست.</p>{% endfor %}</section>
+{% else %}
+<section class="card"><p class="empty">برای شروع یک کد فضا، نام، شماره قرارداد، نام بهره‌بردار یا کارشناس وارد کنید.</p></section>
+{% endif %}
+{% endblock %}
