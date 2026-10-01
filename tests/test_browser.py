@@ -35,16 +35,36 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
         page.get_by_label("گذرواژه فعلی").fill("A-very-safe-password");page.get_by_label("گذرواژه جدید", exact=True).fill("A-different-very-safe-password");page.get_by_label("تکرار گذرواژه جدید").fill("A-different-very-safe-password");page.get_by_role("button",name="ذخیره گذرواژه").click()
         assert page.url.rstrip("/")==live_server.url
         routes=[("dashboard","/"),("active-spaces","/spaces/?status=ACTIVE"),("out-of-cycle","/spaces/?status=OUT_OF_CYCLE"),("dossier","/spaces/BROWSER-501/"),("contracts","/records/contracts/"),("beneficiaries","/records/beneficiaries/"),("appraisals","/records/appraisals/"),("fees","/records/fees/"),("auction","/auctions/"),("commission","/commissions/"),("utilities","/records/utilities/"),("workflows","/records/workflows/"),("documents","/records/documents/"),("alerts","/records/alerts/"),("reports","/reports/"),("users","/users/")]
-        for width,height in ((1366,768),(1920,1080)):
+        for width,height in ((1366,768),(1600,900),(1920,1080)):
             page.set_viewport_size({"width":width,"height":height})
             for name,path in routes:
-                page.goto(f"{live_server.url}{path}");page.wait_for_load_state("networkidle")
+                page.goto(f"{live_server.url}{path}");page.wait_for_load_state("networkidle");page.evaluate("scrollTo(0, 0)")
                 assert page.locator("html").get_attribute("dir")=="rtl"
                 assert page.locator('.topnav [aria-current="page"]').count()>=1
                 assert page.locator(".account-name",has_text="کاربر آزمون پذیرش").is_visible()
                 assert page.locator(".topnav",has_text="خروج").count()==0
+                geometry = page.evaluate("""() => {
+                  const nav = document.querySelector('.topnav');
+                  const items = [...nav.children].map((item) => item.getBoundingClientRect());
+                  const box = nav.getBoundingClientRect();
+                  return {center: box.left + box.width / 2, viewportCenter: innerWidth / 2,
+                    heights: items.map((item) => Math.round(item.height)),
+                    centers: items.map((item) => Math.round(item.top + item.height / 2)),
+                    fits: nav.scrollWidth <= nav.clientWidth};
+                }""")
+                assert abs(geometry["center"] - geometry["viewportCenter"]) <= 2
+                assert page.evaluate("[...document.querySelectorAll('.brand-shell,.account')].every(el => { const r=el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth })")
+                assert len(set(geometry["heights"])) == 1 and len(set(geometry["centers"])) == 1 and geometry["fits"]
+                if name == "dossier":
+                    tabs = page.locator(".tabs a")
+                    tab_boxes = tabs.evaluate_all("els => els.map(el => { const r=el.getBoundingClientRect(); return [Math.round(r.top+r.height/2), Math.round(r.height)] })")
+                    assert len({box[0] for box in tab_boxes}) == 1 and len({box[1] for box in tab_boxes}) == 1
+                    assert page.locator('.tabs [aria-current="location"]').count() == 1
+                    page.screenshot(path=evidence / f"dossier-top-{width}.png", full_page=False)
+                    page.locator(".tabs").scroll_into_view_if_needed()
+                    page.screenshot(path=evidence / f"dossier-tabs-{width}.png", full_page=False)
                 assert not any(raw in page.locator("body").inner_text() for raw in ("PERSON","OPEN","MEDIUM","Legacy"))
-                assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
+                assert page.evaluate("scrollX === 0 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
                 page.screenshot(path=evidence / f"{name}-{width}.png", full_page=True)
         page.goto(f"{live_server.url}/spaces/");page.get_by_label("جست‌وجوی سراسری").fill("BROWSER-501");page.get_by_role("button",name="جست‌وجو").click();page.get_by_role("link",name="مشاهده پرونده").click()
         assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()

@@ -17,7 +17,7 @@ def test_official_product_name_and_account_navigation_are_enforced():
  templates='\n'.join(p.read_text() for p in (ROOT/'ui/templates').rglob('*.html'))
  for obsolete in ('سامانه مدیریت امور قراردادها','سامانه مدیریت قراردادها','سامانه جامع مدیریت املاک','SAMA NEXT','SAMA Next'):
   assert obsolete not in templates
- assert '<div class="brand-title">سما</div>' in (ROOT/'ui/templates/ui/base.html').read_text()
+ assert '<span class="brand-title">سما</span>' in (ROOT/'ui/templates/ui/base.html').read_text()
  base=(ROOT/'ui/templates/ui/base.html').read_text()
  nav=base.split('<nav class="topnav"',1)[1].split('</nav>',1)[0]
  assert '>خروج<' not in nav
@@ -49,3 +49,12 @@ def test_authentication_and_filters_do_not_leak_default_ui():
 def test_templates_do_not_define_ad_hoc_visual_css():
  for path in (ROOT/'ui/templates').rglob('*.html'):
   text=path.read_text();assert '<style' not in text and ' style=' not in text
+
+
+def test_header_and_dossier_navigation_geometry_contracts():
+ app=(ROOT/'design_system/static/design_system/css/app.css').read_text()
+ base=(ROOT/'ui/templates/ui/base.html').read_text()
+ for contract in ('grid-template-areas:"brand nav account"','justify-content:center','align-items:center','flex-wrap:nowrap'):
+  assert contract in app
+ assert base.index('class="brand-shell"') < base.index('class="topnav"') < base.index('class="account"')
+ assert '.tabs{display:flex;direction:rtl;justify-content:center;align-items:center;flex-wrap:nowrap' in app

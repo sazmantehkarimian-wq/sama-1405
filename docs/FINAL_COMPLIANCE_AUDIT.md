@@ -23,9 +23,11 @@
 | RBAC/user administration | PASS | مدیریت بومی create/reset/activate، اجبار تعویض رمز، staff enforcement و audit |
 | Backup/restore | PASS | DB/media/config manifest، lock نوشتن، pre-restore، integrity/FK و rollback tests |
 | Browser/print/concurrency/security | PASS | Chromium واقعی و screenshot، PDF ساختاری، login throttle، پنج read/report و پنج write هم‌زمان پاس |
-| Windows portable/prerelease asset | PASS | workflow [`36839370829`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36839370829) روی runtime commit `5b672c6` پاس شد. `v5.0.0-uat.6` prerelease دارای ZIP ۵۰٬۹۹۰٬۷۴۰ بایتی است؛ SHA-256 دانلود مستقل `1c558b90e04a350576059c6a1ff3f2d92aa051eefb851a2d150c098da23ff6d5` است. |
+| Windows portable/prerelease asset | PENDING | کاندید `v5.0.0-uat.7` شامل اصلاح نهایی header/navigation است و فقط پس از عبور workflow ویندوز منتشر می‌شود. |
 
 اصلاحات فنی UAT.6 شامل نگاشت semantic قرارداد/بهره‌بردار/کارشناسی، timeline، ارائه مرکزی، خروجی رسمی RTL و بازبینی Chromium واقعی است. وضعیت تا پذیرش انسانی مالک همچنان UAT REMEDIATION IN PROGRESS می‌ماند؛ PR شماره ۲ نباید ادغام شود و این نسخه آماده Production/LAN نیست.
 
 
-یادداشت زنجیره انتشار: runtime و محتوای بسته از commit `5b672c6` ساخته شده است. commit بعدی فقط همین شواهد ممیزی را ثبت می‌کند و هیچ ورودی runtime/code/build را تغییر نمی‌دهد؛ بنابراین بازسازی artifact لازم نیست.
+## قفل حساب مالک در UAT
+
+در بسته UAT، `SAMA_UAT_FIXED_ADMIN` تنها مرجع فعال‌سازی است. حساب `admin` با گذرواژه `admin` در هر راه‌اندازی به‌صورت idempotent بازنشانی می‌شود؛ تغییر گذرواژه، بازنشانی، غیرفعال‌سازی، تغییر نام کاربری و حذف آن از رابط مدیریتی ارائه نمی‌شود. این استثناء در حالت Production غیرفعال است و سیاست امن کاربران عملیاتی را تغییر نمی‌دهد.

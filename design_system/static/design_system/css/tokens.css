@@ -20,8 +20,11 @@
   --space-8: 2rem;
   --space-10: 2.5rem;
   --content-max: 1440px;
-  --shell-height: 4rem;
-  --nav-height: 2.875rem;
+  --shell-height: 4.75rem;
+  --nav-height: 2.625rem;
+  --nav-font-size: .75rem;
+  --nav-item-padding: .45rem;
+  --shell-side-width: 11.25rem;
   --control-compact: 2rem;
   --control-standard: 2.5rem;
   --control-emphasized: 2.75rem;
