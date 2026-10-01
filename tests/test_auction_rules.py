@@ -5,7 +5,8 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from domains.contracts.models import Beneficiary, Contract
-from domains.operations.models import Appraisal, AuctionInstruction, AuctionRule
+from domains.identity.models import AuditEvent
+from domains.operations.models import Appraisal, AuctionInstruction, AuctionLot, AuctionPeriod, AuctionRule
 from domains.properties.models import CommercialSpace
 from services.auctions import evaluate_space
 
@@ -139,3 +140,57 @@ def test_manual_include_and_exclude_are_audited_equal_authority(client,auction_c
     result=evaluate_space(space=exclude_space,on_date="1405/07/10",actor=user,rule=rule)
     assert result.decision=="NOT_CANDIDATE"
     assert result.reason_codes==["BLOCKED_BY_MANUAL_EXCLUSION"]
+
+
+@pytest.mark.django_db
+def test_same_space_cannot_enter_multiple_open_periods(auction_context):
+    user,_,rule=auction_context
+    space=_space("8296")
+    Appraisal.objects.create(space=space,appraisal_date="1405/06/01",amount_rial=Decimal("500000000"),is_current=True)
+    first_eval=evaluate_space(space=space,on_date="1405/07/01",actor=user,rule=rule)
+    p1=AuctionPeriod.objects.create(identity="P-1",title="دوره اول",planned_date="1405/08/01",created_by=user)
+    p2=AuctionPeriod.objects.create(identity="P-2",title="دوره دوم",planned_date="1405/09/01",created_by=user)
+    from services.auctions import add_evaluated_lot
+    add_evaluated_lot(period=p1,evaluation=first_eval,actor=user)
+    with pytest.raises(Exception) as exc:
+        add_evaluated_lot(period=p2,evaluation=first_eval,actor=user)
+    assert "دوره باز P-1" in str(exc.value)
+
+
+@pytest.mark.django_db
+def test_authorized_manual_lot_requires_reference_reason_and_is_audited(client,auction_context):
+    user,_,_=auction_context
+    user.is_staff=True;user.save(update_fields=["is_staff"])
+    client.force_login(user)
+    space=_space("8297")
+    period=AuctionPeriod.objects.create(identity="P-MANUAL",title="دوره دستی",planned_date="1405/08/01",created_by=user)
+
+    rejected=client.post(f"/auctions/periods/{period.pk}/lots/",{
+        "mode":"MANUAL","space_code":space.code,"reason":"تصمیم رسمی","reference":"",
+    })
+    assert rejected.status_code==302
+    assert AuctionLot.objects.count()==0
+
+    accepted=client.post(f"/auctions/periods/{period.pk}/lots/",{
+        "mode":"MANUAL","space_code":space.code,"reason":"تصمیم رسمی برای ورود به دوره","reference":"M-1405-77",
+    })
+    assert accepted.status_code==302
+    lot=AuctionLot.objects.get(period=period,space=space)
+    assert lot.entry_method=="MANUAL"
+    assert lot.evaluation is None
+    assert lot.manual_reference=="M-1405-77"
+    assert lot.readiness=="REVIEW_REQUIRED"
+    assert AuditEvent.objects.filter(action="AUCTION_LOT_MANUAL_ADD",entity_id=str(lot.pk)).exists()
+
+
+@pytest.mark.django_db
+def test_non_staff_cannot_add_manual_auction_lot(client,auction_context):
+    user,_,_=auction_context
+    client.force_login(user)
+    space=_space("8298")
+    period=AuctionPeriod.objects.create(identity="P-BLOCK",title="دوره",planned_date="1405/08/01",created_by=user)
+    response=client.post(f"/auctions/periods/{period.pk}/lots/",{
+        "mode":"MANUAL","space_code":space.code,"reason":"درخواست","reference":"R-1",
+    })
+    assert response.status_code==302
+    assert AuctionLot.objects.count()==0
