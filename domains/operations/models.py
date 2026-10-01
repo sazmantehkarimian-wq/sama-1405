@@ -88,6 +88,160 @@ class CommissionDecision(models.Model):
 class UtilityRecord(models.Model):
  class Type(models.TextChoices): ELECTRICITY='ELECTRICITY','برق'; WATER='WATER','آب'; GAS='GAS','گاز'; OTHER='OTHER','سایر'
  space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='utilities'); utility_type=models.CharField(max_length=20,choices=Type.choices); account_number=models.CharField(max_length=100); period_start=models.CharField(max_length=10); period_end=models.CharField(max_length=10); consumption=models.DecimalField(max_digits=18,decimal_places=3,null=True); bill_amount_rial=models.DecimalField(max_digits=24,decimal_places=0); organization_share_rial=models.DecimalField(max_digits=24,decimal_places=0); beneficiary_share_rial=models.DecimalField(max_digits=24,decimal_places=0); calculation_basis=models.TextField(); overridden=models.BooleanField(default=False); override_reason=models.TextField(blank=True); payment_status=models.CharField(max_length=30); payment_date=models.CharField(max_length=10,blank=True); supporting_document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='utility_records')
+
+class UtilityUnit(models.Model):
+ class Kind(models.TextChoices):
+  REGION='REGION','منطقه';CENTER='CENTER','مرکز خاص';OTHER='OTHER','سایر'
+ name=models.CharField(max_length=255)
+ kind=models.CharField(max_length=20,choices=Kind.choices)
+ region=models.ForeignKey('properties.Region',null=True,blank=True,on_delete=models.PROTECT,related_name='utility_units')
+ center=models.ForeignKey('properties.Center',null=True,blank=True,on_delete=models.PROTECT,related_name='utility_units')
+ active=models.BooleanField(default=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='created_utility_units')
+ created_at=models.DateTimeField(auto_now_add=True)
+ class Meta:
+  ordering=['name','pk']
+  constraints=[
+   models.UniqueConstraint(fields=['name','kind'],name='uniq_utility_unit_name_kind'),
+  ]
+ def __str__(self): return self.name
+
+
+class UtilityMeasurement(models.Model):
+ class Type(models.TextChoices):
+  ELECTRICITY='ELECTRICITY','برق';WATER='WATER','آب';GAS='GAS','گاز';OTHER='OTHER','سایر'
+ space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='utility_measurements')
+ utility_type=models.CharField(max_length=20,choices=Type.choices)
+ period_start=models.CharField(max_length=10);period_end=models.CharField(max_length=10)
+ consumption=models.DecimalField(max_digits=20,decimal_places=3)
+ reading_date=models.CharField(max_length=10)
+ meter_number=models.CharField(max_length=120,blank=True)
+ measurement_unit=models.CharField(max_length=40,default='kWh')
+ source=models.CharField(max_length=120,blank=True)
+ is_submeter=models.BooleanField(default=False)
+ is_valid=models.BooleanField(default=True)
+ notes=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT)
+ created_at=models.DateTimeField(auto_now_add=True)
+ class Meta:
+  ordering=['-reading_date','-id']
+  constraints=[
+   models.CheckConstraint(condition=models.Q(consumption__gte=0),name='utility_measurement_nonnegative'),
+  ]
+
+
+class UtilityParameterRule(models.Model):
+ key=models.CharField(max_length=120,db_index=True)
+ label=models.CharField(max_length=255)
+ value_decimal=models.DecimalField(max_digits=20,decimal_places=6,null=True,blank=True)
+ value_text=models.CharField(max_length=255,blank=True)
+ unit=models.CharField(max_length=40,blank=True)
+ effective_from=models.CharField(max_length=10)
+ effective_to=models.CharField(max_length=10,blank=True)
+ active=models.BooleanField(default=True)
+ notes=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT)
+ created_at=models.DateTimeField(auto_now_add=True)
+ class Meta:
+  ordering=['key','-effective_from','-id']
+  constraints=[
+   models.UniqueConstraint(fields=['key','effective_from'],name='uniq_utility_rule_key_effective'),
+  ]
+
+
+class ElectricityConsumptionCategory(models.Model):
+ name=models.CharField(max_length=255,unique=True)
+ eui=models.DecimalField(max_digits=16,decimal_places=6,null=True,blank=True)
+ effective_from=models.CharField(max_length=10,blank=True)
+ active=models.BooleanField(default=True)
+ notes=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT)
+ created_at=models.DateTimeField(auto_now_add=True)
+ class Meta: ordering=['name']
+ def __str__(self): return self.name
+
+
+class ElectricityBill(models.Model):
+ class Status(models.TextChoices):
+  DRAFT='DRAFT','پیش‌نویس';CALCULATED='CALCULATED','محاسبه‌شده';REVIEW_REQUIRED='REVIEW_REQUIRED','نیازمند بررسی';FINAL='FINAL','نهایی';REOPENED='REOPENED','بازگشایی‌شده'
+ unit=models.ForeignKey(UtilityUnit,on_delete=models.PROTECT,related_name='electricity_bills')
+ period_start=models.CharField(max_length=10);period_end=models.CharField(max_length=10)
+ bill_date=models.CharField(max_length=10,blank=True)
+ amount_rial=models.DecimalField(max_digits=24,decimal_places=0)
+ beneficiary_share_percent=models.DecimalField(max_digits=7,decimal_places=4)
+ organization_share_percent=models.DecimalField(max_digits=7,decimal_places=4)
+ status=models.CharField(max_length=30,choices=Status.choices,default=Status.DRAFT)
+ notes=models.TextField(blank=True)
+ supporting_document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT,related_name='electricity_bills')
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT)
+ created_at=models.DateTimeField(auto_now_add=True);updated_at=models.DateTimeField(auto_now=True)
+ finalized_at=models.DateTimeField(null=True,blank=True);finalized_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT,related_name='finalized_electricity_bills')
+ reopen_reason=models.TextField(blank=True)
+ class Meta:
+  ordering=['-period_end','-id']
+  constraints=[
+   models.UniqueConstraint(fields=['unit','period_start','period_end'],name='uniq_electricity_bill_unit_period'),
+   models.CheckConstraint(condition=models.Q(amount_rial__gte=0),name='electricity_bill_amount_nonnegative'),
+   models.CheckConstraint(condition=models.Q(beneficiary_share_percent__gte=0)&models.Q(beneficiary_share_percent__lte=100),name='electricity_beneficiary_share_range'),
+   models.CheckConstraint(condition=models.Q(organization_share_percent__gte=0)&models.Q(organization_share_percent__lte=100),name='electricity_org_share_range'),
+  ]
+ @property
+ def sama_code(self): return f'ELB-{self.pk:06d}' if self.pk else '—'
+ @property
+ def organization_amount_rial(self):
+  from decimal import Decimal, ROUND_HALF_UP
+  return (self.amount_rial*self.organization_share_percent/Decimal('100')).quantize(Decimal('1'),rounding=ROUND_HALF_UP)
+ def __str__(self): return f'{self.sama_code} — {self.unit.name}'
+
+
+class ElectricityAllocation(models.Model):
+ class Source(models.TextChoices):
+  SUBMETER='SUBMETER','زیرکنتور';MEASUREMENT='MEASUREMENT','اندازه‌گیری واقعی';EQUIPMENT='EQUIPMENT','داده تجهیزات';APPROVED_MODEL='APPROVED_MODEL','مدل مصوب';MANUAL_OVERRIDE='MANUAL_OVERRIDE','Override دستی'
+ class Confidence(models.TextChoices):
+  REAL_MEASUREMENT='REAL_MEASUREMENT','اندازه‌گیری واقعی';VALID_EQUIPMENT='VALID_EQUIPMENT','داده تجهیزات معتبر';APPROVED_MODEL='APPROVED_MODEL','محاسبه مدل مصوب';INCOMPLETE='INCOMPLETE','نیازمند تکمیل';REVIEW='REVIEW','نیازمند بررسی'
+ bill=models.ForeignKey(ElectricityBill,on_delete=models.PROTECT,related_name='allocations')
+ space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='electricity_allocations')
+ eligible=models.BooleanField(default=True)
+ category=models.ForeignKey(ElectricityConsumptionCategory,null=True,blank=True,on_delete=models.PROTECT,related_name='allocations')
+ effective_area=models.DecimalField(max_digits=16,decimal_places=2,null=True,blank=True)
+ eui=models.DecimalField(max_digits=16,decimal_places=6,null=True,blank=True)
+ operational_factor=models.DecimalField(max_digits=12,decimal_places=6,null=True,blank=True)
+ special_consumption=models.DecimalField(max_digits=20,decimal_places=3,null=True,blank=True)
+ measurement=models.ForeignKey(UtilityMeasurement,null=True,blank=True,on_delete=models.PROTECT,related_name='electricity_allocations')
+ calculated_share_percent=models.DecimalField(max_digits=7,decimal_places=4,null=True,blank=True)
+ manual_override_percent=models.DecimalField(max_digits=7,decimal_places=4,null=True,blank=True)
+ final_share_percent=models.DecimalField(max_digits=7,decimal_places=4)
+ calculation_source=models.CharField(max_length=30,choices=Source.choices)
+ confidence_level=models.CharField(max_length=30,choices=Confidence.choices)
+ override_reason=models.TextField(blank=True)
+ notes=models.TextField(blank=True)
+ payable_amount_rial=models.DecimalField(max_digits=24,decimal_places=0,null=True,blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT)
+ created_at=models.DateTimeField(auto_now_add=True);updated_at=models.DateTimeField(auto_now=True)
+ class Meta:
+  ordering=['space__code','pk']
+  constraints=[
+   models.UniqueConstraint(fields=['bill','space'],name='uniq_electricity_allocation_bill_space'),
+   models.CheckConstraint(condition=models.Q(final_share_percent__gte=0)&models.Q(final_share_percent__lte=100),name='electricity_final_share_range'),
+   models.CheckConstraint(condition=models.Q(calculated_share_percent__isnull=True)|(models.Q(calculated_share_percent__gte=0)&models.Q(calculated_share_percent__lte=100)),name='electricity_calc_share_range'),
+   models.CheckConstraint(condition=models.Q(manual_override_percent__isnull=True)|(models.Q(manual_override_percent__gte=0)&models.Q(manual_override_percent__lte=100)),name='electricity_override_share_range'),
+  ]
+ @property
+ def has_override(self): return self.manual_override_percent is not None
+
+
+class ElectricityCalculationSnapshot(models.Model):
+ bill=models.ForeignKey(ElectricityBill,on_delete=models.PROTECT,related_name='snapshots')
+ version=models.PositiveIntegerField()
+ payload=models.JSONField()
+ reason=models.TextField(blank=True)
+ created_by=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,blank=True,on_delete=models.PROTECT)
+ created_at=models.DateTimeField(auto_now_add=True)
+ class Meta:
+  ordering=['-version','-id']
+  constraints=[models.UniqueConstraint(fields=['bill','version'],name='uniq_electricity_snapshot_version')]
+
+
 class FileMovement(models.Model):
  space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='file_movements'); location=models.CharField(max_length=255); holder=models.CharField(max_length=255); delivered_by=models.CharField(max_length=255); received_by=models.CharField(max_length=255); handover_at=models.DateTimeField(); returned_at=models.DateTimeField(null=True); signature_state=models.CharField(max_length=50); direction=models.CharField(max_length=20); next_action=models.CharField(max_length=255,blank=True); due_date=models.CharField(max_length=10,blank=True); notes=models.TextField(blank=True); created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
 class TimelineEvent(models.Model):
