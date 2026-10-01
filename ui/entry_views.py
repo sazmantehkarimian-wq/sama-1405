@@ -37,7 +37,9 @@ from ui.entry_forms import (
     CenterForm, CommercialSpaceForm, CommissionCaseForm, CommissionDecisionForm,
     CommissionFollowUpForm, CommissionFollowUpTransitionForm, CommissionMemberForm,
     CommissionSessionForm, ContractEntryForm, ElectricityAllocationForm, ExpertFeeBatchForm,
-    ElectricityBillForm, MotherPropertyForm, RegionForm, UtilityBillForm,
+    ElectricityBillForm, MotherPropertyCorrespondenceForm, MotherPropertyForm,
+    MotherPropertyNoteForm, MotherPropertyOwnershipDocumentForm, MotherPropertyOwnershipForm,
+    MotherPropertyUsageForm, PropertyReferenceValueForm, RegionForm, UtilityBillForm,
     UtilityConnectionForm, UtilityMeasurementForm, UtilityParameterRuleForm, UtilityUnitForm,
 )
 
@@ -100,9 +102,7 @@ def commercial_space_edit(request, code):
     }
     form = CommercialSpaceForm(request.POST or None, instance=space)
     if request.method == "POST" and form.is_valid():
-        updated = form.save(commit=False)
-        updated.updated_by = request.user
-        updated.save()
+        updated = form.save()
         after = {
             "name": updated.name,
             "status": updated.status,
@@ -199,7 +199,9 @@ def mother_property_edit(request, pk):
     }
     form = MotherPropertyForm(request.POST or None, instance=item)
     if request.method == "POST" and form.is_valid():
-        updated = form.save()
+        updated = form.save(commit=False)
+        updated.updated_by = request.user
+        updated.save()
         after = {
             "name": updated.name,
             "region_id": updated.region_id,
