@@ -20,11 +20,12 @@
 | کارشناسی ساختاری | PASS | Appraiser مستقل، ابلاغ 1:N، جواب و تاریخ کارشناسی مستقل، current appraisal واحد. |
 | active / out-of-cycle | PASS | Viewهای جدا و نمایش current/latest context پیاده شده؛ آخرین CI باید تأیید کند. |
 | Search / Filter | PARTIAL | جست‌وجوی کلیدهای اصلی توسعه یافته؛ فیلتر تخصصی همه ماژول‌ها کامل نیست. |
-| Documents / FileMovement / Alerts / Workflow | EXISTING — REVIEW REQUIRED | پیاده‌سازی پایه موجود است؛ تطبیق نهایی Zero-Data/FROZEN هنوز باز است. |
+| FileMovement / current holder | PASS | one-open-custody constraint، handover/return تراکنشی، Audit/Timeline و نمایش «الان دست کیه» در پرونده فضا تست شده‌اند. |
+| Documents / Alerts / Workflow | EXISTING — REVIEW REQUIRED | پیاده‌سازی پایه موجود است؛ تطبیق نهایی Zero-Data/FROZEN هنوز باز است. |
 | Auction / Commission | EXISTING — REVIEW REQUIRED | موتور و گردش پایه وجود دارد؛ Gate نهایی بعد از تکمیل دامنه‌های وابسته لازم است. |
 | Electricity core | PASS | Bill/Allocation/Measurement، اولویت داده واقعی، محاسبه سهم‌ها، Override مجاز، کنترل درصد/ریال، Final/Reopen، Rule Registry و Snapshot نسخه‌دار روی Zero-Data تست شده‌اند. |
 | Water / Gas foundation | PASS | Connection/Bill/Measurement و Audit مستقل از برق پیاده شده‌اند؛ هیچ فرمول برق به آب یا گاز اعمال نمی‌شود. |
-| Water / Gas reporting and advanced filters | PENDING | گزارش‌ها، مقایسه دوره‌ای و فیلترهای تخصصی هنوز Gate نهایی نشده‌اند. |
+| Water / Gas reporting and advanced filters | PASS | فیلترهای تخصصی، مقایسه دوره‌ای هر اشتراک، سند قبض، Drill-down به پرونده فضا و XLSX رسمی روی Zero-Data تست شده‌اند. |
 | Official reports | REVIEW REQUIRED | موتور گزارش موجود است، ولی schema و ستون‌های جدید باید end-to-end بازآزمایی شوند. |
 | Backup / Restore | REVIEW REQUIRED | سازوکار موجود است؛ بعد از تثبیت migration chain باید Regression نهایی شود. |
 | Security / Auth | PASS در Quality tests | Password hashing، CSRF، throttle و user-management تست دارند. |
