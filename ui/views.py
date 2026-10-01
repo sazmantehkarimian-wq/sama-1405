@@ -10,7 +10,7 @@ from django.utils import timezone
 from domains.properties.models import CommercialSpace,Region,Center,MotherProperty
 from domains.registry.models import Discrepancy
 from domains.identity.models import AuditEvent, UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
-from domains.contracts.models import Contract, Beneficiary
+from domains.contracts.models import Contract, Beneficiary, ContractCirculation
 from domains.operations.models import Appraiser, Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, ExpertFeePaymentBatch, UtilityBill, UtilityConnection, UtilityMeasurement, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
 from domains.documents.models import Document
 from queries.spaces import filter_spaces
@@ -403,6 +403,7 @@ def delete_space_filter(request,filter_id):
 DOMAIN_LISTS={
  'properties':('املاک مادر',MotherProperty.objects.select_related('region'),(('identifier','شناسه ملک'),('name','نام'),('current_status','وضعیت جاری'),('region.name','منطقه'),('primary_usage','کاربری'),('area','مساحت اعیان'),('ownership_document_status','وضعیت مالکیت'),('completeness_status','تکمیل پرونده'))),
  'discrepancies':('بررسی مغایرت‌های داده',Discrepancy.objects.select_related('assigned_to'),(('entity_key','شناسه رکورد'),('field_key','فیلد'),('observed_value','مقدار موجود'),('expected_value','مقدار مورد انتظار'),('reason','علت'),('severity','اهمیت'),('status','وضعیت'))),
+ 'contract-circulations':('گردش قراردادها',ContractCirculation.objects.select_related('space','beneficiary','official_contract'),(('identity','شناسه گردش'),('space.code','کد فضا'),('beneficiary.name','بهره‌بردار'),('subject','موضوع'),('state','وضعیت'),('next_action','اقدام بعدی'),('due_date','مهلت'))),
  'contracts':('قراردادها',Contract.objects.select_related('space','beneficiary'),(('number','شماره'),('space.code','کد فضا'),('beneficiary.name','بهره‌بردار'),('start_date','شروع'),('end_date','پایان'),('time_status_label','وضعیت زمانی'),('remaining_days','روزهای باقی‌مانده'),('amount_rial','مبلغ (ریال)'),('status','وضعیت حقوقی'))),
  'beneficiaries':('بهره‌برداران',Beneficiary.objects.all(),(('sama_code','کد بهره‌بردار'),('name','نام / عنوان'),('identity_number','کد ملی / شناسه ملی'),('kind','نوع'),('completeness_status','وضعیت تکمیل'))),
  'appraisers':('کارشناسان',Appraiser.objects.all(),(('sama_code','کد کارشناس'),('full_name','نام کارشناس'),('license_number','شماره پروانه'),('specialty','رشته / صلاحیت'),('collaboration_status','وضعیت همکاری'))),
@@ -440,6 +441,8 @@ def _search_domain(qs,domain,q):
    Q(primary_usage__icontains=q)|Q(usage_group__icontains=q)|Q(address__icontains=q)|
    Q(owner_name__icontains=q)|Q(holder_unit__icontains=q)
   )
+ if domain=='contract-circulations':
+  return qs.filter(Q(identity__iexact=q)|Q(space__code__iexact=q)|Q(space__name__icontains=q)|Q(beneficiary__name__icontains=q)|Q(subject__icontains=q)|Q(next_action__icontains=q))
  if domain=='contracts':
   return qs.filter(Q(number__icontains=q)|Q(space__code__iexact=q)|Q(space__name__icontains=q)|Q(beneficiary__name__icontains=q)|Q(beneficiary__identity_number__iexact=q))
  if domain=='appraisers':
