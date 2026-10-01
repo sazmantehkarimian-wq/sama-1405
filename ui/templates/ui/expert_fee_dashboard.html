@@ -1,0 +1,83 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}حق‌الزحمه کارشناسان{% endblock %}
+{% block section_class %}section-appraisals{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>حق‌الزحمه کارشناسان</h1><p>ثبت، ارسال به مالی، پیگیری و پرداخت کامل حق‌الزحمه‌های کارشناسی</p></div>
+  <div class="button-row">
+    <a class="button emphasized compact" href="{% url 'expert-fee-batch-create' %}">ارسال گروهی به مالی</a>
+    <a class="button secondary compact" href="{% url 'expert-fees-excel' %}?{{ request.GET.urlencode }}">خروجی رسمی اکسل</a>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <a class="card kpi" href="#fees"><small>کل پرونده‌ها</small><strong>{{ fee_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?status=FEE_ENTERED#fees"><small>مبلغ ثبت شده</small><strong>{{ entered_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?status=READY_TO_SEND#fees"><small>آماده ارسال</small><strong>{{ ready_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?status=SENT_TO_FINANCE#fees"><small>ارسال شده به مالی</small><strong>{{ sent_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?status=IN_PROGRESS#fees"><small>در دست اقدام</small><strong>{{ progress_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?payment=paid#fees"><small>پرداخت شده / مختومه</small><strong>{{ paid_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?status=NEEDS_CORRECTION#fees"><small>نیازمند اصلاح</small><strong>{{ correction_count|fa_digits }}</strong></a>
+</div>
+
+<section class="card dossier-section">
+  <h2>جمع مبالغ</h2>
+  <div class="detail-grid">
+    <div><small>جمع حق‌الزحمه</small><strong>{{ total_amount|rial }}</strong></div>
+    <div><small>جمع پرداخت‌شده</small><strong>{{ paid_amount|rial }}</strong></div>
+    <div><small>مانده در انتظار پرداخت</small><strong>{{ pending_amount|rial }}</strong></div>
+  </div>
+</section>
+
+<form class="card filter-panel no-print" method="get">
+  <div class="filter-panel-header"><h2>جست‌وجو و فیلتر</h2><a class="button tertiary compact" href="{% url 'expert-fee-dashboard' %}">پاک‌کردن همه</a></div>
+  <div class="filter-primary">
+    <label>جست‌وجو<input name="q" value="{{ request.GET.q }}" placeholder="کد فضا، نام فضا، کارشناس، نامه یا مرجع پرداخت"></label>
+    <label>وضعیت<select name="status"><option value="">همه</option>{% for value,label in statuses %}<option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>پرداخت<select name="payment"><option value="">همه</option><option value="paid" {% if request.GET.payment == 'paid' %}selected{% endif %}>پرداخت‌شده</option><option value="unpaid" {% if request.GET.payment == 'unpaid' %}selected{% endif %}>پرداخت‌نشده</option></select></label>
+    <label>منطقه<select name="region"><option value="">همه</option>{% for item in regions %}<option value="{{ item.pk }}" {% if request.GET.region == item.pk|stringformat:'s' %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+    <button class="emphasized">اعمال فیلتر</button>
+  </div>
+  <details class="filter-advanced"><summary>فیلترهای پیشرفته</summary><div class="filter-advanced-content">
+    <label>کارشناسی از<input name="appraisal_from" value="{{ request.GET.appraisal_from }}" placeholder="1405/01/01" dir="ltr"></label>
+    <label>کارشناسی تا<input name="appraisal_to" value="{{ request.GET.appraisal_to }}" placeholder="1405/12/29" dir="ltr"></label>
+    <label>ارسال از<input name="sent_from" value="{{ request.GET.sent_from }}" placeholder="1405/01/01" dir="ltr"></label>
+    <label>ارسال تا<input name="sent_to" value="{{ request.GET.sent_to }}" placeholder="1405/12/29" dir="ltr"></label>
+    <label>پرداخت از<input name="paid_from" value="{{ request.GET.paid_from }}" placeholder="1405/01/01" dir="ltr"></label>
+    <label>پرداخت تا<input name="paid_to" value="{{ request.GET.paid_to }}" placeholder="1405/12/29" dir="ltr"></label>
+    <label>کد Batch<input name="batch" value="{{ request.GET.batch }}" placeholder="PAY-1405-001"></label>
+  </div></details>
+</form>
+
+<section class="card dossier-section" id="fees">
+  <h2>پرونده‌های حق‌الزحمه</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کد</th><th>فضا</th><th>کارشناس</th><th>تاریخ کارشناسی</th><th>مبلغ</th><th>وضعیت</th><th>ارسال به مالی</th><th>نامه / گردش</th><th>پرداخت</th><th>Batch</th><th>اقدام</th></tr></thead>
+    <tbody>
+    {% for item in page %}
+      <tr>
+        <td>{{ item.sama_code }}</td>
+        <td><a href="{% url 'space-detail' item.appraisal.space.code %}">{{ item.appraisal.space.code }}</a></td>
+        <td>{% if item.appraisal.appraiser_ref %}<a href="{% url 'appraiser-detail' item.appraisal.appraiser_ref.pk %}">{{ item.appraisal.appraiser_display }}</a>{% else %}{{ item.appraisal.appraiser_display|default:'—' }}{% endif %}</td>
+        <td>{{ item.appraisal.appraisal_date|default:'—' }}</td>
+        <td>{{ item.amount_rial|rial }}</td>
+        <td>{{ item.get_status_display }}</td>
+        <td>{{ item.sent_to_finance_date|default:'—' }}</td>
+        <td>{{ item.letter_number|default:'—' }}</td>
+        <td>{% if item.paid_amount_rial is not None %}{{ item.paid_amount_rial|rial }} — {{ item.payment_date|default:'—' }}{% else %}—{% endif %}</td>
+        <td>{% for membership in item.batch_items.all %}{% if membership.active %}{{ membership.batch.sama_code }}{% endif %}{% empty %}—{% endfor %}</td>
+        <td><div class="button-row"><a class="button compact" href="{% url 'appraisal-fee-transition' item.pk %}">تغییر وضعیت</a>{% if item.status != 'PAID' and item.status != 'CLOSED' %}<a class="button secondary compact" href="{% url 'appraisal-fee-amount-update' item.pk %}">اصلاح مبلغ</a>{% endif %}</div></td>
+      </tr>
+    {% empty %}<tr><td colspan="11">رکوردی مطابق فیلتر جاری وجود ندارد.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <nav class="pagination">{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}&{{ request.GET.urlencode }}">صفحه قبل</a>{% endif %}<span>صفحه {{ page.number|fa_digits }} از {{ page.paginator.num_pages|fa_digits }}</span>{% if page.has_next %}<a href="?page={{ page.next_page_number }}&{{ request.GET.urlencode }}">صفحه بعد</a>{% endif %}</nav>
+</section>
+
+<section class="card dossier-section">
+  <h2>Batchهای ارسال به مالی</h2>
+  <div class="table-wrap"><table><thead><tr><th>کد Batch</th><th>تاریخ ارسال</th><th>شماره نامه / گردش</th><th>تاریخ نامه</th><th>تعداد فعال</th><th>جمع مبلغ</th><th>وضعیت</th></tr></thead><tbody>
+  {% for batch in batches %}<tr><td>{{ batch.sama_code }}</td><td>{{ batch.sent_date }}</td><td>{{ batch.letter_number }}</td><td>{{ batch.letter_date }}</td><td>{{ batch.items.all|length|fa_digits }}</td><td>{{ batch.total_amount_rial|rial }}</td><td>{{ batch.get_status_display }}</td></tr>{% empty %}<tr><td colspan="7">هنوز Batch ثبت نشده است.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}
