@@ -26,6 +26,7 @@
 | Electricity core | PASS | Bill/Allocation/Measurement، اولویت داده واقعی، محاسبه سهم‌ها، Override مجاز، کنترل درصد/ریال، Final/Reopen، Rule Registry و Snapshot نسخه‌دار روی Zero-Data تست شده‌اند. |
 | Water / Gas foundation | PASS | Connection/Bill/Measurement و Audit مستقل از برق پیاده شده‌اند؛ هیچ فرمول برق به آب یا گاز اعمال نمی‌شود. |
 | Water / Gas reporting and advanced filters | PASS | فیلترهای تخصصی، مقایسه دوره‌ای هر اشتراک، سند قبض، Drill-down به پرونده فضا و XLSX رسمی روی Zero-Data تست شده‌اند. |
+| Expert fee frozen core | PASS | Appraisal+Expert+Space linkage، مبلغ دستی مستقل، status transition، ارسال به مالی، پرداخت کامل و برابر با fee، اصلاح Auditدار، Batch یکتا، KPI/filter و XLSX رسمی با تست پوشش داده شده‌اند؛ PDF/Print اختصاصی هنوز در Gate خروجی نهایی باز است. |
 | Official reports | REVIEW REQUIRED | موتور گزارش موجود است، ولی schema و ستون‌های جدید باید end-to-end بازآزمایی شوند. |
 | Backup / Restore | REVIEW REQUIRED | سازوکار موجود است؛ بعد از تثبیت migration chain باید Regression نهایی شود. |
 | Security / Auth | PASS در Quality tests | Password hashing، CSRF، throttle و user-management تست دارند. |
