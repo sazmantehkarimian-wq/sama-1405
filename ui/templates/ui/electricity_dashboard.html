@@ -29,6 +29,24 @@
     <button>ثبت دسته مصرف</button>
   </form>
 </section>
+<section class="card dossier-section">
+  <h2>Rule / Parameter Registry</h2>
+  <p class="helper">پارامترهای مصوب نسخه‌دار هستند؛ تغییر آینده نباید Snapshot دوره‌های نهایی گذشته را تغییر دهد.</p>
+  <form class="entity-form" method="post" action="{% url 'utility-rule-create' %}">
+    {% csrf_token %}
+    <div class="form-grid">
+      {% for field in rule_form %}
+      <label class="field"><span>{{ field.label }}</span>{{ field }}{% if field.help_text %}<small class="helper">{{ field.help_text }}</small>{% endif %}</label>
+      {% endfor %}
+    </div>
+    <button>ثبت Rule جدید</button>
+  </form>
+  <div class="table-wrap"><table><thead><tr><th>کلید</th><th>عنوان</th><th>مقدار</th><th>واحد</th><th>تاریخ اثر</th><th>پایان</th><th>وضعیت</th></tr></thead><tbody>
+  {% for rule in rules %}
+    <tr><td>{{ rule.key }}</td><td>{{ rule.label }}</td><td>{% if rule.value_decimal is not None %}{{ rule.value_decimal|fa_digits }}{% else %}{{ rule.value_text }}{% endif %}</td><td>{{ rule.unit|default:'—' }}</td><td>{{ rule.effective_from }}</td><td>{{ rule.effective_to|default:'—' }}</td><td>{% if rule.active %}فعال{% else %}غیرفعال{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7">هنوز Rule / Parameter ثبت نشده است.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
 {% endif %}
 
 <section class="card dossier-section" id="bills">
