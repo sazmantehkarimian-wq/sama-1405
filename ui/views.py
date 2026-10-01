@@ -8,13 +8,13 @@ from django.shortcuts import render,get_object_or_404,redirect
 from django.db.models import Count, OuterRef, Q, Subquery, Sum
 from domains.properties.models import CommercialSpace,Region,Center,MotherProperty
 from domains.registry.models import Discrepancy
-from domains.identity.models import UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
+from domains.identity.models import AuditEvent, UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
 from domains.contracts.models import Contract, Beneficiary
 from domains.operations.models import Appraiser, Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, ExpertFeePaymentBatch, UtilityBill, UtilityConnection, UtilityMeasurement, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
 from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from services.file_movement import current_holder
-from reporting.engine import excel,docx,pdf,tabular_excel,tabular_pdf
+from reporting.engine import excel,docx,pdf,tabular_excel,tabular_pdf,multi_sheet_excel,multi_section_pdf
 from ui.forms import PersianPasswordChangeForm
 from core.uat import is_fixed_uat_admin
 from services.money import format_rial
@@ -541,6 +541,55 @@ def commission_create(request):
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
  else:messages.success(request,'تصمیم کمیسیون با پیوند پرونده و ممیزی ثبت شد.')
  return redirect('commission-workspace')
+
+@login_required
+def space_scoped_report(request):
+ from urllib.parse import urlencode
+ from services.scoped_reports import SCOPED_DOMAINS, build_space_sections, normalize_domains
+ code=(request.GET.get('code') or '').strip()
+ full=request.GET.get('full')=='1'
+ domains=normalize_domains(request.GET.getlist('domain'),full=full)
+ space=None;sections=[];not_found=False
+ if code:
+  space=CommercialSpace.objects.select_related('region','center').filter(code=code).first()
+  if space is None:
+   not_found=True
+  else:
+   sections=build_space_sections(space,domains)
+ pairs=[('code',code)]+[('domain',key) for key in domains]
+ export_query=urlencode(pairs)
+ return render(request,'ui/space_scoped_report.html',{
+  'scoped_domains':SCOPED_DOMAINS,'selected_domains':domains,'space':space,
+  'sections':sections,'not_found':not_found,'code':code,'full':full,'export_query':export_query,
+ })
+
+@login_required
+def space_scoped_excel(request):
+ from services.scoped_reports import build_space_sections, normalize_domains
+ code=(request.GET.get('code') or '').strip()
+ space=get_object_or_404(CommercialSpace.objects.select_related('region','center'),code=code)
+ domains=normalize_domains(request.GET.getlist('domain'),full=request.GET.get('full')=='1')
+ sections=build_space_sections(space,domains)
+ AuditEvent.objects.create(
+  actor=request.user,action='SCOPED_REPORT_EXPORT',entity_type='CommercialSpace',entity_id=space.code,
+  after={'format':'XLSX','domains':domains},ip_address=request.META.get('REMOTE_ADDR'),
+ )
+ payload=multi_sheet_excel(f'پرونده کد فضا {space.code}',sections)
+ return HttpResponse(payload,content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':f'attachment; filename="space-{space.code}.xlsx"'})
+
+@login_required
+def space_scoped_pdf(request):
+ from services.scoped_reports import build_space_sections, normalize_domains
+ code=(request.GET.get('code') or '').strip()
+ space=get_object_or_404(CommercialSpace.objects.select_related('region','center'),code=code)
+ domains=normalize_domains(request.GET.getlist('domain'),full=request.GET.get('full')=='1')
+ sections=build_space_sections(space,domains)
+ AuditEvent.objects.create(
+  actor=request.user,action='SCOPED_REPORT_EXPORT',entity_type='CommercialSpace',entity_id=space.code,
+  after={'format':'PDF','domains':domains},ip_address=request.META.get('REMOTE_ADDR'),
+ )
+ payload=multi_section_pdf(f'پرونده کد فضا {space.code}',sections)
+ return HttpResponse(payload,content_type='application/pdf',headers={'Content-Disposition':f'attachment; filename="space-{space.code}.pdf"'})
 
 @login_required
 def report_builder(request):
