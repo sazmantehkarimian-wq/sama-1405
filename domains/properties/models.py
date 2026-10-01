@@ -165,9 +165,6 @@ class MotherProperty(models.Model):
 
 
 class MotherPropertyOwnership(models.Model):
-    class OwnerType(MotherProperty.OwnerType):
-        pass
-
     property = models.ForeignKey(MotherProperty, on_delete=models.PROTECT, related_name="ownership_history")
     owner_name = models.CharField(max_length=255)
     owner_type = models.CharField(max_length=20, choices=MotherProperty.OwnerType.choices)
