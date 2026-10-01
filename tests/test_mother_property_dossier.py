@@ -238,3 +238,31 @@ def test_mother_property_correspondence_transition_is_audited(client, property_u
     assert event.reason=="پاسخ دریافت شد"
     assert event.before["follow_up_status"]=="OPEN"
     assert event.after["follow_up_status"]=="DONE"
+
+
+
+@pytest.mark.django_db
+def test_mother_property_list_filters_and_excel_use_same_scope(client, property_user, property_refs):
+    client.force_login(property_user)
+    from domains.properties.models import Region
+    region1=Region.objects.create(code="1",name="منطقه ۱")
+    region2=Region.objects.create(code="2",name="منطقه ۲")
+    MotherProperty.objects.create(
+        identifier="P-0201",name="ملک اول",region=region1,current_status="فعال",
+        primary_usage="فرهنگی",ownership_document_status="موجود است",area=100,
+        has_utilities="YES",electricity_presence="YES",water_presence="YES",gas_presence="NO",
+    )
+    MotherProperty.objects.create(
+        identifier="P-0202",name="ملک دوم",region=region2,current_status="فعال",
+        primary_usage="فرهنگی",ownership_document_status="موجود است",area=100,
+        has_utilities="YES",electricity_presence="NO",water_presence="YES",gas_presence="YES",
+    )
+    response=client.get("/records/properties/",{"region":region1.pk,"utility":"ELECTRICITY"})
+    assert response.status_code==200
+    body=response.content.decode()
+    assert "P-0201" in body and "P-0202" not in body
+
+    export=client.get("/records/properties/export.xlsx",{"region":region1.pk,"utility":"ELECTRICITY"})
+    workbook=load_workbook(io.BytesIO(export.content),data_only=True)
+    values=[str(cell.value) for row in workbook.active.iter_rows() for cell in row if cell.value is not None]
+    assert "P-0201" in values and "P-0202" not in values
