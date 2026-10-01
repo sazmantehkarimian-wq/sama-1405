@@ -103,6 +103,14 @@ class UtilityUnit(models.Model):
   ordering=['name','pk']
   constraints=[
    models.UniqueConstraint(fields=['name','kind'],name='uniq_utility_unit_name_kind'),
+   models.CheckConstraint(
+    condition=(
+     models.Q(kind='REGION',region__isnull=False,center__isnull=True)
+     | models.Q(kind='CENTER',center__isnull=False)
+     | models.Q(kind='OTHER')
+    ),
+    name='utility_unit_kind_link_valid',
+   ),
   ]
  def __str__(self): return self.name
 
