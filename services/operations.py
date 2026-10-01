@@ -84,12 +84,6 @@ def record_appraisal_fee(*, appraisal: Appraisal, actor, amount: str, payment_st
         appraisal=appraisal,actor=actor,amount=amount,notes=notes,document=document,
         follow_up_date=follow_up_date,ip_address=ip_address,
     )
-    if payment_status == "PAID":
-        return transition_appraisal_fee(
-            fee=fee,actor=actor,new_status=AppraisalFee.Status.PAID,
-            values={"payment_date":payment_date,"paid_amount_rial":amount,"payment_reference":payment_reference},
-            reason="ثبت پرداخت همزمان با ایجاد پرونده",ip_address=ip_address,
-        )
     return fee
 
 
@@ -116,7 +110,7 @@ def update_appraisal_fee_amount(*,fee:AppraisalFee,actor,amount,reason,ip_addres
 
 
 _ALLOWED_FEE_TRANSITIONS={
-    AppraisalFee.Status.FEE_ENTERED:{AppraisalFee.Status.READY_TO_SEND,AppraisalFee.Status.NEEDS_CORRECTION,AppraisalFee.Status.STOPPED,AppraisalFee.Status.CANCELLED,AppraisalFee.Status.PAID},
+    AppraisalFee.Status.FEE_ENTERED:{AppraisalFee.Status.READY_TO_SEND,AppraisalFee.Status.NEEDS_CORRECTION,AppraisalFee.Status.STOPPED,AppraisalFee.Status.CANCELLED},
     AppraisalFee.Status.READY_TO_SEND:{AppraisalFee.Status.SENT_TO_FINANCE,AppraisalFee.Status.NEEDS_CORRECTION,AppraisalFee.Status.STOPPED,AppraisalFee.Status.CANCELLED},
     AppraisalFee.Status.SENT_TO_FINANCE:{AppraisalFee.Status.IN_PROGRESS,AppraisalFee.Status.PAID,AppraisalFee.Status.NEEDS_CORRECTION,AppraisalFee.Status.STOPPED},
     AppraisalFee.Status.IN_PROGRESS:{AppraisalFee.Status.PAID,AppraisalFee.Status.NEEDS_CORRECTION,AppraisalFee.Status.STOPPED},
