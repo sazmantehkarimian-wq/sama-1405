@@ -7,7 +7,7 @@ $package = Join-Path $OutputRoot "SAMA_$Version"
 if (Test-Path $package) { Remove-Item $package -Recurse -Force }
 New-Item $package -ItemType Directory | Out-Null
 
-$directories = @("core", "design_system", "domains", "import_pipeline", "queries", "reporting", "sama", "scripts", "services", "ui", "docs", "authority")
+$directories = @("core", "design_system", "domains", "queries", "reporting", "sama", "scripts", "services", "ui", "docs")
 foreach ($directory in $directories) { Copy-Item $directory $package -Recurse }
 $files = @("manage.py", "pyproject.toml", "README.md", "LEGACY_BOUNDARY.md", "VERSION", "START_SAMA.bat", "STOP_SAMA.bat")
 foreach ($file in $files) { Copy-Item $file $package }
@@ -15,6 +15,7 @@ foreach ($file in $files) { Copy-Item $file $package }
 
 New-Item (Join-Path $package "data") -ItemType Directory | Out-Null
 Copy-Item "data/sama.sqlite3" (Join-Path $package "data/sama.sqlite3")
+# Zero-Data contract: authority workbooks and import tools are never packaged.
 if (Test-Path "collected_static") { Copy-Item "collected_static" $package -Recurse }
 
 $runtime = Join-Path $package "runtime"
