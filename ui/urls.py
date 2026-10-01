@@ -17,6 +17,7 @@ path('spaces/<str:code>/appraisals/new/',entry_views.appraisal_create,name='appr
 path('utilities/electricity/',entry_views.electricity_dashboard,name='electricity-dashboard'),
 path('utilities/electricity/units/new/',entry_views.utility_unit_create,name='utility-unit-create'),
 path('utilities/electricity/categories/new/',entry_views.electricity_category_create,name='electricity-category-create'),
+path('utilities/electricity/rules/new/',entry_views.utility_rule_create,name='utility-rule-create'),
 path('utilities/electricity/bills/new/',entry_views.electricity_bill_create,name='electricity-bill-create'),
 path('utilities/electricity/bills/<int:bill_id>/',entry_views.electricity_bill_detail,name='electricity-bill-detail'),
 path('utilities/electricity/bills/<int:bill_id>/allocations/',entry_views.electricity_allocation_save,name='electricity-allocation-save'),
