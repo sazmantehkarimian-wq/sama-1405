@@ -321,7 +321,7 @@ DOMAIN_LISTS={
  'utilities':('انشعابات و مصرف',UtilityRecord.objects.select_related('space'),(('space.code','کد فضا'),('utility_type','نوع'),('account_number','اشتراک'),('bill_amount_rial','مبلغ قبض (ریال)'),('payment_status','پرداخت'))),
  'workflows':('گردش پرونده',WorkflowInstance.objects.select_related('space'),(('space.code','کد فضا'),('title','فرایند'),('state','وضعیت'),('next_action','اقدام بعدی'),('due_date','مهلت'))),
  'alerts':('موارد نیازمند پیگیری',Alert.objects.select_related('space','assigned_to'),(('space.code','کد فضا'),('subject','موضوع'),('reason','علت'),('due_date','سررسید'),('priority','اولویت'),('status','وضعیت'),('assigned_to.username','مسئول پیگیری'))),
- 'documents':('اسناد بارگذاری‌شده',Document.objects.all(),(('title','عنوان'),('document_type','نوع'),('original_filename','نام فایل'),('uploaded_at','زمان بارگذاری'))),
+ 'documents':('اسناد بارگذاری‌شده',Document.objects.all(),(('title','عنوان'),('document_type','نوع'),('reference','مرجع'),('document_date','تاریخ سند'),('status_label','وضعیت'),('original_filename','نام فایل'),('uploaded_at','زمان بارگذاری'))),
 }
 def _value(obj,path):
  parts=path.split('.')
@@ -585,7 +585,7 @@ def upload_document(request,code):
  from services.documents import store_document
  space=get_object_or_404(CommercialSpace,code=code);uploaded=request.FILES.get('file')
  if not uploaded:messages.error(request,'فایل انتخاب نشده است.');return redirect('space-detail',code=code)
- try:store_document(uploaded=uploaded,title=request.POST.get('title','').strip() or uploaded.name,document_type=request.POST.get('document_type','سایر').strip(),entity_type='CommercialSpace',entity_id=space.code,user=request.user,ip_address=request.META.get('REMOTE_ADDR'))
+ try:store_document(uploaded=uploaded,title=request.POST.get('title','').strip() or uploaded.name,document_type=request.POST.get('document_type','سایر').strip(),entity_type='CommercialSpace',entity_id=space.code,user=request.user,reference=request.POST.get('reference',''),document_date=request.POST.get('document_date',''),notes=request.POST.get('notes',''),ip_address=request.META.get('REMOTE_ADDR'))
  except ValidationError as exc:messages.error(request,' '.join(exc.messages))
  else:messages.success(request,'سند با ثبت checksum بارگذاری شد.')
  return redirect('space-detail',code=code)
