@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 
 from domains.contracts.models import BeneficiaryAssignment, Contract, ContractAmendment
 from domains.identity.models import AuditEvent
@@ -51,7 +52,7 @@ def current_beneficiary_assignment(space, on_date):
             start_date__lte=on_date,
         )
         .filter(
-            transaction.models.Q(end_date="") | transaction.models.Q(end_date__gte=on_date)
+            Q(end_date="") | Q(end_date__gte=on_date)
         )
         .order_by("-start_date", "-pk")
         .first()
@@ -77,7 +78,7 @@ def assign_beneficiary(*, space, beneficiary, actor, start_date, basis="", termi
 
     existing = (
         BeneficiaryAssignment.objects.filter(space=space, start_date__lte=start)
-        .filter(transaction.models.Q(end_date="") | transaction.models.Q(end_date__gte=start))
+        .filter(Q(end_date="") | Q(end_date__gte=start))
         .order_by("-start_date", "-pk")
         .first()
     )
