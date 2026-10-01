@@ -470,15 +470,44 @@ def _search_domain(qs,domain,q):
    Q(document_date__icontains=q)|Q(original_filename__icontains=q)|Q(entity_id__icontains=q)
   )
  return qs
+def _filter_domain_params(qs,domain,params):
+ if domain!='properties':return qs
+ region=(params.get('region') or '').strip()
+ if region.isdigit():qs=qs.filter(region_id=int(region))
+ status=(params.get('current_status') or '').strip()
+ if status:qs=qs.filter(current_status=status)
+ usage=(params.get('usage') or '').strip()
+ if usage:qs=qs.filter(primary_usage=usage)
+ ownership=(params.get('ownership_status') or '').strip()
+ if ownership:qs=qs.filter(ownership_document_status=ownership)
+ utility=(params.get('utility') or '').strip()
+ utility_field={'ELECTRICITY':'electricity_presence','WATER':'water_presence','GAS':'gas_presence'}.get(utility)
+ if utility_field:qs=qs.filter(**{utility_field:MotherProperty.Presence.YES})
+ completeness=(params.get('completeness') or '').strip()
+ if completeness in {'کامل','نیازمند تکمیل','نیازمند بررسی'}:
+  ids=[item.pk for item in qs if item.completeness_status==completeness]
+  qs=qs.filter(pk__in=ids)
+ return qs
+
 @login_required
 def domain_list(request,domain):
  title,qs,columns=DOMAIN_LISTS[domain]
  dataset_count=qs.count()
  q=request.GET.get('q','').strip()
  qs=_search_domain(qs,domain,q)
+ qs=_filter_domain_params(qs,domain,request.GET)
  page=Paginator(qs.order_by('-pk'),30).get_page(request.GET.get('page'))
  rows=[{'object':obj,'values':[_value(obj,key) for key,_ in columns]} for obj in page]
- return render(request,'ui/domain_list.html',{'title':title,'headers':[label for _,label in columns],'rows':rows,'page':page,'domain':domain,'dataset_count':dataset_count,'has_filter':bool(q)})
+ extra={}
+ if domain=='properties':
+  from domains.properties.models import PropertyReferenceValue
+  extra={
+   'property_regions':Region.objects.order_by('code'),
+   'property_statuses':PropertyReferenceValue.objects.filter(category=PropertyReferenceValue.Category.STATUS,active=True).order_by('sort_order','value'),
+   'property_usages':PropertyReferenceValue.objects.filter(category=PropertyReferenceValue.Category.USAGE,active=True).order_by('sort_order','value'),
+   'property_ownership_statuses':PropertyReferenceValue.objects.filter(category=PropertyReferenceValue.Category.OWNERSHIP_STATUS,active=True).order_by('sort_order','value'),
+  }
+ return render(request,'ui/domain_list.html',{'title':title,'headers':[label for _,label in columns],'rows':rows,'page':page,'domain':domain,'dataset_count':dataset_count,'has_filter':bool(request.GET),**extra})
 
 @login_required
 def domain_excel(request,domain):
@@ -486,6 +515,7 @@ def domain_excel(request,domain):
  title,qs,columns=DOMAIN_LISTS[domain]
  q=request.GET.get('q','').strip()
  qs=_search_domain(qs,domain,q)
+ qs=_filter_domain_params(qs,domain,request.GET)
  labels=[label for _,label in columns]
  data=([_value(item,key) for key,_ in columns] for item in qs.order_by('pk')[:10000])
  return HttpResponse(tabular_excel(title,labels,data),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':f'attachment; filename="{domain}.xlsx"'})
