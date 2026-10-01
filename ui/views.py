@@ -247,11 +247,50 @@ def expert_fees_pdf(request):
 
 @login_required
 def dashboard(request):
- spaces=CommercialSpace.objects.all();active=spaces.filter(status='ACTIVE')
- region_rows=list(active.exclude(region=None).values('region__name').annotate(total=Count('id')).order_by('-total')[:5]);maximum=max((row['total'] for row in region_rows),default=1)
+ spaces=CommercialSpace.objects.all()
+ active=spaces.filter(status='ACTIVE')
+ active_scope=filter_spaces({'status':['ACTIVE']})
+ region_rows=list(active.exclude(region=None).values('region__name').annotate(total=Count('id')).order_by('-total')[:5])
+ maximum=max((row['total'] for row in region_rows),default=1)
  for row in region_rows:row['percent']=round(row['total']*100/maximum)
- context={'space_count':spaces.count(),'active_count':active.count(),'inactive_count':spaces.filter(status='OUT_OF_CYCLE').count(),'property_count':MotherProperty.objects.count(),'discrepancy_count':Discrepancy.objects.exclude(status='RESOLVED').count(),'contract_count':Contract.objects.count(),'appraisal_count':Appraisal.objects.count(),'alert_count':Alert.objects.exclude(status='RESOLVED').count(),'without_contract_count':active.filter(contracts__isnull=True).count(),'without_appraisal_count':active.filter(appraisals__isnull=True).count(),'open_workflow_count':WorkflowInstance.objects.filter(state='OPEN').count(),'region_rows':region_rows}
+
+ current_contract_count=filter_spaces({'status':['ACTIVE'],'current_contract':'present'}).count()
+ without_current_contract_count=filter_spaces({'status':['ACTIVE'],'current_contract':'empty'}).count()
+ current_appraisal_count=filter_spaces({'status':['ACTIVE'],'current_appraisal':'present'}).count()
+ without_current_appraisal_count=filter_spaces({'status':['ACTIVE'],'current_appraisal':'empty'}).count()
+ contract_today_count=filter_spaces({'status':['ACTIVE'],'contract_bucket':'TODAY'}).count()
+ contract_1_30_count=filter_spaces({'status':['ACTIVE'],'contract_bucket':'1_30'}).count()
+ contract_31_60_count=filter_spaces({'status':['ACTIVE'],'contract_bucket':'31_60'}).count()
+ contract_61_90_count=filter_spaces({'status':['ACTIVE'],'contract_bucket':'61_90'}).count()
+ long_term_contract_count=filter_spaces({'status':['ACTIVE'],'contract_bucket':'LONG_TERM'}).count()
+ with_beneficiary_count=active_scope.filter(current_beneficiary_name__isnull=False).count()
+ without_beneficiary_count=active_scope.filter(current_beneficiary_name__isnull=True).count()
+
+ latest_by_space={}
+ for item in AuctionEvaluation.objects.select_related('space').order_by('space_id','-evaluated_at','-pk'):
+  if item.space_id not in latest_by_space:latest_by_space[item.space_id]=item
+ latest_evaluations=[item for item in latest_by_space.values() if item.space.status=='ACTIVE']
+ auction_candidate_count=sum(1 for item in latest_evaluations if item.decision=='CANDIDATE')
+ auction_review_count=sum(1 for item in latest_evaluations if item.decision=='REVIEW_REQUIRED')
+ auction_action_count=sum(1 for item in latest_evaluations if item.readiness=='ACTION_REQUIRED')
+
+ context={
+  'space_count':spaces.count(),'active_count':active.count(),'inactive_count':spaces.filter(status='OUT_OF_CYCLE').count(),
+  'property_count':MotherProperty.objects.count(),'discrepancy_count':Discrepancy.objects.exclude(status='RESOLVED').count(),
+  'contract_count':Contract.objects.count(),'appraisal_count':Appraisal.objects.count(),
+  'alert_count':Alert.objects.exclude(status='RESOLVED').count(),
+  'open_workflow_count':WorkflowInstance.objects.filter(state='OPEN').count(),
+  'current_contract_count':current_contract_count,'without_contract_count':without_current_contract_count,
+  'current_appraisal_count':current_appraisal_count,'without_appraisal_count':without_current_appraisal_count,
+  'contract_today_count':contract_today_count,'contract_1_30_count':contract_1_30_count,
+  'contract_31_60_count':contract_31_60_count,'contract_61_90_count':contract_61_90_count,
+  'long_term_contract_count':long_term_contract_count,
+  'with_beneficiary_count':with_beneficiary_count,'without_beneficiary_count':without_beneficiary_count,
+  'auction_candidate_count':auction_candidate_count,'auction_review_count':auction_review_count,'auction_action_count':auction_action_count,
+  'region_rows':region_rows,
+ }
  return render(request,'ui/dashboard.html',context)
+
 @login_required
 def space_list(request,status_scope=None):
  qs=filter_spaces(request.GET)
