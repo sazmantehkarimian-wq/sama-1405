@@ -69,14 +69,14 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name="commercialspace",
             constraint=models.CheckConstraint(
-                condition=models.Q(("area__isnull", True), ("area__gte", 0), _connector="OR"),
+                condition=models.Q(area__isnull=True) | models.Q(area__gte=0),
                 name="commercial_space_area_nonnegative",
             ),
         ),
         migrations.AddConstraint(
             model_name="motherproperty",
             constraint=models.CheckConstraint(
-                condition=models.Q(("area__isnull", True), ("area__gte", 0), _connector="OR"),
+                condition=models.Q(area__isnull=True) | models.Q(area__gte=0),
                 name="mother_property_area_nonnegative",
             ),
         ),
