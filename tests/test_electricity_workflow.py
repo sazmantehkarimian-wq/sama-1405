@@ -28,7 +28,7 @@ from services.electricity import (
 @pytest.fixture
 def electricity_context(db):
     user=get_user_model().objects.create_user("power-user",password="A-very-safe-password")
-    unit=UtilityUnit.objects.create(name="منطقه آزمون",kind="REGION",created_by=user)
+    unit=UtilityUnit.objects.create(name="واحد آزمون",kind="OTHER",created_by=user)
     s1=CommercialSpace.objects.create(code="8101",name="فضای اول",status="ACTIVE",area=100)
     s2=CommercialSpace.objects.create(code="8102",name="فضای دوم",status="ACTIVE",area=100)
     return user,unit,s1,s2
