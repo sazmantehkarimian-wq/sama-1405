@@ -119,7 +119,7 @@ def test_auction_workspace_evaluates_and_adds_candidate_to_draft_period(client):
  user=get_user_model().objects.create_user('auction-operator',password='A-very-safe-password')
  client.force_login(user)
  space=CommercialSpace.objects.create(code='9301',name='فضا',status='ACTIVE')
- Appraisal.objects.create(space=space,amount_rial=500000,appraisal_date='1405/06/01')
+ Appraisal.objects.create(space=space,amount_rial=500000,appraisal_date='1405/06/01',is_current=True)
  AuctionRule.objects.create(version='clean-1',effective_year=1405,minor_ceiling_rial=100000,medium_ceiling_rial=1000000,active=True,change_reason='مصوب',approved_by=user)
  assert client.post('/auctions/evaluate/',{'space_code':'9301','on_date':'1405/07/01','auction_date':'1405/08/01'}).status_code==302
  evaluation=space.auction_evaluations.get(); assert evaluation.decision=='CANDIDATE'
