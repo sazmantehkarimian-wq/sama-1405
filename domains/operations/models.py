@@ -543,7 +543,13 @@ class TimelineEvent(models.Model):
  class Meta: ordering=['-jalali_date','-occurred_at','-id']
 class Alert(models.Model):
  class Priority(models.TextChoices):LOW='LOW','کم';MEDIUM='MEDIUM','متوسط';HIGH='HIGH','زیاد';CRITICAL='CRITICAL','بحرانی'
- space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='alerts'); subject=models.CharField(max_length=255); reason=models.TextField(); effective_date=models.CharField(max_length=10,blank=True); due_date=models.CharField(max_length=10,blank=True); priority=models.CharField(max_length=20,choices=Priority.choices,default=Priority.MEDIUM); status=models.CharField(max_length=30); assigned_to=models.ForeignKey('auth.User',null=True,blank=True,on_delete=models.PROTECT,related_name='assigned_alerts'); acknowledged_at=models.DateTimeField(null=True,blank=True); target_url=models.CharField(max_length=500)
+ class Status(models.TextChoices):OPEN='OPEN','باز';RESOLVED='RESOLVED','مختومه'
+ space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='alerts'); subject=models.CharField(max_length=255); reason=models.TextField(); effective_date=models.CharField(max_length=10,blank=True); due_date=models.CharField(max_length=10,blank=True); priority=models.CharField(max_length=20,choices=Priority.choices,default=Priority.MEDIUM); status=models.CharField(max_length=30,choices=Status.choices,default=Status.OPEN); assigned_to=models.ForeignKey('auth.User',null=True,blank=True,on_delete=models.PROTECT,related_name='assigned_alerts'); acknowledged_at=models.DateTimeField(null=True,blank=True); target_url=models.CharField(max_length=500)
+ class Meta:
+  constraints=[
+   models.CheckConstraint(condition=models.Q(priority__in=['LOW','MEDIUM','HIGH','CRITICAL']),name='alert_priority_valid'),
+   models.CheckConstraint(condition=models.Q(status__in=['OPEN','RESOLVED']),name='alert_status_valid'),
+  ]
 
 class DecisionOrder(models.Model):
  space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='decisions'); decision_type=models.CharField(max_length=120); decision_date=models.CharField(max_length=10,blank=True); letter_number=models.CharField(max_length=120,blank=True); session_reference=models.CharField(max_length=255,blank=True); text=models.TextField(); review_status=models.CharField(max_length=80,blank=True)
@@ -556,7 +562,14 @@ class SourceDocumentReference(models.Model):
 
 class WorkflowInstance(models.Model):
  class State(models.TextChoices): OPEN='OPEN','باز'; DONE='DONE','تکمیل‌شده'; CANCELLED='CANCELLED','لغوشده'
- space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='workflows'); process_type=models.CharField(max_length=80); title=models.CharField(max_length=255); state=models.CharField(max_length=20,choices=State.choices,default=State.OPEN); next_action=models.CharField(max_length=255); due_date=models.CharField(max_length=10,blank=True); created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT); created_at=models.DateTimeField(auto_now_add=True); closed_at=models.DateTimeField(null=True)
+ class ProcessType(models.TextChoices):
+  CONTRACT='CONTRACT','قرارداد';APPRAISAL='APPRAISAL','کارشناسی';AUCTION='AUCTION','مزایده';COMMISSION='COMMISSION','کمیسیون';FILE='FILE','پرونده';OTHER='OTHER','سایر'
+ space=models.ForeignKey('properties.CommercialSpace',on_delete=models.PROTECT,related_name='workflows'); process_type=models.CharField(max_length=80,choices=ProcessType.choices); title=models.CharField(max_length=255); state=models.CharField(max_length=20,choices=State.choices,default=State.OPEN); next_action=models.CharField(max_length=255); due_date=models.CharField(max_length=10,blank=True); created_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT); created_at=models.DateTimeField(auto_now_add=True); closed_at=models.DateTimeField(null=True)
+ class Meta:
+  constraints=[
+   models.CheckConstraint(condition=models.Q(process_type__in=['CONTRACT','APPRAISAL','AUCTION','COMMISSION','FILE','OTHER']),name='workflow_process_type_valid'),
+   models.CheckConstraint(condition=models.Q(state__in=['OPEN','DONE','CANCELLED']),name='workflow_state_valid'),
+  ]
 
 class OperationalHistory(models.Model):
  entity_type=models.CharField(max_length=80,db_index=True); entity_id=models.CharField(max_length=80,db_index=True); action=models.CharField(max_length=80); previous_state=models.JSONField(null=True); new_state=models.JSONField(null=True); reason=models.TextField(blank=True); responsible=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT); occurred_at=models.DateTimeField(auto_now_add=True)
