@@ -19,5 +19,19 @@
 <section class="card dossier-section"><h2>سوابق کارشناسی</h2><div class="table-wrap"><table><thead><tr><th>کد کارشناسی</th><th>کد فضا</th><th>تاریخ کارشناسی</th><th>مبلغ</th><th>وضعیت</th><th>مرجع جاری</th></tr></thead><tbody>
 {% for item in appraisals %}<tr><td>{{ item.sama_code }}</td><td><a href="{% url 'space-detail' item.space.code %}">{{ item.space.code }}</a></td><td>{{ item.appraisal_date|default:'—' }}</td><td>{{ item.amount_rial|rial }}</td><td>{{ item.status|default:'ثبت نشده' }}</td><td>{% if item.is_current %}بله{% else %}خیر{% endif %}</td></tr>{% empty %}<tr><td colspan="6">هنوز کارشناسی ثبت نشده است.</td></tr>{% endfor %}
 </tbody></table></div></section>
+<section class="card dossier-section">
+<div class="page-header"><h2>حق‌الزحمه‌ها</h2><a class="button secondary compact" href="{% url 'expert-fee-dashboard' %}?q={{ appraiser.full_name }}">مشاهده در ماژول حق‌الزحمه</a></div>
+<div class="detail-grid">
+<div><small>تعداد پرونده</small><strong>{{ fee_count|fa_digits }}</strong></div>
+<div><small>پرداخت‌شده / مختومه</small><strong>{{ fee_paid_count|fa_digits }}</strong></div>
+<div><small>در دست اقدام / ارسال‌شده</small><strong>{{ fee_progress_count|fa_digits }}</strong></div>
+<div><small>آماده ارسال</small><strong>{{ fee_ready_count|fa_digits }}</strong></div>
+<div><small>جمع حق‌الزحمه</small><strong>{{ fee_total|rial }}</strong></div>
+<div><small>جمع پرداخت‌شده</small><strong>{{ fee_paid|rial }}</strong></div>
+<div><small>مانده</small><strong>{{ fee_pending|rial }}</strong></div>
+</div>
+<div class="table-wrap"><table><thead><tr><th>کد</th><th>کد فضا</th><th>مبلغ</th><th>وضعیت</th><th>ارسال</th><th>پرداخت</th></tr></thead><tbody>
+{% for fee in fees %}<tr><td>{{ fee.sama_code }}</td><td><a href="{% url 'space-detail' fee.appraisal.space.code %}">{{ fee.appraisal.space.code }}</a></td><td>{{ fee.amount_rial|rial }}</td><td>{{ fee.get_status_display }}</td><td>{{ fee.sent_to_finance_date|default:'—' }}</td><td>{{ fee.payment_date|default:'—' }}</td></tr>{% empty %}<tr><td colspan="6">هنوز حق‌الزحمه‌ای ثبت نشده است.</td></tr>{% endfor %}
+</tbody></table></div></section>
 <section class="card dossier-section"><h2>Audit Trail</h2><div class="timeline">{% for e in audit_events %}<article><time>{{ e.created_at }}</time><h3>{{ e.action }}</h3><p>{{ e.reason|default:'—' }}</p></article>{% empty %}<p class="empty">رویداد ممیزی ثبت نشده است.</p>{% endfor %}</div></section>
 {% endblock %}
