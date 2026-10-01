@@ -63,3 +63,32 @@ def test_document_upload_rejects_invalid_jalali_date(client, tmp_path, settings)
     )
     assert response.status_code == 302
     assert Document.objects.count() == 0
+
+
+
+@pytest.mark.django_db
+def test_document_archive_keeps_file_and_audits_without_hard_delete(client,tmp_path,settings):
+    settings.MEDIA_ROOT=tmp_path
+    user=get_user_model().objects.create_user("document-archive",password="A-very-safe-password")
+    client.force_login(user)
+    space=CommercialSpace.objects.create(code="8903",name="فضا",status="ACTIVE")
+    client.post("/spaces/8903/documents/",{
+        "title":"سند قابل بایگانی","document_type":"نامه","reference":"REF-1",
+        "document_date":"1405/07/10",
+        "file":SimpleUploadedFile("archive.pdf",b"%PDF-1.4\nSAMA",content_type="application/pdf"),
+    })
+    document=Document.objects.get()
+    stored_name=document.file.name
+
+    response=client.post(f"/documents/{document.pk}/archive/",{"reason":"جایگزینی با نسخه جدید"})
+    assert response.status_code==302
+    document.refresh_from_db()
+    assert document.archived_at is not None
+    assert Document.objects.filter(pk=document.pk).exists()
+    assert document.file.name==stored_name
+    event=AuditEvent.objects.get(action="DOCUMENT_ARCHIVE",entity_type="CommercialSpace",entity_id="8903")
+    assert event.reason=="جایگزینی با نسخه جدید"
+
+    dossier=client.get("/spaces/8903/").content.decode()
+    assert "بایگانی‌شده" in dossier
+    assert "REF-1" in dossier
