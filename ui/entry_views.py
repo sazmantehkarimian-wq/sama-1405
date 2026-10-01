@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
-from domains.contracts.models import Beneficiary
+from domains.contracts.models import Beneficiary, ContractCirculation, ContractSignatureStep
 from domains.identity.models import AuditEvent
 from domains.operations.models import (
     Appraiser, AppraisalFee, CommissionCase, CommissionDecision, CommissionFollowUp,
@@ -20,6 +20,11 @@ from services.commission import (
     create_case, create_case_decision, create_followup, create_session, transition_followup,
 )
 from services.contracts import assign_beneficiary, create_contract
+from services.contract_circulation import (
+    add_signature_step, close_without_contract, convert_to_contract,
+    create_circulation, final_approve, return_custody,
+    transfer_custody, transition_signature_step,
+)
 from services.mother_properties import change_mother_property_usage, transition_mother_property_correspondence
 from services.electricity import (
     create_electricity_bill, electricity_bill_issues, finalize_electricity_bill,
@@ -36,7 +41,9 @@ from ui.entry_forms import (
     AppraiserForm, AuctionInstructionForm, BeneficiaryAssignmentForm, BeneficiaryForm,
     CenterForm, CommercialSpaceForm, CommissionCaseForm, CommissionDecisionForm,
     CommissionFollowUpForm, CommissionFollowUpTransitionForm, CommissionMemberForm,
-    CommissionSessionForm, ContractEntryForm, ElectricityAllocationForm, ExpertFeeBatchForm,
+    CommissionSessionForm, ContractCirculationConversionForm, ContractCirculationCreateForm,
+    ContractCustodyTransferForm, ContractEntryForm, ContractSignatureStepCreateForm,
+    ContractSignatureTransitionForm, ElectricityAllocationForm, ExpertFeeBatchForm,
     ElectricityBillForm, MotherPropertyCorrespondenceForm, MotherPropertyForm,
     MotherPropertyNoteForm, MotherPropertyOwnershipDocumentForm, MotherPropertyOwnershipForm,
     MotherPropertyUsageForm, PropertyReferenceValueForm, RegionForm, UtilityBillForm,
@@ -1464,3 +1471,183 @@ def auction_instruction_create(request):
         "subtitle":"دستور کمیسیون، مدیر و ورود دستی مجاز هم‌تراز ثبت می‌شوند؛ تعارض مستقیم باعث REVIEW_REQUIRED می‌شود.",
         "cancel_url":"auction-workspace",
     })
+
+
+
+@login_required
+@transaction.atomic
+def contract_circulation_create(request, code):
+    space=get_object_or_404(CommercialSpace,code=code)
+    form=ContractCirculationCreateForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            case=create_circulation(
+                space=space,beneficiary=form.cleaned_data["beneficiary"],
+                subject=form.cleaned_data["subject"],operational_start_date=form.cleaned_data["operational_start_date"],
+                next_action=form.cleaned_data["next_action"],due_date=form.cleaned_data.get("due_date",""),
+                actor=request.user,ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,f"گردش قرارداد {case.identity} ایجاد شد.")
+            return redirect("contract-circulation-detail",pk=case.pk)
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":f"ایجاد گردش قرارداد — فضای {space.code}",
+        "subtitle":"گردش قرارداد با قرارداد رسمی یکی نیست؛ ثبت آن هیچ Contract رسمی ایجاد نمی‌کند.",
+        "cancel_url":"space-detail","cancel_kwargs":{"code":space.code},
+    })
+
+
+@login_required
+def contract_circulation_detail(request, pk):
+    case=get_object_or_404(
+        ContractCirculation.objects.select_related("space","beneficiary","official_contract","created_by")
+        .prefetch_related("signature_steps__document","transfers__document"),pk=pk,
+    )
+    return render(request,"ui/contract_circulation_detail.html",{
+        "case":case,
+        "custody":case.current_custody,
+        "step_form":ContractSignatureStepCreateForm(),
+        "transfer_form":ContractCustodyTransferForm(circulation=case),
+        "conversion_form":ContractCirculationConversionForm(),
+    })
+
+
+@login_required
+@transaction.atomic
+def contract_circulation_signature_add(request, pk):
+    case=get_object_or_404(ContractCirculation,pk=pk)
+    form=ContractSignatureStepCreateForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            add_signature_step(
+                circulation=case,actor=request.user,
+                role=form.cleaned_data["role"],unit=form.cleaned_data["unit"],
+                person=form.cleaned_data.get("person",""),required=form.cleaned_data.get("required",False),
+                ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            messages.error(request," ".join(exc.messages))
+        else:
+            messages.success(request,"مرحله امضا ثبت شد.")
+    return redirect("contract-circulation-detail",pk=case.pk)
+
+
+@login_required
+@transaction.atomic
+def contract_circulation_signature_transition(request, step_id):
+    step=get_object_or_404(ContractSignatureStep.objects.select_related("circulation__space"),pk=step_id)
+    form=ContractSignatureTransitionForm(request.POST or None,circulation=step.circulation)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            transition_signature_step(
+                step=step,actor=request.user,new_status=form.cleaned_data["status"],
+                note=form.cleaned_data.get("note",""),document=form.cleaned_data.get("document"),
+                ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            messages.error(request," ".join(exc.messages))
+        else:
+            messages.success(request,"وضعیت امضا ثبت شد.")
+    return redirect("contract-circulation-detail",pk=step.circulation_id)
+
+
+@login_required
+@transaction.atomic
+def contract_circulation_transfer(request, pk):
+    case=get_object_or_404(ContractCirculation,pk=pk)
+    form=ContractCustodyTransferForm(request.POST or None,circulation=case)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            transfer_custody(
+                circulation=case,actor=request.user,
+                sender=form.cleaned_data["sender"],receiver=form.cleaned_data["receiver"],
+                unit=form.cleaned_data["unit"],purpose=form.cleaned_data["purpose"],
+                next_action=form.cleaned_data["next_action"],due_date=form.cleaned_data.get("due_date",""),
+                direction=form.cleaned_data["direction"],signature_status=form.cleaned_data.get("signature_status",""),
+                document=form.cleaned_data.get("document"),ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            messages.error(request," ".join(exc.messages))
+        else:
+            messages.success(request,"تحویل گردش قرارداد ثبت شد.")
+    return redirect("contract-circulation-detail",pk=case.pk)
+
+
+@login_required
+@transaction.atomic
+def contract_circulation_return(request, pk):
+    case=get_object_or_404(ContractCirculation,pk=pk)
+    from django.core.exceptions import ValidationError
+    try:
+        return_custody(
+            circulation=case,actor=request.user,note=request.POST.get("note",""),
+            ip_address=_ip(request),
+        )
+    except ValidationError as exc:
+        messages.error(request," ".join(exc.messages))
+    else:
+        messages.success(request,"بازگشت تحویل جاری ثبت شد.")
+    return redirect("contract-circulation-detail",pk=case.pk)
+
+
+@login_required
+@transaction.atomic
+def contract_circulation_approve(request, pk):
+    case=get_object_or_404(ContractCirculation,pk=pk)
+    from django.core.exceptions import ValidationError
+    try:
+        final_approve(
+            circulation=case,actor=request.user,note=request.POST.get("note",""),
+            ip_address=_ip(request),
+        )
+    except ValidationError as exc:
+        messages.error(request," ".join(exc.messages))
+    else:
+        messages.success(request,"تأیید نهایی گردش قرارداد ثبت شد.")
+    return redirect("contract-circulation-detail",pk=case.pk)
+
+
+@login_required
+@transaction.atomic
+def contract_circulation_convert(request, pk):
+    case=get_object_or_404(ContractCirculation.objects.select_related("space","beneficiary"),pk=pk)
+    form=ContractCirculationConversionForm(request.POST or None)
+    if request.method=="POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            contract=convert_to_contract(
+                circulation=case,actor=request.user,values=form.cleaned_data,ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None," ".join(exc.messages))
+        else:
+            messages.success(request,f"قرارداد رسمی {contract.number} از گردش {case.identity} ثبت شد.")
+            return redirect("space-detail",code=case.space.code)
+    return render(request,"ui/entity_form.html",{
+        "form":form,"title":f"ثبت قرارداد رسمی از {case.identity}",
+        "subtitle":f"بهره‌بردار: {case.beneficiary.name} — کد فضا: {case.space.code}",
+        "cancel_url":"contract-circulation-detail","cancel_kwargs":{"pk":case.pk},
+    })
+
+
+@login_required
+@transaction.atomic
+def contract_circulation_close(request, pk):
+    case=get_object_or_404(ContractCirculation,pk=pk)
+    from django.core.exceptions import ValidationError
+    try:
+        close_without_contract(
+            circulation=case,actor=request.user,reason=request.POST.get("reason",""),
+            ip_address=_ip(request),
+        )
+    except ValidationError as exc:
+        messages.error(request," ".join(exc.messages))
+    else:
+        messages.success(request,"گردش بدون ایجاد قرارداد رسمی مختومه شد.")
+    return redirect("contract-circulation-detail",pk=case.pk)
