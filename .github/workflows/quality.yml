@@ -23,8 +23,9 @@ jobs:
           from domains.properties.models import MotherProperty, CommercialSpace
           from domains.contracts.models import Contract, Beneficiary
           from domains.operations.models import (
-            Appraisal, Auction, UtilityRecord, UtilityMeasurement, UtilityUnit,
-            ElectricityBill, ElectricityAllocation, ElectricityCalculationSnapshot,
+            Appraisal, Auction, UtilityRecord, UtilityConnection, UtilityBill,
+            UtilityMeasurement, UtilityUnit, ElectricityBill, ElectricityAllocation,
+            ElectricityCalculationSnapshot,
             FileMovement, TimelineEvent,
           )
           checks={
@@ -35,6 +36,8 @@ jobs:
             'appraisals':Appraisal.objects.count(),
             'auctions':Auction.objects.count(),
             'utilities':UtilityRecord.objects.count(),
+            'utility_connections':UtilityConnection.objects.count(),
+            'utility_bills':UtilityBill.objects.count(),
             'utility_units':UtilityUnit.objects.count(),
             'measurements':UtilityMeasurement.objects.count(),
             'electricity_bills':ElectricityBill.objects.count(),
