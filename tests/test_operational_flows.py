@@ -131,13 +131,14 @@ def test_auction_workspace_evaluates_and_adds_candidate_to_draft_period(client):
 
 @pytest.mark.django_db
 def test_post_go_live_contract_appraisal_amendment_and_alert_are_typed_and_audited(client):
- from domains.contracts.models import Contract,BeneficiaryAssignment,ContractAmendment
+ from domains.contracts.models import Contract,Beneficiary,BeneficiaryAssignment,ContractAmendment
  from domains.operations.models import Appraisal,Alert,TimelineEvent
  user=get_user_model().objects.create_user('daily-operator',password='A-very-safe-password')
  space=CommercialSpace.objects.create(code='9401',name='فضا',status='ACTIVE')
+ beneficiary=Beneficiary.objects.create(kind='NATURAL',name='بهره‌بردار واقعی',first_name='بهره‌بردار',last_name='واقعی',created_by=user)
  client.force_login(user)
- contract_payload={'number':'C-1405-1','beneficiary':'بهره‌بردار واقعی','signed_date':'1405/07/02','start_date':'1405/07/01','end_date':'1406/06/31','amount_rial':'1,200,000','status':'فعال','signed_state':'امضاءشده'}
- assert client.post('/spaces/9401/contracts/',contract_payload).status_code==302
+ contract_payload={'number':'C-1405-1','beneficiary':beneficiary.pk,'signed_date':'1405/07/02','start_date':'1405/07/01','end_date':'1406/06/31','amount_rial':'1200000','status':'فعال','signed_state':'امضاءشده'}
+ assert client.post('/spaces/9401/contracts/new/',contract_payload).status_code==302
  contract=Contract.objects.get(number='C-1405-1');assert not contract.is_historical and contract.created_by==user
  assert BeneficiaryAssignment.objects.filter(space=space,beneficiary=contract.beneficiary,created_by=user).exists()
  assert client.post(f'/contracts/{contract.pk}/amendments/',{'number':'A-1','effective_date':'1405/08/01','amount_change_rial':'100000','description':'تمدید تعهد'}).status_code==302
