@@ -150,8 +150,13 @@ def record_measurement(*, space, actor, values, ip_address=None):
 def upsert_electricity_allocation(*, bill, space, actor, values, ip_address=None):
     _ensure_bill_mutable(bill)
     measurement = values.get("measurement")
-    if measurement and (measurement.space_id != space.pk or measurement.utility_type != UtilityMeasurement.Type.ELECTRICITY):
-        raise ValidationError("Measurement انتخاب‌شده متعلق به این فضای تجاری و برق نیست.")
+    if measurement:
+        if measurement.space_id != space.pk or measurement.utility_type != UtilityMeasurement.Type.ELECTRICITY:
+            raise ValidationError("Measurement انتخاب‌شده متعلق به این فضای تجاری و برق نیست.")
+        if not measurement.is_valid:
+            raise ValidationError("Measurement نامعتبر نمی‌تواند مبنای محاسبه برق باشد.")
+        if measurement.period_start > bill.period_end or measurement.period_end < bill.period_start:
+            raise ValidationError("دوره Measurement با دوره قبض برق هم‌پوشانی ندارد.")
 
     override = _decimal(
         values.get("manual_override_percent"),
@@ -268,13 +273,17 @@ def recalculate_electricity_bill(*, bill, actor, ip_address=None):
     if eligible and total_weight == ZERO:
         incomplete = True
 
-    for item, weight, source, confidence in weighted:
+    calculated_running = ZERO
+    for index, (item, weight, source, confidence) in enumerate(weighted):
         if weight is None or total_weight == ZERO:
             calculated = None
+        elif index == max((pos for pos, row in enumerate(weighted) if row[1] is not None), default=-1):
+            calculated = bill.beneficiary_share_percent - calculated_running
         else:
             calculated = (
                 bill.beneficiary_share_percent * weight / total_weight
             ).quantize(PERCENT_QUANT, rounding=ROUND_HALF_UP)
+            calculated_running += calculated
         item.calculated_share_percent = calculated
         if item.manual_override_percent is not None:
             item.final_share_percent = item.manual_override_percent
