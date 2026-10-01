@@ -33,6 +33,8 @@
       <a class="button secondary" href="{% url cancel_url domain=cancel_kwargs.domain %}">انصراف</a>
     {% elif cancel_url == 'beneficiary-detail' or cancel_url == 'appraiser-detail' %}
       <a class="button secondary" href="{% url cancel_url pk=cancel_kwargs.pk %}">انصراف</a>
+    {% elif cancel_url == 'commission-session-detail' %}
+      <a class="button secondary" href="{% url cancel_url session_id=cancel_kwargs.session_id %}">انصراف</a>
     {% else %}
       <a class="button secondary" href="{% url cancel_url %}">انصراف</a>
     {% endif %}
