@@ -105,5 +105,7 @@ def test_appraiser_and_appraisal_search_support_system_codes_and_letters(client)
     )
 
     assert "سارا" in client.get("/records/appraisers/",{"q":appraiser.sama_code}).content.decode()
-    assert appraisal.sama_code in client.get("/records/appraisals/",{"q":"RESP-77"}).content.decode()
-    assert appraisal.sama_code in client.get("/records/appraisals/",{"q":"NOTIFY-55"}).content.decode()
+    response=client.get("/records/appraisals/",{"q":"RESP-77"})
+    assert response.status_code==200 and response.context["page"].paginator.count==1
+    response=client.get("/records/appraisals/",{"q":"NOTIFY-55"})
+    assert response.status_code==200 and response.context["page"].paginator.count==1
