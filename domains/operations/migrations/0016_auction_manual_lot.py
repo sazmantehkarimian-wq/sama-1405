@@ -40,7 +40,7 @@ class Migration(migrations.Migration):
             constraint=models.CheckConstraint(
                 condition=(
                     models.Q(("entry_method","EVALUATED"),("evaluation__isnull",False))
-                    | models.Q(("entry_method","MANUAL"),("manual_reason__gt",""),("manual_reference__gt",""))
+                    | (models.Q(("entry_method","MANUAL")) & ~models.Q(("manual_reason","")) & ~models.Q(("manual_reference","")))
                 ),
                 name="auction_lot_entry_evidence_required",
             ),
