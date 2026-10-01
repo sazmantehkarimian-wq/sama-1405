@@ -1,6 +1,6 @@
 from django import forms
 
-from services.dates import normalize_jalali
+from services.dates import DATE_RE, normalize_jalali
 from services.text import normalize_digits
 
 
@@ -28,7 +28,10 @@ class JalaliDateField(forms.CharField):
         value = super().to_python(value)
         if value in self.empty_values:
             return ""
+        normalized = normalize_digits(value).strip()
+        if not DATE_RE.fullmatch(normalized):
+            raise forms.ValidationError("تاریخ شمسی معتبر را دقیقاً با قالب 1405/07/01 وارد کنید.")
         try:
-            return normalize_jalali(normalize_digits(value))
+            return normalize_jalali(normalized)
         except (ValueError, TypeError):
-            raise forms.ValidationError("تاریخ شمسی معتبر را با قالب 1405/07/01 وارد کنید.")
+            raise forms.ValidationError("تاریخ شمسی معتبر را دقیقاً با قالب 1405/07/01 وارد کنید.")
