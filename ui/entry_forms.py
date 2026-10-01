@@ -2,7 +2,9 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
-from domains.contracts.models import Beneficiary, Contract
+from domains.contracts.models import (
+    Beneficiary, Contract, ContractCirculation, ContractCustodyTransfer, ContractSignatureStep,
+)
 from domains.documents.models import Document
 from domains.operations.models import (
     Appraiser, AppraisalFee, AppraisalNotification, AuctionInstruction, AuctionPeriod, CommissionDecision,
@@ -1020,4 +1022,94 @@ class AuctionInstructionForm(forms.Form):
         cleaned=super().clean()
         if cleaned.get("source")==AuctionInstruction.Source.COMMISSION and not cleaned.get("commission_decision"):
             self.add_error("commission_decision","برای دستور کمیسیون، انتخاب تصمیم کمیسیون الزامی است.")
+        return cleaned
+
+
+
+class ContractCirculationCreateForm(forms.Form):
+    beneficiary = forms.ModelChoiceField(
+        label="بهره‌بردار",
+        queryset=Beneficiary.objects.none(),
+        empty_label="انتخاب بهره‌بردار ثبت‌شده",
+    )
+    subject = forms.CharField(label="موضوع گردش قرارداد", max_length=255)
+    operational_start_date = JalaliDateField(label="تاریخ شروع عملیاتی", required=True, initial="1405/07/01")
+    next_action = forms.CharField(label="اقدام بعدی", max_length=255)
+    due_date = JalaliDateField(label="مهلت", required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["beneficiary"].queryset = Beneficiary.objects.filter(archived_at__isnull=True).order_by("name")
+
+    def clean_operational_start_date(self):
+        value = self.cleaned_data["operational_start_date"]
+        if value < "1405/07/01":
+            raise ValidationError("شروع گردش قرارداد پیش از 1405/07/01 مجاز نیست.")
+        return value
+
+
+class ContractSignatureStepCreateForm(forms.Form):
+    role = forms.CharField(label="نقش امضا", max_length=120)
+    unit = forms.CharField(label="واحد سازمانی", max_length=255)
+    person = forms.CharField(label="شخص / سمت", max_length=255, required=False)
+    required = forms.BooleanField(label="امضای الزامی", required=False, initial=True)
+
+
+class ContractSignatureTransitionForm(forms.Form):
+    status = forms.ChoiceField(label="وضعیت جدید", choices=ContractSignatureStep.Status.choices)
+    note = forms.CharField(label="شرح / علت", required=False, widget=forms.Textarea(attrs={"rows": 2}))
+    document = forms.ModelChoiceField(
+        label="سند مرتبط", queryset=Document.objects.none(), required=False, empty_label="بدون سند"
+    )
+
+    def __init__(self, *args, circulation=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if circulation:
+            self.fields["document"].queryset = Document.objects.filter(
+                entity_type="CommercialSpace",
+                entity_id=circulation.space.code,
+                archived_at__isnull=True,
+            ).order_by("-uploaded_at", "-pk")
+
+
+class ContractCustodyTransferForm(forms.Form):
+    sender = forms.CharField(label="تحویل‌دهنده", max_length=255)
+    receiver = forms.CharField(label="تحویل‌گیرنده", max_length=255)
+    unit = forms.CharField(label="واحد مقصد / محل", max_length=255)
+    purpose = forms.CharField(label="هدف تحویل", max_length=255)
+    next_action = forms.CharField(label="اقدام بعدی", max_length=255)
+    due_date = JalaliDateField(label="مهلت", required=False)
+    direction = forms.ChoiceField(label="جهت", choices=ContractCustodyTransfer.Direction.choices)
+    signature_status = forms.CharField(label="وضعیت امضا هنگام تحویل", max_length=80, required=False)
+    document = forms.ModelChoiceField(
+        label="سند مرتبط", queryset=Document.objects.none(), required=False, empty_label="بدون سند"
+    )
+
+    def __init__(self, *args, circulation=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if circulation:
+            self.fields["document"].queryset = Document.objects.filter(
+                entity_type="CommercialSpace",
+                entity_id=circulation.space.code,
+                archived_at__isnull=True,
+            ).order_by("-uploaded_at", "-pk")
+
+
+class ContractCirculationConversionForm(forms.Form):
+    number = forms.CharField(label="شماره قرارداد رسمی", max_length=120)
+    subject = forms.CharField(label="موضوع قرارداد", max_length=255, required=False)
+    signed_date = JalaliDateField(label="تاریخ امضا", required=False)
+    start_date = JalaliDateField(label="تاریخ شروع", required=True)
+    end_date = JalaliDateField(label="تاریخ پایان", required=True)
+    amount_rial = forms.DecimalField(label="مبلغ قرارداد (ریال)", required=False, min_value=0, decimal_places=0, max_digits=24)
+    investment_commitment_rial = forms.DecimalField(label="تعهد سرمایه‌گذاری (ریال)", required=False, min_value=0, decimal_places=0, max_digits=24)
+    status = forms.CharField(label="وضعیت حقوقی", max_length=80, required=False)
+    signed_state = forms.CharField(label="وضعیت امضا", max_length=80, required=False, initial="تأیید نهایی‌شده")
+    notes = forms.CharField(label="توضیحات", required=False, widget=forms.Textarea(attrs={"rows": 3}))
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("start_date"), cleaned.get("end_date")
+        if start and end and start > end:
+            self.add_error("end_date", "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد.")
         return cleaned
