@@ -1,4 +1,5 @@
 from decimal import Decimal, InvalidOperation
+from datetime import timedelta
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -41,6 +42,102 @@ def overlapping_contract(space, start_date, end_date, *, exclude_pk=None):
     if exclude_pk:
         qs = qs.exclude(pk=exclude_pk)
     return qs.order_by("start_date", "pk").first()
+
+
+def current_beneficiary_assignment(space, on_date):
+    return (
+        BeneficiaryAssignment.objects.filter(
+            space=space,
+            start_date__lte=on_date,
+        )
+        .filter(
+            transaction.models.Q(end_date="") | transaction.models.Q(end_date__gte=on_date)
+        )
+        .order_by("-start_date", "-pk")
+        .first()
+    )
+
+
+def _previous_jalali_day(value):
+    import jdatetime
+    year, month, day = (int(part) for part in value.split("/"))
+    current = jdatetime.date(year, month, day).togregorian()
+    return jdatetime.date.fromgregorian(date=current - timedelta(days=1)).strftime("%Y/%m/%d")
+
+
+@retry_locked
+@transaction.atomic
+def assign_beneficiary(*, space, beneficiary, actor, start_date, basis="", termination_reason="", ip_address=None):
+    try:
+        start = normalize_jalali(start_date)
+    except ValueError as exc:
+        raise ValidationError("تاریخ شروع ارتباط معتبر نیست.") from exc
+    if not start:
+        raise ValidationError("تاریخ شروع ارتباط الزامی است.")
+
+    existing = (
+        BeneficiaryAssignment.objects.filter(space=space, start_date__lte=start)
+        .filter(transaction.models.Q(end_date="") | transaction.models.Q(end_date__gte=start))
+        .order_by("-start_date", "-pk")
+        .first()
+    )
+    if existing and existing.beneficiary_id == beneficiary.pk:
+        raise ValidationError("این بهره‌بردار در تاریخ انتخاب‌شده رابطه جاری با فضا دارد.")
+    if existing and not termination_reason.strip():
+        raise ValidationError("برای تغییر بهره‌بردار، علت خاتمه رابطه قبلی الزامی است.")
+
+    if existing:
+        previous_end = _previous_jalali_day(start)
+        if existing.start_date and previous_end < existing.start_date:
+            raise ValidationError("تاریخ شروع رابطه جدید باید پس از شروع رابطه جاری باشد.")
+        existing.end_date = previous_end
+        existing.status = BeneficiaryAssignment.Status.ENDED
+        existing.termination_reason = termination_reason.strip()
+        existing.save(update_fields=["end_date", "status", "termination_reason"])
+
+    record = BeneficiaryAssignment.objects.create(
+        space=space,
+        beneficiary=beneficiary,
+        role="بهره‌بردار",
+        start_date=start,
+        end_date="",
+        status=BeneficiaryAssignment.Status.ACTIVE,
+        basis=normalize_persian_text(basis),
+        created_by=actor,
+    )
+    AuditEvent.objects.create(
+        actor=actor,
+        action="BENEFICIARY_ASSIGNMENT_CREATE",
+        entity_type="BeneficiaryAssignment",
+        entity_id=str(record.pk),
+        reason=termination_reason.strip(),
+        before={
+            "beneficiary_id": existing.beneficiary_id,
+            "assignment_id": existing.pk,
+        } if existing else None,
+        after={
+            "space": space.code,
+            "beneficiary_id": beneficiary.pk,
+            "start_date": start,
+            "basis": record.basis,
+        },
+        ip_address=ip_address,
+    )
+    TimelineEvent.objects.create(
+        space=space,
+        event_type="BENEFICIARY_CHANGE" if existing else "BENEFICIARY_ASSIGN",
+        jalali_date=start,
+        source_entity="BeneficiaryAssignment",
+        source_entity_id=str(record.pk),
+        title="تغییر بهره‌بردار" if existing else "ثبت بهره‌بردار",
+        description=f"بهره‌بردار: {beneficiary.name}",
+        previous_state=existing.beneficiary.name if existing else "",
+        new_state=beneficiary.name,
+        responsible_person=actor.get_full_name() or actor.username,
+        provenance="ثبت دستی کنترل‌شده در سما",
+        target_url=f"/spaces/{space.code}/",
+    )
+    return record
 
 
 @retry_locked
