@@ -108,22 +108,58 @@ class Contract(models.Model):
             models.CheckConstraint(condition=Q(investment_commitment_rial__isnull=True) | Q(investment_commitment_rial__gte=0), name="contract_investment_nonnegative"),
         ]
 
-    @property
-    def duration_days(self):
-        if not self.start_date or not self.end_date:
-            return None
+    @staticmethod
+    def _jalali(value):
         import jdatetime
         try:
-            start = jdatetime.datetime.strptime(self.start_date, "%Y/%m/%d").date().togregorian()
-            end = jdatetime.datetime.strptime(self.end_date, "%Y/%m/%d").date().togregorian()
-        except ValueError:
+            year, month, day = (int(part) for part in value.split("/"))
+            return jdatetime.date(year, month, day)
+        except (ValueError, TypeError, AttributeError):
             return None
-        return (end - start).days + 1
+
+    @property
+    def duration_days(self):
+        start = self._jalali(self.start_date)
+        end = self._jalali(self.end_date)
+        if not start or not end:
+            return None
+        return (end.togregorian() - start.togregorian()).days + 1
 
     @property
     def is_long_term(self):
         days = self.duration_days
         return days is not None and days > 365
+
+    @property
+    def remaining_days(self):
+        import jdatetime
+        end = self._jalali(self.end_date)
+        if not end:
+            return None
+        return (end.togregorian() - jdatetime.date.today().togregorian()).days
+
+    @property
+    def time_status(self):
+        import jdatetime
+        start = self._jalali(self.start_date)
+        end = self._jalali(self.end_date)
+        if not start or not end:
+            return "UNKNOWN"
+        today = jdatetime.date.today()
+        if today < start:
+            return "NOT_STARTED"
+        if today > end:
+            return "ENDED"
+        return "CURRENT"
+
+    @property
+    def time_status_label(self):
+        return {
+            "NOT_STARTED": "شروع‌نشده",
+            "CURRENT": "جاری",
+            "ENDED": "پایان‌یافته",
+            "UNKNOWN": "نیازمند بررسی",
+        }[self.time_status]
 
     def __str__(self):
         return f"{self.number} — فضای {self.space.code}"
