@@ -419,6 +419,8 @@ class UtilityUnitForm(forms.ModelForm):
         center = cleaned.get("center")
         if kind == UtilityUnit.Kind.REGION and not region:
             self.add_error("region", "برای واحد نوع منطقه، انتخاب منطقه الزامی است.")
+        if kind == UtilityUnit.Kind.REGION and center:
+            self.add_error("center", "برای واحد نوع منطقه، مرکز نباید انتخاب شود.")
         if kind == UtilityUnit.Kind.CENTER and not center:
             self.add_error("center", "برای واحد نوع مرکز خاص، انتخاب مرکز الزامی است.")
         if region and center and center.region_id and center.region_id != region.id:
