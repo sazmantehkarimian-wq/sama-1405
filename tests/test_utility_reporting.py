@@ -84,6 +84,11 @@ def test_utility_excel_export_respects_filters_and_is_excel_2019_compatible(clie
     assert "WX" not in values
     assert sheet.sheet_view.rightToLeft is True
 
+    pdf=client.get("/utilities/export.pdf",{"utility_type":"GAS"})
+    assert pdf.status_code==200
+    assert pdf["Content-Type"]=="application/pdf"
+    assert pdf.content.startswith(b"%PDF")
+
 
 @pytest.mark.django_db
 def test_water_gas_bill_can_link_existing_space_document(client,tmp_path,settings):
