@@ -10,7 +10,11 @@ from domains.operations.models import (
     ElectricityConsumptionCategory, UtilityBill, UtilityConnection, UtilityMeasurement,
     UtilityParameterRule, UtilityUnit,
 )
-from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
+from domains.properties.models import (
+    Center, CommercialSpace, MotherProperty, MotherPropertyCorrespondence,
+    MotherPropertyNote, MotherPropertyOwnership, MotherPropertyOwnershipDocument,
+    MotherPropertyUsageHistory, PropertyReferenceValue, Region,
+)
 from services.text import normalize_digits, normalize_persian_text, normalize_space_code
 from ui.fields import JalaliDateField
 
@@ -84,26 +88,46 @@ class CommercialSpaceForm(BaseNormalizedModelForm):
 
 
 class MotherPropertyForm(BaseNormalizedModelForm):
+    current_status = forms.ChoiceField(label="وضعیت جاری", choices=(), required=True)
+    center_type = forms.ChoiceField(label="نوع مرکز / مکان", choices=(), required=False)
+    primary_usage = forms.ChoiceField(label="نوع کاربری", choices=(), required=False)
+    usage_group = forms.ChoiceField(label="گروه کاربری", choices=(), required=False)
+    holder_unit = forms.ChoiceField(label="واحد / مرکز در اختیارگیرنده", choices=(), required=False)
+    ownership_document_status = forms.ChoiceField(label="وضعیت مستند مالکیت", choices=(), required=False)
+
     class Meta:
         model = MotherProperty
         fields = [
-            "identifier", "name", "region", "center_type", "primary_usage",
-            "usage_group", "area", "address", "notes",
+            "identifier", "name", "current_status", "region", "center_type",
+            "primary_usage", "usage_group", "holder_unit", "land_area", "area",
+            "address", "ownership_document_status", "owner_name", "owner_type",
+            "ownership_notes", "has_utilities", "electricity_presence",
+            "water_presence", "gas_presence", "other_utilities", "utility_notes", "notes",
         ]
         labels = {
             "identifier": "شناسه ملک مادر",
             "name": "نام ملک / مجموعه",
             "region": "منطقه شهرداری",
-            "center_type": "نوع مرکز",
-            "primary_usage": "کاربری اصلی",
-            "usage_group": "گروه کاربری",
+            "land_area": "مساحت عرصه (مترمربع)",
             "area": "مساحت اعیان (مترمربع)",
             "address": "نشانی",
-            "notes": "ملاحظات",
+            "owner_name": "مالک / دارنده سند",
+            "owner_type": "نوع مالک",
+            "ownership_notes": "توضیحات مالکیت",
+            "has_utilities": "انشعابات دارد؟",
+            "electricity_presence": "برق",
+            "water_presence": "آب",
+            "gas_presence": "گاز",
+            "other_utilities": "سایر انشعابات",
+            "utility_notes": "توضیح کوتاه انشعابات",
+            "notes": "ملاحظات پایه",
         }
         widgets = {
+            "land_area": forms.NumberInput(attrs={"min": "0", "step": "0.01", "inputmode": "decimal"}),
             "area": forms.NumberInput(attrs={"min": "0", "step": "0.01", "inputmode": "decimal"}),
             "address": forms.Textarea(attrs={"rows": 3}),
+            "ownership_notes": forms.Textarea(attrs={"rows": 3}),
+            "utility_notes": forms.Textarea(attrs={"rows": 2}),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 
@@ -111,6 +135,18 @@ class MotherPropertyForm(BaseNormalizedModelForm):
         super().__init__(*args, **kwargs)
         self.fields["region"].queryset = Region.objects.order_by("code")
         self.fields["region"].required = False
+        mapping = {
+            "current_status": PropertyReferenceValue.Category.STATUS,
+            "center_type": PropertyReferenceValue.Category.CENTER_TYPE,
+            "primary_usage": PropertyReferenceValue.Category.USAGE,
+            "usage_group": PropertyReferenceValue.Category.USAGE_GROUP,
+            "holder_unit": PropertyReferenceValue.Category.ORG_UNIT,
+            "ownership_document_status": PropertyReferenceValue.Category.OWNERSHIP_STATUS,
+        }
+        for field_name, category in mapping.items():
+            values = PropertyReferenceValue.objects.filter(category=category, active=True).order_by("sort_order", "value")
+            choices = [("", "انتخاب کنید")] + [(item.value, item.value) for item in values]
+            self.fields[field_name].choices = choices
         if self.instance and self.instance.pk:
             self.fields["identifier"].disabled = True
             self.fields["identifier"].help_text = "شناسه ملک مادر پس از ایجاد قابل تغییر نیست."
@@ -120,6 +156,187 @@ class MotherPropertyForm(BaseNormalizedModelForm):
         if not value:
             raise ValidationError("شناسه ملک مادر الزامی است.")
         return value
+
+
+class PropertyReferenceValueForm(BaseNormalizedModelForm):
+    class Meta:
+        model = PropertyReferenceValue
+        fields = ["category", "value", "sort_order", "active"]
+        labels = {
+            "category": "گروه داده مرجع",
+            "value": "عنوان",
+            "sort_order": "ترتیب نمایش",
+            "active": "فعال",
+        }
+
+    def clean_value(self):
+        value = normalize_persian_text(self.cleaned_data["value"])
+        if not value:
+            raise ValidationError("عنوان داده مرجع الزامی است.")
+        return value
+
+
+class MotherPropertyOwnershipForm(BaseNormalizedModelForm):
+    start_date = JalaliDateField(label="تاریخ شروع", required=False)
+    end_date = JalaliDateField(label="تاریخ پایان", required=False)
+
+    class Meta:
+        model = MotherPropertyOwnership
+        fields = ["owner_name", "owner_type", "share_percent", "start_date", "end_date", "basis", "notes"]
+        labels = {
+            "owner_name": "نام مالک",
+            "owner_type": "نوع مالک",
+            "share_percent": "سهم مالکیت (%)",
+            "basis": "مبنای مالکیت",
+            "notes": "توضیحات",
+        }
+        widgets = {
+            "share_percent": forms.NumberInput(attrs={"min": "0", "max": "100", "step": "0.0001", "inputmode": "decimal"}),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("start_date") and cleaned.get("end_date") and cleaned["start_date"] > cleaned["end_date"]:
+            self.add_error("end_date", "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد.")
+        return cleaned
+
+
+class MotherPropertyOwnershipDocumentForm(BaseNormalizedModelForm):
+    document_date = JalaliDateField(label="تاریخ سند / مدرک", required=False)
+
+    class Meta:
+        model = MotherPropertyOwnershipDocument
+        fields = [
+            "document_type", "document_number", "document_date", "notary_number",
+            "notary_name", "main_plate", "sub_plate", "registration_section",
+            "documented_area", "documented_owner_name", "owner_type",
+            "description", "document", "status",
+        ]
+        labels = {
+            "document_type": "نوع سند / مدرک",
+            "document_number": "شماره سند",
+            "notary_number": "شماره دفترخانه",
+            "notary_name": "نام دفترخانه",
+            "main_plate": "پلاک ثبتی اصلی",
+            "sub_plate": "پلاک ثبتی فرعی",
+            "registration_section": "بخش ثبتی",
+            "documented_area": "مساحت مندرج در سند",
+            "documented_owner_name": "نام مالک مندرج در سند",
+            "owner_type": "نوع مالک",
+            "description": "توضیحات سند",
+            "document": "فایل / مدرک بارگذاری‌شده",
+            "status": "وضعیت رکورد",
+        }
+        widgets = {
+            "documented_area": forms.NumberInput(attrs={"min": "0", "step": "0.01", "inputmode": "decimal"}),
+            "description": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, property=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["document"].queryset = Document.objects.none()
+        if property:
+            self.fields["document"].queryset = Document.objects.filter(
+                entity_type="MotherProperty", entity_id=property.identifier, archived_at__isnull=True
+            ).order_by("-uploaded_at")
+
+
+class MotherPropertyUsageForm(forms.Form):
+    usage_status = forms.ChoiceField(label="وضعیت بهره‌برداری", choices=(), required=True)
+    holder_type = forms.ChoiceField(
+        label="نوع در اختیارگیرنده", required=False,
+        choices=[("", "ثبت نشده"), ("REGION", "منطقه"), ("CENTER", "مرکز"), ("INSTITUTE", "مؤسسه"), ("ORG_UNIT", "واحد سازمانی"), ("OTHER", "سایر")],
+    )
+    holder_unit = forms.ChoiceField(label="واحد در اختیارگیرنده", choices=(), required=False)
+    beneficiary_name = forms.CharField(label="بهره‌بردار فعلی", max_length=255, required=False)
+    beneficiary_type = forms.ChoiceField(
+        label="نوع بهره‌بردار", required=False,
+        choices=[("", "ثبت نشده"), ("NATURAL", "حقیقی"), ("LEGAL", "حقوقی"), ("ORGANIZATIONAL", "سازمانی"), ("UNKNOWN", "نامشخص")],
+    )
+    start_date = JalaliDateField(label="تاریخ شروع", required=True)
+    basis = forms.CharField(label="مبنای بهره‌برداری / واگذاری", max_length=255, required=False)
+    contract_reference = forms.CharField(label="مرجع قرارداد مرتبط", max_length=255, required=False)
+    document = forms.ModelChoiceField(label="مدرک مرتبط", queryset=Document.objects.none(), required=False, empty_label="بدون مدرک")
+    termination_reason = forms.CharField(label="علت خاتمه سابقه جاری", required=False, widget=forms.Textarea(attrs={"rows": 2}))
+    notes = forms.CharField(label="توضیحات", required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, property=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        statuses = PropertyReferenceValue.objects.filter(
+            category=PropertyReferenceValue.Category.USAGE_STATUS, active=True
+        ).order_by("sort_order", "value")
+        self.fields["usage_status"].choices = [("", "انتخاب کنید")] + [(item.value, item.value) for item in statuses]
+        units = PropertyReferenceValue.objects.filter(
+            category=PropertyReferenceValue.Category.ORG_UNIT, active=True
+        ).order_by("sort_order", "value")
+        self.fields["holder_unit"].choices = [("", "ثبت نشده")] + [(item.value, item.value) for item in units]
+        if property:
+            self.fields["document"].queryset = Document.objects.filter(
+                entity_type="MotherProperty", entity_id=property.identifier, archived_at__isnull=True
+            ).order_by("-uploaded_at")
+
+
+class MotherPropertyCorrespondenceForm(BaseNormalizedModelForm):
+    document_date = JalaliDateField(label="تاریخ", required=False)
+    due_date = JalaliDateField(label="مهلت پیگیری", required=False)
+    document_type = forms.ChoiceField(
+        label="نوع مدرک / مکاتبه",
+        choices=[
+            ("INCOMING", "نامه وارده"), ("OUTGOING", "نامه صادره"), ("MINUTES", "صورتجلسه"),
+            ("AGREEMENT", "توافقنامه"), ("MOU", "تفاهم‌نامه"), ("NOTIFICATION", "ابلاغ"),
+            ("REPORT", "گزارش"), ("REQUEST", "درخواست"), ("RESPONSE", "پاسخ"),
+            ("PERMIT", "مجوز"), ("OTHER", "سایر"),
+        ],
+    )
+
+    class Meta:
+        model = MotherPropertyCorrespondence
+        fields = [
+            "document_type", "number", "document_date", "subject", "sender",
+            "recipient", "organizational_unit", "summary", "needs_follow_up",
+            "responsible", "due_date", "follow_up_status", "document", "notes",
+        ]
+        labels = {
+            "number": "شماره",
+            "subject": "موضوع",
+            "sender": "فرستنده",
+            "recipient": "گیرنده",
+            "organizational_unit": "واحد مرتبط",
+            "summary": "شرح مختصر",
+            "needs_follow_up": "نیاز به پیگیری",
+            "responsible": "مسئول پیگیری",
+            "follow_up_status": "وضعیت پیگیری",
+            "document": "فایل / مدرک",
+            "notes": "توضیحات",
+        }
+        widgets = {"summary": forms.Textarea(attrs={"rows": 2}), "notes": forms.Textarea(attrs={"rows": 2})}
+
+    def __init__(self, *args, property=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["responsible"].queryset = get_user_model().objects.filter(is_active=True).order_by("username")
+        self.fields["document"].queryset = Document.objects.none()
+        if property:
+            self.fields["document"].queryset = Document.objects.filter(
+                entity_type="MotherProperty", entity_id=property.identifier, archived_at__isnull=True
+            ).order_by("-uploaded_at")
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("needs_follow_up"):
+            if not cleaned.get("responsible"):
+                self.add_error("responsible", "برای مکاتبه نیازمند پیگیری، مسئول پیگیری الزامی است.")
+            if not cleaned.get("due_date"):
+                self.add_error("due_date", "برای مکاتبه نیازمند پیگیری، مهلت پیگیری الزامی است.")
+        return cleaned
+
+
+class MotherPropertyNoteForm(BaseNormalizedModelForm):
+    class Meta:
+        model = MotherPropertyNote
+        fields = ["subject", "text", "active"]
+        labels = {"subject": "موضوع", "text": "متن یادداشت", "active": "فعال / قابل نمایش"}
+        widgets = {"text": forms.Textarea(attrs={"rows": 3})}
 
 
 class RegionForm(BaseNormalizedModelForm):
