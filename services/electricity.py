@@ -2,6 +2,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from domains.identity.models import AuditEvent
@@ -9,7 +10,7 @@ from domains.operations.models import (
     ElectricityAllocation,
     ElectricityBill,
     ElectricityCalculationSnapshot,
-    UtilityMeasurement,
+    UtilityMeasurement, UtilityParameterRule,
 )
 from services.database import retry_locked
 from services.dates import normalize_jalali
@@ -103,6 +104,56 @@ def create_electricity_bill(*, unit, actor, values, document=None, ip_address=No
 
 @retry_locked
 @transaction.atomic
+def update_electricity_bill(*, bill, actor, values, reason, ip_address=None):
+    _ensure_bill_mutable(bill)
+    if not actor.is_staff:
+        raise PermissionDenied("ویرایش مبلغ و درصدهای قبض فقط برای کاربر مجاز امکان‌پذیر است.")
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValidationError("علت اصلاح قبض الزامی است.")
+
+    amount = _decimal(values.get("amount_rial"), "مبلغ قبض")
+    beneficiary_share = _decimal(values.get("beneficiary_share_percent"), "درصد سهم بهره‌برداران", max_value=HUNDRED)
+    organization_share = _decimal(values.get("organization_share_percent"), "درصد سهم سازمان", max_value=HUNDRED)
+    if beneficiary_share + organization_share != HUNDRED:
+        raise ValidationError("جمع سهم بهره‌برداران و سازمان باید دقیقاً ۱۰۰٪ باشد.")
+
+    before = {
+        "amount_rial": str(bill.amount_rial),
+        "beneficiary_share_percent": str(bill.beneficiary_share_percent),
+        "organization_share_percent": str(bill.organization_share_percent),
+        "status": bill.status,
+    }
+    bill.amount_rial = amount
+    bill.beneficiary_share_percent = beneficiary_share
+    bill.organization_share_percent = organization_share
+    bill.notes = (values.get("notes") or bill.notes or "").strip()
+    bill.save(update_fields=[
+        "amount_rial", "beneficiary_share_percent", "organization_share_percent",
+        "notes", "updated_at",
+    ])
+    recalculate_electricity_bill(bill=bill, actor=actor, ip_address=ip_address)
+    bill.refresh_from_db()
+    AuditEvent.objects.create(
+        actor=actor,
+        action="ELECTRICITY_BILL_UPDATE",
+        entity_type="ElectricityBill",
+        entity_id=str(bill.pk),
+        reason=reason,
+        before=before,
+        after={
+            "amount_rial": str(bill.amount_rial),
+            "beneficiary_share_percent": str(bill.beneficiary_share_percent),
+            "organization_share_percent": str(bill.organization_share_percent),
+            "status": bill.status,
+        },
+        ip_address=ip_address,
+    )
+    return bill
+
+
+@retry_locked
+@transaction.atomic
 def record_measurement(*, space, actor, values, ip_address=None):
     period_start = _date(values.get("period_start"))
     period_end = _date(values.get("period_end"))
@@ -165,6 +216,8 @@ def upsert_electricity_allocation(*, bill, space, actor, values, ip_address=None
         max_value=HUNDRED,
     )
     override_reason = (values.get("override_reason") or "").strip()
+    if override is not None and not actor.is_staff:
+        raise PermissionDenied("اصلاح دستی درصد سهم فقط برای کاربر مجاز امکان‌پذیر است.")
     if override is not None and not override_reason:
         raise ValidationError("برای سهم دستی، ثبت علت Override الزامی است.")
 
@@ -368,6 +421,27 @@ def _snapshot_payload(bill):
             "confidence_level": item.confidence_level,
             "override_reason": item.override_reason,
         })
+    rules = []
+    effective_rules = UtilityParameterRule.objects.filter(
+        active=True,
+        effective_from__lte=bill.period_end,
+    ).filter(
+        Q(effective_to="") | Q(effective_to__gte=bill.period_start)
+    ).order_by("key", "-effective_from", "-id")
+    seen = set()
+    for rule in effective_rules:
+        if rule.key in seen:
+            continue
+        seen.add(rule.key)
+        rules.append({
+            "key": rule.key,
+            "label": rule.label,
+            "value_decimal": str(rule.value_decimal) if rule.value_decimal is not None else None,
+            "value_text": rule.value_text,
+            "unit": rule.unit,
+            "effective_from": rule.effective_from,
+            "effective_to": rule.effective_to,
+        })
     return {
         "bill": {
             "code": bill.sama_code,
@@ -380,6 +454,7 @@ def _snapshot_payload(bill):
             "organization_amount_rial": str(bill.organization_amount_rial),
         },
         "allocations": allocations,
+        "effective_rules": rules,
     }
 
 
