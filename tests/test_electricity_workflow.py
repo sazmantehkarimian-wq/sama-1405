@@ -20,6 +20,7 @@ from services.electricity import (
     record_measurement,
     recalculate_electricity_bill,
     reopen_electricity_bill,
+    update_electricity_bill,
     upsert_electricity_allocation,
 )
 
@@ -272,3 +273,40 @@ def test_measurement_outside_bill_period_cannot_be_used(electricity_context):
             bill=bill,space=s1,actor=user,
             values={"eligible":True,"measurement":measurement},
         )
+
+
+@pytest.mark.django_db
+def test_bill_share_update_is_authorized_audited_and_recalculates(electricity_context):
+    user,unit,s1,_=electricity_context
+    user.is_staff=True;user.save(update_fields=["is_staff"])
+    bill=create_electricity_bill(
+        unit=unit,actor=user,
+        values={
+            "period_start":"1406/01/01","period_end":"1406/01/31",
+            "amount_rial":"1000000","beneficiary_share_percent":"60",
+            "organization_share_percent":"40",
+        },
+    )
+    upsert_electricity_allocation(
+        bill=bill,space=s1,actor=user,
+        values={"eligible":True,"effective_area":"100","eui":"1"},
+    )
+    update_electricity_bill(
+        bill=bill,actor=user,
+        values={
+            "amount_rial":"2000000",
+            "beneficiary_share_percent":"70",
+            "organization_share_percent":"30",
+            "notes":"اصلاح مصوب",
+        },
+        reason="نامه اصلاح سهم",
+    )
+    bill.refresh_from_db()
+    allocation=ElectricityAllocation.objects.get(bill=bill,space=s1)
+    assert bill.amount_rial==Decimal("2000000")
+    assert bill.beneficiary_share_percent==Decimal("70")
+    assert allocation.final_share_percent==Decimal("70.0000")
+    assert allocation.payable_amount_rial==Decimal("1400000")
+    event=AuditEvent.objects.get(action="ELECTRICITY_BILL_UPDATE",entity_id=str(bill.pk))
+    assert event.reason=="نامه اصلاح سهم"
+    assert event.before["beneficiary_share_percent"]=="60.0000"
