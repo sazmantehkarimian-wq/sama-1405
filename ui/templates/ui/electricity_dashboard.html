@@ -1,0 +1,57 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}برق{% endblock %}
+{% block section_class %}section-utilities{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>برق</h1><p>مدل مصوب تخصیص و محاسبه برق</p></div>
+  <div class="button-row">
+    <a class="button emphasized compact" href="{% url 'electricity-bill-create' %}">ثبت قبض برق</a>
+    {% if user.is_staff %}<a class="button secondary compact" href="{% url 'utility-unit-create' %}">تعریف واحد</a>{% endif %}
+  </div>
+</div>
+<div class="kpi-grid">
+  <a class="card kpi" href="#bills"><small>تعداد قبوض</small><strong>{{ bill_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?status=FINAL#bills"><small>نهایی</small><strong>{{ final_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?status=REVIEW_REQUIRED#bills"><small>نیازمند بررسی</small><strong>{{ review_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="#bills"><small>مبلغ کل ثبت‌شده</small><strong>{{ total_amount|rial }}</strong></a>
+</div>
+
+{% if user.is_staff %}
+<section class="card dossier-section">
+  <h2>Reference Data برق</h2>
+  <p class="helper">دسته‌های مصرف و EUI از داده مرجع ثبت می‌شوند و داخل کد Hard-code نشده‌اند.</p>
+  <form class="inline-form" method="post" action="{% url 'electricity-category-create' %}">
+    {% csrf_token %}
+    <label>نام دسته مصرف<input name="name" required></label>
+    <label>EUI<input name="eui" inputmode="decimal"></label>
+    <label>تاریخ اثر<input name="effective_from" placeholder="1405/07/01"></label>
+    <label>توضیحات<input name="notes"></label>
+    <button>ثبت دسته مصرف</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card dossier-section" id="bills">
+  <h2>قبوض برق</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کد قبض</th><th>واحد</th><th>دوره</th><th>مبلغ</th><th>سهم بهره‌برداران</th><th>سهم سازمان</th><th>فضاهای مشمول</th><th>وضعیت</th><th>اقدام</th></tr></thead>
+    <tbody>
+    {% for bill in bills %}
+      <tr>
+        <td>{{ bill.sama_code }}</td>
+        <td>{{ bill.unit.name }}</td>
+        <td>{{ bill.period_start }} تا {{ bill.period_end }}</td>
+        <td>{{ bill.amount_rial|rial }}</td>
+        <td>{{ bill.beneficiary_share_percent|fa_digits }}٪</td>
+        <td>{{ bill.organization_share_percent|fa_digits }}٪</td>
+        <td>{{ bill.allocations.all|length|fa_digits }}</td>
+        <td>{{ bill.get_status_display }}</td>
+        <td><a class="button compact" href="{% url 'electricity-bill-detail' bill.pk %}">مشاهده پرونده</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="9">هنوز قبض برق ثبت نشده است.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}
