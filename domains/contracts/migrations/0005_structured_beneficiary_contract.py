@@ -40,7 +40,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(model_name="contract", name="number", field=models.CharField(db_index=True,max_length=120)),
         migrations.AlterField(model_name="contract", name="start_date", field=models.CharField(max_length=10)),
         migrations.AlterField(model_name="contract", name="end_date", field=models.CharField(max_length=10)),
-        migrations.AlterField(model_name="contract", name="amount_rial", field=models.DecimalField(blank=True,decimal_places=0,max_digits=24,null=True,validators=[django.core.validators.MinValueValidator(Decimal("0"))])),
+        migrations.AlterField(model_name="contract", name="amount_rial", field=models.DecimalField(blank=True,decimal_places=0,max_digits=24,null=True)),
         migrations.AlterField(model_name="contract", name="investment_commitment_rial", field=models.DecimalField(blank=True,decimal_places=0,max_digits=24,null=True,validators=[django.core.validators.MinValueValidator(Decimal("0"))])),
         migrations.AddField(model_name="contract", name="subject", field=models.CharField(blank=True,max_length=255)),
         migrations.AddField(model_name="contract", name="notes", field=models.TextField(blank=True)),
