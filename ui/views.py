@@ -14,7 +14,7 @@ from domains.operations.models import Appraiser, Appraisal, AppraisalFee, Auctio
 from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from services.file_movement import current_holder
-from reporting.engine import excel,docx,pdf,tabular_excel
+from reporting.engine import excel,docx,pdf,tabular_excel,tabular_pdf
 from ui.forms import PersianPasswordChangeForm
 from core.uat import is_fixed_uat_admin
 from services.money import format_rial
@@ -106,6 +106,25 @@ def utility_bills_excel(request):
   tabular_excel('قبوض آب و گاز',labels,data()),
   content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   headers={'Content-Disposition':'attachment; filename="utility-bills.xlsx"'},
+ )
+
+
+@login_required
+def utility_bills_pdf(request):
+ qs=_filtered_utility_bills(request.GET)
+ labels=['نوع انشعاب','کد فضا','شماره اشتراک','دوره','مبلغ قبض (ریال)','مصرف','وضعیت پرداخت','Measurement']
+ def data():
+  for item in qs[:5000]:
+   yield [
+    item.connection.get_utility_type_display(),item.connection.space.code,item.connection.account_number,
+    f'{item.period_start} تا {item.period_end}',item.amount_rial,
+    item.consumption if item.consumption is not None else '—',item.get_payment_status_display(),
+    f'{item.measurement.consumption} {item.measurement.measurement_unit}' if item.measurement_id else '—',
+   ]
+ return HttpResponse(
+  tabular_pdf('گزارش قبوض آب، گاز و سایر انشعابات',labels,data()),
+  content_type='application/pdf',
+  headers={'Content-Disposition':'attachment; filename="utility-bills.pdf"'},
  )
 
 
@@ -201,6 +220,25 @@ def expert_fees_excel(request):
   tabular_excel('حق‌الزحمه کارشناسان',labels,data()),
   content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   headers={'Content-Disposition':'attachment; filename="expert-fees.xlsx"'},
+ )
+
+
+@login_required
+def expert_fees_pdf(request):
+ qs=_filtered_expert_fees(request.GET)
+ labels=['کد حق‌الزحمه','کد کارشناسی','کد فضا','کارشناس','مبلغ حق‌الزحمه (ریال)','وضعیت','ارسال به مالی','شماره نامه / گردش','تاریخ پرداخت','مبلغ پرداخت‌شده (ریال)','مرجع پرداخت']
+ def data():
+  for item in qs[:5000]:
+   yield [
+    item.sama_code,item.appraisal.sama_code,item.appraisal.space.code,item.appraisal.appraiser_display,
+    item.amount_rial,item.get_status_display(),item.sent_to_finance_date or '—',item.letter_number or '—',
+    item.payment_date or '—',item.paid_amount_rial if item.paid_amount_rial is not None else '—',
+    item.payment_reference or '—',
+   ]
+ return HttpResponse(
+  tabular_pdf('گزارش حق‌الزحمه کارشناسان',labels,data()),
+  content_type='application/pdf',
+  headers={'Content-Disposition':'attachment; filename="expert-fees.pdf"'},
  )
 
 
