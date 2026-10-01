@@ -1,0 +1,63 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}{{ session.sama_code }}{% endblock %}
+{% block section_class %}section-auctions{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p><a href="{% url 'commission-workspace' %}">کمیسیون معاملات</a> / جلسه</p><h1>{{ session.title }}</h1><p>{{ session.sama_code }}{% if session.number %} — جلسه {{ session.number }}{% endif %}</p></div>
+  <div class="button-row"><span class="badge">{{ session.get_status_display }}</span><a class="button emphasized compact" href="{% url 'commission-case-create' session.pk %}">افزودن موضوع</a></div>
+</div>
+
+<section class="card dossier-section">
+  <h2>اطلاعات جلسه</h2>
+  <div class="detail-grid">
+    <div><small>تاریخ</small><strong>{{ session.session_date }}</strong></div>
+    <div><small>ساعت</small><strong>{{ session.session_time|default:'ثبت نشده' }}</strong></div>
+    <div><small>محل</small><strong>{{ session.location|default:'ثبت نشده' }}</strong></div>
+    <div><small>ثبت‌کننده</small><strong>{{ session.created_by }}</strong></div>
+    <div><small>شرح کلی</small><strong>{{ session.description|default:'ثبت نشده' }}</strong></div>
+    <div><small>ملاحظات</small><strong>{{ session.notes|default:'ثبت نشده' }}</strong></div>
+  </div>
+</section>
+
+<section class="card dossier-section">
+  <h2>اعضای حاضر / Snapshot جلسه</h2>
+  <div class="table-wrap"><table><thead><tr><th>نام</th><th>سمت</th><th>نقش</th><th>حضور</th><th>ترتیب امضا</th></tr></thead><tbody>
+  {% for member in session.member_snapshots.all %}<tr><td>{{ member.name }}</td><td>{{ member.position|default:'—' }}</td><td>{{ member.role|default:'—' }}</td><td>{% if member.present %}حاضر{% else %}غایب{% endif %}</td><td>{{ member.sign_order|fa_digits }}</td></tr>{% empty %}<tr><td colspan="5">Snapshot عضوی ثبت نشده است.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+{% for case in session.cases.all %}
+<section class="card dossier-section">
+  <div class="page-header"><div><h2>{{ case.sama_code }} — {{ case.title }}</h2><p>{{ case.get_status_display }} — وضعیت تکمیل: {{ case.completeness_status }}</p></div><a class="button emphasized compact" href="{% url 'commission-case-decision-create' case.pk %}">ثبت تصمیم</a></div>
+  {% if case.description %}<p>{{ case.description }}</p>{% endif %}
+  <div class="detail-grid">
+    <div><small>نوع موضوع</small><strong>{{ case.case_type|default:'ثبت نشده' }}</strong></div>
+    <div><small>مرجع ارجاع</small><strong>{{ case.referral_reference|default:'ثبت نشده' }}</strong></div>
+    <div><small>مسئول پیگیری</small><strong>{{ case.responsible|default:'ثبت نشده' }}</strong></div>
+    <div><small>مهلت</small><strong>{{ case.follow_up_due_date|default:'ثبت نشده' }}</strong></div>
+  </div>
+  <p><strong>فضاها:</strong> {% for x in case.spaces.all %}<a href="{% url 'space-detail' x.code %}">{{ x.code }}</a>{% if not forloop.last %}، {% endif %}{% empty %}—{% endfor %}</p>
+  <p><strong>قراردادها:</strong> {% for x in case.contracts.all %}{{ x.number }}{% if not forloop.last %}، {% endif %}{% empty %}—{% endfor %}</p>
+  <p><strong>بهره‌برداران:</strong> {% for x in case.beneficiaries.all %}<a href="{% url 'beneficiary-detail' x.pk %}">{{ x.name }}</a>{% if not forloop.last %}، {% endif %}{% empty %}—{% endfor %}</p>
+
+  {% for decision in case.decisions.all %}
+  <article class="record-block">
+    <div class="page-header"><div><h3>{{ decision.sama_code }} — {{ decision.decision_type|default:'تصمیم کمیسیون' }}</h3><p>{{ decision.decision_date }} — {{ decision.get_execution_status_display }}</p></div><a class="button secondary compact" href="{% url 'commission-followup-create' decision.pk %}">ثبت پیگیری</a></div>
+    <p><strong>متن رسمی:</strong> {{ decision.decision }}</p>
+    {% if decision.result %}<p><strong>نتیجه:</strong> {{ decision.result }}</p>{% endif %}
+    <p>مسئول: {{ decision.responsible|default:'ثبت نشده' }} — مهلت: {{ decision.due_date|default:'ثبت نشده' }}</p>
+    {% for followup in decision.followups.all %}
+      <details><summary>{{ followup.get_status_display }} — {{ followup.required_action }}</summary>
+        <p>واحد مسئول: {{ followup.responsible_unit|default:'—' }} — مهلت: {{ followup.due_date|default:'—' }} — مسئول: {{ followup.responsible|default:'—' }}</p>
+        {% if followup.result %}<p>نتیجه: {{ followup.result }}</p>{% endif %}
+        <p><a class="button compact" href="{% url 'commission-followup-transition' followup.pk %}">تغییر وضعیت</a></p>
+        <div class="timeline">{% for h in followup.history.all %}<article><time>{{ h.changed_at }}</time><h4>{{ h.previous_status|default:'شروع' }} ← {{ h.get_new_status_display }}</h4><p>{{ h.note|default:'—' }}</p></article>{% endfor %}</div>
+      </details>
+    {% empty %}<p class="empty">پیگیری مستقلی برای این تصمیم ثبت نشده است.</p>{% endfor %}
+  </article>
+  {% empty %}<p class="empty">برای این موضوع هنوز تصمیمی ثبت نشده است.</p>{% endfor %}
+</section>
+{% empty %}
+<section class="card"><p class="empty">هنوز موضوعی برای این جلسه ثبت نشده است.</p></section>
+{% endfor %}
+{% endblock %}
