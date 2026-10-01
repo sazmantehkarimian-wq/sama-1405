@@ -34,7 +34,7 @@ def space_list(request):
  return render(request,'ui/space_list.html',{'page':page,'regions':Region.objects.all(),'centers':Center.objects.filter(is_special=True),'total':qs.count(),'dataset_total':CommercialSpace.objects.count(),'saved_filters':SavedFilter.objects.filter(owner=request.user,domain='spaces'),'visible_columns':visible})
 @login_required
 def space_detail(request,code):
- s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','contracts__beneficiary','beneficiary_assignments__beneficiary','appraisals__fee__supporting_document','auctions','utilities__supporting_document','utility_obligations','decisions','commission_decisions__spaces','timeline__document','alerts__assigned_to','file_movements','workflows','source_documents','property_links__mother_property'),code=code)
+ s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','contracts__beneficiary','beneficiary_assignments__beneficiary','appraisals__fee__supporting_document','auctions','utilities__supporting_document','utility_obligations','decisions','commission_decisions__spaces','timeline__document','alerts__assigned_to','file_movements','workflows','source_documents'),code=code)
  timeline=s.timeline.all();event_type=request.GET.get('event_type','').strip()
  if event_type:timeline=timeline.filter(event_type=event_type)
  event_types=s.timeline.order_by().values_list('event_type',flat=True).distinct()
