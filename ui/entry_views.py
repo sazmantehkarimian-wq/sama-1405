@@ -13,7 +13,8 @@ from domains.properties.models import Center, CommercialSpace, MotherProperty, R
 from services.contracts import assign_beneficiary, create_contract
 from services.electricity import (
     create_electricity_bill, finalize_electricity_bill, record_measurement,
-    recalculate_electricity_bill, reopen_electricity_bill, upsert_electricity_allocation,
+    recalculate_electricity_bill, reopen_electricity_bill, update_electricity_bill,
+    upsert_electricity_allocation,
 )
 from services.operations import create_appraisal
 from ui.entry_forms import (
@@ -810,4 +811,27 @@ def electricity_reopen(request, bill_id):
         messages.error(request, " ".join(exc.messages))
     else:
         messages.success(request, "محاسبه نهایی با ثبت علت بازگشایی شد.")
+    return redirect("electricity-bill-detail", bill_id=bill.pk)
+
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+@transaction.atomic
+def electricity_bill_update(request, bill_id):
+    from django.core.exceptions import ValidationError
+    bill = get_object_or_404(ElectricityBill, pk=bill_id)
+    if request.method == "POST":
+        try:
+            update_electricity_bill(
+                bill=bill,
+                actor=request.user,
+                values=request.POST,
+                reason=request.POST.get("reason", ""),
+                ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+        else:
+            messages.success(request, "مبلغ و درصدهای قبض با ثبت Audit اصلاح شد.")
     return redirect("electricity-bill-detail", bill_id=bill.pk)
