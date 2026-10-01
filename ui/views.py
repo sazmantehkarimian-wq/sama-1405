@@ -377,7 +377,7 @@ def delete_space_filter(request,filter_id):
  return redirect('space-list')
 
 DOMAIN_LISTS={
- 'properties':('املاک مادر',MotherProperty.objects.select_related('region'),(('identifier','شناسه ملک'),('name','نام'),('region.name','منطقه'),('primary_usage','کاربری'),('area','مساحت'))),
+ 'properties':('املاک مادر',MotherProperty.objects.select_related('region'),(('identifier','شناسه ملک'),('name','نام'),('current_status','وضعیت جاری'),('region.name','منطقه'),('primary_usage','کاربری'),('area','مساحت اعیان'),('ownership_document_status','وضعیت مالکیت'),('completeness_status','تکمیل پرونده'))),
  'discrepancies':('بررسی مغایرت‌های داده',Discrepancy.objects.select_related('assigned_to'),(('entity_key','شناسه رکورد'),('field_key','فیلد'),('observed_value','مقدار موجود'),('expected_value','مقدار مورد انتظار'),('reason','علت'),('severity','اهمیت'),('status','وضعیت'))),
  'contracts':('قراردادها',Contract.objects.select_related('space','beneficiary'),(('number','شماره'),('space.code','کد فضا'),('beneficiary.name','بهره‌بردار'),('start_date','شروع'),('end_date','پایان'),('time_status_label','وضعیت زمانی'),('remaining_days','روزهای باقی‌مانده'),('amount_rial','مبلغ (ریال)'),('status','وضعیت حقوقی'))),
  'beneficiaries':('بهره‌برداران',Beneficiary.objects.all(),(('sama_code','کد بهره‌بردار'),('name','نام / عنوان'),('identity_number','کد ملی / شناسه ملی'),('kind','نوع'),('completeness_status','وضعیت تکمیل'))),
@@ -410,6 +410,12 @@ def _system_pk(query,prefix):
 
 def _search_domain(qs,domain,q):
  if not q:return qs
+ if domain=='properties':
+  return qs.filter(
+   Q(identifier__iexact=q)|Q(name__icontains=q)|Q(region__name__icontains=q)|
+   Q(primary_usage__icontains=q)|Q(usage_group__icontains=q)|Q(address__icontains=q)|
+   Q(owner_name__icontains=q)|Q(holder_unit__icontains=q)
+  )
  if domain=='contracts':
   return qs.filter(Q(number__icontains=q)|Q(space__code__iexact=q)|Q(space__name__icontains=q)|Q(beneficiary__name__icontains=q)|Q(beneficiary__identity_number__iexact=q))
  if domain=='appraisers':
@@ -729,6 +735,9 @@ def archive_document_view(request,document_id):
   messages.success(request,'سند بدون حذف فیزیکی بایگانی شد.')
  if document.entity_type=='CommercialSpace':
   return redirect('space-detail',code=document.entity_id)
+ if document.entity_type=='MotherProperty':
+  item=MotherProperty.objects.filter(identifier=document.entity_id).first()
+  if item:return redirect('mother-property-detail',pk=item.pk)
  return redirect('domain-list',domain='documents')
 
 @login_required
