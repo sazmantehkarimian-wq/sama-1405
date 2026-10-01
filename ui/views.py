@@ -26,12 +26,21 @@ def dashboard(request):
  context={'space_count':spaces.count(),'active_count':active.count(),'inactive_count':spaces.filter(status='OUT_OF_CYCLE').count(),'property_count':MotherProperty.objects.count(),'discrepancy_count':Discrepancy.objects.exclude(status='RESOLVED').count(),'contract_count':Contract.objects.count(),'appraisal_count':Appraisal.objects.count(),'alert_count':Alert.objects.exclude(status='RESOLVED').count(),'without_contract_count':active.filter(contracts__isnull=True).count(),'without_appraisal_count':active.filter(appraisals__isnull=True).count(),'open_workflow_count':WorkflowInstance.objects.filter(state='OPEN').count(),'region_rows':region_rows}
  return render(request,'ui/dashboard.html',context)
 @login_required
-def space_list(request):
- qs=filter_spaces(request.GET);page=Paginator(qs,25).get_page(request.GET.get('page'))
- allowed_columns={'name','status','region','usage','area'}
+def space_list(request,status_scope=None):
+ qs=filter_spaces(request.GET)
+ if status_scope in CommercialSpace.Status.values: qs=qs.filter(status=status_scope)
+ page=Paginator(qs,25).get_page(request.GET.get('page'))
+ allowed_columns={'name','status','region','usage','area','beneficiary','contract','contract_end'}
  requested=set(request.GET.getlist('column')) & allowed_columns
  visible=requested or allowed_columns
- return render(request,'ui/space_list.html',{'page':page,'regions':Region.objects.all(),'centers':Center.objects.filter(is_special=True),'total':qs.count(),'dataset_total':CommercialSpace.objects.count(),'saved_filters':SavedFilter.objects.filter(owner=request.user,domain='spaces'),'visible_columns':visible})
+ opposite=None
+ candidate=(request.GET.get('code') or request.GET.get('q') or '').strip()
+ if status_scope and candidate.isdigit() and not qs.filter(code=candidate).exists():
+  opposite=CommercialSpace.objects.filter(code=candidate).exclude(status=status_scope).first()
+ title='فضاهای تجاری'
+ if status_scope=='ACTIVE': title='فضاهای تجاری فعال'
+ elif status_scope=='OUT_OF_CYCLE': title='فضاهای تجاری از دور خارج‌شده'
+ return render(request,'ui/space_list.html',{'page':page,'regions':Region.objects.all(),'centers':Center.objects.filter(is_special=True),'total':qs.count(),'dataset_total':CommercialSpace.objects.filter(status=status_scope).count() if status_scope else CommercialSpace.objects.count(),'saved_filters':SavedFilter.objects.filter(owner=request.user,domain='spaces'),'visible_columns':visible,'status_scope':status_scope,'page_title':title,'opposite_space':opposite})
 @login_required
 def space_detail(request,code):
  s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','contracts__beneficiary','beneficiary_assignments__beneficiary','appraisals__fee__supporting_document','auctions','utilities__supporting_document','utility_obligations','decisions','commission_decisions__spaces','timeline__document','alerts__assigned_to','file_movements','workflows','source_documents'),code=code)
