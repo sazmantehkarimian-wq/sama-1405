@@ -1,9 +1,11 @@
 """Canonical CommercialSpace query/filter implementation used by UI and exports."""
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Q
+from django.db.models import OuterRef, Q, Subquery
 
+from domains.contracts.models import Contract
 from domains.properties.models import CommercialSpace
+from services.dates import today_jalali
 
 
 TEXT_OPERATORS = {"contains": "icontains", "equals": "iexact", "starts": "istartswith"}
@@ -32,7 +34,26 @@ def _text_q(field, value, operator):
 
 
 def filter_spaces(params):
-    qs = CommercialSpace.objects.select_related("region", "center").all()
+    today = today_jalali()
+    current_contracts = (
+        Contract.objects.filter(
+            space=OuterRef("pk"),
+            start_date__lte=today,
+            end_date__gte=today,
+        )
+        .exclude(status__in=["باطل", "فسخ‌شده"])
+        .order_by("-start_date", "-pk")
+    )
+    qs = (
+        CommercialSpace.objects.select_related("region", "center")
+        .annotate(
+            current_beneficiary_name=Subquery(current_contracts.values("beneficiary__name")[:1]),
+            current_contract_number=Subquery(current_contracts.values("number")[:1]),
+            current_contract_start=Subquery(current_contracts.values("start_date")[:1]),
+            current_contract_end=Subquery(current_contracts.values("end_date")[:1]),
+        )
+        .all()
+    )
     q = params.get("q", "").strip()
     if q:
         qs = qs.filter(
