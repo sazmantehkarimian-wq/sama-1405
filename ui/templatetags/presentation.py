@@ -34,7 +34,7 @@ _EVENT_LABELS = {
     'CONTRACT_AMENDMENT':'ثبت الحاقیه','APPRAISAL_CREATE':'ثبت کارشناسی','APPRAISAL_FEE_CREATE':'ثبت حق‌الزحمه',
     'UTILITY_RECORD_CREATE':'ثبت مصرف','WORKFLOW_CREATE':'ایجاد فرایند','WORKFLOW_TRANSITION':'تغییر فرایند',
     'COMMISSION_CREATE':'تصمیم کمیسیون','COMMISSION_TRANSITION':'تغییر تصمیم کمیسیون','ALERT_CREATE':'ثبت مورد پیگیری',
-    'ALERT_RESOLVE':'مختومه‌سازی مورد پیگیری','FILE_MOVEMENT_CREATE':'گردش فیزیکی پرونده','SPACE_STATUS_TRANSITION':'تغییر وضعیت فضا',
+    'ALERT_RESOLVE':'مختومه‌سازی مورد پیگیری','FILE_MOVEMENT_CREATE':'تحویل فیزیکی پرونده','FILE_MOVEMENT_RETURN':'بازگشت پرونده','SPACE_STATUS_TRANSITION':'تغییر وضعیت فضا',
     'AUCTION_EVALUATE':'بررسی آمادگی مزایده','AUCTION_LOT_ADD':'افزودن به دوره مزایده',
     'DOCUMENT_UPLOAD':'بارگذاری سند',
 }
