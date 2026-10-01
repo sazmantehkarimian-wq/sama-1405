@@ -1,0 +1,66 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}انشعابات و مصرف{% endblock %}
+{% block section_class %}section-utilities{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>انشعابات و مصرف</h1><p>گزارش عملیاتی آب، گاز و سایر انشعابات — برق در زیرسامانه تخصصی مستقل مدیریت می‌شود.</p></div>
+  <div class="button-row">
+    <a class="button emphasized compact" href="{% url 'electricity-dashboard' %}">زیرسامانه برق</a>
+    <a class="button secondary compact" href="{% url 'utility-bills-excel' %}?{{ request.GET.urlencode }}">خروجی رسمی اکسل</a>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <a class="card kpi" href="#utility-bills"><small>قبوض مطابق فیلتر</small><strong>{{ bill_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="#utility-bills"><small>اشتراک‌های دارای قبض</small><strong>{{ connection_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?utility_type=WATER#utility-bills"><small>قبوض آب</small><strong>{{ water_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?utility_type=GAS#utility-bills"><small>قبوض گاز</small><strong>{{ gas_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="?measurement=yes#utility-bills"><small>دارای Measurement</small><strong>{{ measurement_count|fa_digits }}</strong></a>
+  <a class="card kpi" href="#utility-bills"><small>جمع مبلغ</small><strong>{{ total_amount|rial }}</strong></a>
+</div>
+
+<form class="card filter-panel" method="get">
+  <div class="filter-panel-header"><h2>جست‌وجو و فیلتر گزارش</h2><a class="button tertiary compact" href="{% url 'utility-dashboard' %}">پاک‌کردن همه</a></div>
+  <div class="filter-primary">
+    <label>جست‌وجو<input name="q" value="{{ request.GET.q }}" placeholder="کد فضا، نام، اشتراک، کنتور یا تأمین‌کننده"></label>
+    <label>نوع انشعاب<select name="utility_type"><option value="">همه</option>{% for value,label in utility_types %}<option value="{{ value }}" {% if request.GET.utility_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>وضعیت پرداخت<select name="payment_status"><option value="">همه</option>{% for value,label in payment_statuses %}<option value="{{ value }}" {% if request.GET.payment_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>Measurement<select name="measurement"><option value="">همه</option><option value="yes" {% if request.GET.measurement == 'yes' %}selected{% endif %}>دارای Measurement</option><option value="no" {% if request.GET.measurement == 'no' %}selected{% endif %}>فاقد Measurement</option></select></label>
+    <button class="emphasized">اعمال فیلتر</button>
+  </div>
+  <details class="filter-advanced"><summary>فیلترهای پیشرفته</summary><div class="filter-advanced-content">
+    <label>منطقه<select name="region"><option value="">همه</option>{% for item in regions %}<option value="{{ item.pk }}" {% if request.GET.region == item.pk|stringformat:'s' %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+    <label>مرکز<select name="center"><option value="">همه</option>{% for item in centers %}<option value="{{ item.pk }}" {% if request.GET.center == item.pk|stringformat:'s' %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+    <label>از دوره<input name="period_from" value="{{ request.GET.period_from }}" placeholder="1405/01/01" dir="ltr"></label>
+    <label>تا دوره<input name="period_to" value="{{ request.GET.period_to }}" placeholder="1405/12/29" dir="ltr"></label>
+    <label>حداقل مبلغ<input name="amount_min" value="{{ request.GET.amount_min }}" inputmode="numeric"></label>
+    <label>حداکثر مبلغ<input name="amount_max" value="{{ request.GET.amount_max }}" inputmode="numeric"></label>
+  </div></details>
+</form>
+
+<section class="card dossier-section" id="utility-bills">
+  <div class="page-header"><div><h2>قبوض آب، گاز و سایر انشعابات</h2><p>مقایسه با دوره قبلی همان اشتراک در صورت وجود نمایش داده می‌شود.</p></div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کد قبض</th><th>نوع</th><th>کد فضا</th><th>اشتراک</th><th>دوره</th><th>مبلغ</th><th>تغییر مبلغ</th><th>مصرف</th><th>تغییر مصرف</th><th>Measurement</th><th>پرداخت</th><th>پرونده فضا</th></tr></thead>
+    <tbody>
+    {% for item in page %}
+      <tr>
+        <td>{{ item.sama_code }}</td>
+        <td>{{ item.connection.get_utility_type_display }}</td>
+        <td>{{ item.connection.space.code }}</td>
+        <td>{{ item.connection.account_number }}</td>
+        <td>{{ item.period_start }} تا {{ item.period_end }}</td>
+        <td>{{ item.amount_rial|rial }}</td>
+        <td>{% if item.amount_change_rial is not None %}{{ item.amount_change_rial|rial }}{% else %}—{% endif %}</td>
+        <td>{% if item.consumption is not None %}{{ item.consumption|fa_digits }}{% else %}—{% endif %}</td>
+        <td>{% if item.consumption_change is not None %}{{ item.consumption_change|fa_digits }}{% else %}—{% endif %}</td>
+        <td>{% if item.measurement %}{{ item.measurement.consumption|fa_digits }} {{ item.measurement.measurement_unit }}{% else %}—{% endif %}</td>
+        <td>{{ item.get_payment_status_display }}</td>
+        <td><a class="button compact" href="{% url 'space-detail' item.connection.space.code %}">مشاهده</a></td>
+      </tr>
+    {% empty %}<tr><td colspan="12">رکوردی مطابق فیلتر جاری وجود ندارد.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <nav class="pagination">{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}&{{ request.GET.urlencode }}">صفحه قبل</a>{% endif %}<span>صفحه {{ page.number|fa_digits }} از {{ page.paginator.num_pages|fa_digits }}</span>{% if page.has_next %}<a href="?page={{ page.next_page_number }}&{{ request.GET.urlencode }}">صفحه بعد</a>{% endif %}</nav>
+</section>
+{% endblock %}
