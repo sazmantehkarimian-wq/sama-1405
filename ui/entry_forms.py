@@ -2,6 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from domains.contracts.models import Beneficiary, Contract
+from domains.operations.models import Appraiser, AppraisalNotification
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
 from services.text import normalize_digits, normalize_persian_text, normalize_space_code
 from ui.fields import JalaliDateField
@@ -264,4 +265,104 @@ class ContractEntryForm(forms.Form):
         start, end = cleaned.get("start_date"), cleaned.get("end_date")
         if start and end and start > end:
             self.add_error("end_date", "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد.")
+        return cleaned
+
+
+
+class AppraiserForm(BaseNormalizedModelForm):
+    class Meta:
+        model = Appraiser
+        fields = [
+            "first_name", "last_name", "national_id", "license_number",
+            "specialty", "professional_authority", "mobile", "phone",
+            "address", "email", "collaboration_status", "notes",
+        ]
+        labels = {
+            "first_name": "نام",
+            "last_name": "نام خانوادگی",
+            "national_id": "کد ملی",
+            "license_number": "شماره پروانه / شناسه حرفه‌ای",
+            "specialty": "رشته / صلاحیت",
+            "professional_authority": "مرجع حرفه‌ای",
+            "mobile": "شماره همراه",
+            "phone": "تلفن",
+            "address": "نشانی",
+            "email": "ایمیل",
+            "collaboration_status": "وضعیت همکاری",
+            "notes": "توضیحات",
+        }
+        widgets = {
+            "national_id": forms.TextInput(attrs={"inputmode": "numeric"}),
+            "mobile": forms.TextInput(attrs={"inputmode": "tel"}),
+            "phone": forms.TextInput(attrs={"inputmode": "tel"}),
+            "address": forms.Textarea(attrs={"rows": 3}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def clean_national_id(self):
+        value = normalize_digits(self.cleaned_data.get("national_id", "")).strip()
+        if value and (not value.isdigit() or len(value) != 10):
+            raise ValidationError("کد ملی کارشناس باید ۱۰ رقم باشد.")
+        duplicate = Appraiser.objects.filter(national_id=value) if value else Appraiser.objects.none()
+        if self.instance and self.instance.pk:
+            duplicate = duplicate.exclude(pk=self.instance.pk)
+        if duplicate.exists():
+            raise ValidationError("کارشناس دیگری با این کد ملی ثبت شده است.")
+        return value
+
+    def clean_license_number(self):
+        value = normalize_persian_text(self.cleaned_data.get("license_number", ""))
+        duplicate = Appraiser.objects.filter(license_number=value) if value else Appraiser.objects.none()
+        if self.instance and self.instance.pk:
+            duplicate = duplicate.exclude(pk=self.instance.pk)
+        if duplicate.exists():
+            raise ValidationError("کارشناس دیگری با این شماره پروانه ثبت شده است.")
+        return value
+
+
+class AppraisalEntryForm(forms.Form):
+    appraiser = forms.ModelChoiceField(
+        label="کارشناس",
+        queryset=Appraiser.objects.none(),
+        empty_label="انتخاب کارشناس ثبت‌شده",
+    )
+    sequence = forms.CharField(label="نوبت / شناسه داخلی", max_length=20, required=False)
+    notification_number = forms.CharField(label="شماره ابلاغ", max_length=120, required=False)
+    notification_date = JalaliDateField(label="تاریخ ابلاغ", required=False)
+    notification_recipient = forms.ChoiceField(
+        label="مخاطب ابلاغ",
+        required=False,
+        choices=[("", "بدون ابلاغ اولیه")] + list(AppraisalNotification.Recipient.choices),
+    )
+    notification_recipient_detail = forms.CharField(label="جزئیات مخاطب", max_length=255, required=False)
+    notification_notes = forms.CharField(label="توضیحات ابلاغ", required=False, widget=forms.Textarea(attrs={"rows": 2}))
+    response_number = forms.CharField(label="شماره جواب کارشناسی", max_length=120, required=False)
+    response_date = JalaliDateField(label="تاریخ جواب کارشناسی", required=False)
+    appraisal_date = JalaliDateField(label="تاریخ خود کارشناسی", required=False)
+    amount_rial = forms.DecimalField(label="مبلغ کارشناسی (ریال)", required=False, min_value=1, decimal_places=0, max_digits=24)
+    status = forms.CharField(label="وضعیت فرآیند", max_length=80, required=False, help_text="تا ایجاد Reference Data نهایی فقط وضعیت واقعی پرونده ثبت شود.")
+    is_current = forms.BooleanField(label="این کارشناسی مرجع جاری فضای تجاری است", required=False)
+    reference = forms.CharField(label="مرجع / شماره مرتبط", max_length=255, required=False)
+    notes = forms.CharField(label="توضیحات", required=False, widget=forms.Textarea(attrs={"rows": 3}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["appraiser"].queryset = Appraiser.objects.filter(
+            archived_at__isnull=True,
+            collaboration_status=Appraiser.CollaborationStatus.ACTIVE,
+        ).order_by("last_name", "first_name")
+        self.fields["amount_rial"].widget.attrs.update({"inputmode": "numeric", "min": "1"})
+
+    def clean(self):
+        cleaned = super().clean()
+        notification_fields = [
+            cleaned.get("notification_number"), cleaned.get("notification_date"),
+            cleaned.get("notification_recipient"), cleaned.get("notification_recipient_detail"),
+        ]
+        if any(notification_fields) and not cleaned.get("notification_date"):
+            self.add_error("notification_date", "در صورت ثبت ابلاغ، تاریخ ابلاغ الزامی است.")
+        if any(notification_fields) and not cleaned.get("notification_recipient"):
+            self.add_error("notification_recipient", "در صورت ثبت ابلاغ، مخاطب ابلاغ الزامی است.")
+        if cleaned.get("is_current") and (not cleaned.get("appraisal_date") or cleaned.get("amount_rial") is None):
+            raise ValidationError("کارشناسی مرجع باید تاریخ خود کارشناسی و مبلغ کارشناسی داشته باشد.")
         return cleaned
