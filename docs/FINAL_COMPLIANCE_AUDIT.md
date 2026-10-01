@@ -37,3 +37,7 @@
 
 
 یادداشت زنجیره انتشار UAT.8: runtime و تمام اصلاحات پرونده/ماژول از commit `385d13b` بسته‌بندی شده‌اند. commit بعدی فقط شواهد workflow و checksum را ثبت می‌کند و محتوای runtime را تغییر نمی‌دهد.
+
+## Post-UAT.8 remediation (UAT.9 candidate)
+
+Status remains **UAT REMEDIATION IN PROGRESS**. Contract circulation is now a distinct audited operational aggregate; it cannot become an official contract until required signatures and final approval exist. Custody is derived solely from append-only transfer/return events. Historical contracts are preserved and receive no fabricated workflow events. The central report definition now preserves an ordered mixed layout of canonical and output-only blank columns, multi-sort, orientation, and filters across preview, XLSX, PDF, DOCX, saved definitions, and immutable snapshots. Owner human UAT remains required.

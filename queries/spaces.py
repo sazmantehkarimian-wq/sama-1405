@@ -82,7 +82,7 @@ def filter_spaces(params):
             combined = (combined | clause) if params.get("logic", "and").lower() == "or" else (combined & clause)
         qs = qs.filter(combined)
 
-    allowed = {"code", "name", "status", "area", "current_usage"}
+    allowed = {"code", "name", "status", "area", "current_usage", "region"}
     requested = _values(params, "sort") or ["code"]
-    ordering = [item for item in requested if item.lstrip("-") in allowed][:3] or ["code"]
+    ordering = [("-region__name" if item=="-region" else "region__name" if item=="region" else item) for item in requested if item.lstrip("-") in allowed][:3] or ["code"]
     return qs.distinct().order_by(*ordering)

@@ -35,3 +35,10 @@ if (dossierTabs.length) {
     sections.forEach((section) => observer.observe(section));
   }
 }
+
+document.querySelectorAll('[data-report-layout]').forEach(form=>{
+ const list=form.querySelector('[data-layout-list]');
+ form.addEventListener('click',event=>{const button=event.target.closest('[data-move]');if(button){const row=button.closest('.report-column-item');if(button.dataset.move==='up'&&row.previousElementSibling)list.insertBefore(row,row.previousElementSibling);if(button.dataset.move==='down'&&row.nextElementSibling)list.insertBefore(row.nextElementSibling,row);}
+ if(event.target.closest('[data-add-blank]')){const input=form.querySelector('[data-blank-title]'),title=input.value.trim();if(!title)return;const row=document.createElement('div');row.className='report-column-item';row.innerHTML='<span>'+title+'</span><input type="hidden" name="blank"><input type="hidden" name="layout"><button type="button" class="compact secondary" data-move="up">↑</button><button type="button" class="compact secondary" data-move="down">↓</button>';row.querySelector('[name=blank]').value=title;row.querySelector('[name=layout]').value='blank:'+title;list.append(row);input.value='';}});
+ form.addEventListener('submit',()=>form.querySelectorAll('.report-column-item').forEach(row=>{const box=row.querySelector('[name=field]'),layout=row.querySelector('[name=layout]');if(box)layout.disabled=!box.checked;}));
+});

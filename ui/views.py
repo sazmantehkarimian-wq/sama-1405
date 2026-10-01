@@ -15,7 +15,7 @@ from domains.operations.models import Appraisal, AppraisalFee, Auction, AuctionE
 from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from services.file_movement import current_holder
-from reporting.engine import excel,docx,pdf,tabular_excel
+from reporting.engine import excel,docx,pdf,tabular_excel,output_table
 from ui.forms import PersianPasswordChangeForm
 from core.uat import is_fixed_uat_admin
 from services.money import format_rial
@@ -67,7 +67,7 @@ def operation_create(request,action):
 
 @login_required
 def space_detail(request,code):
- s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','contracts__beneficiary','beneficiary_assignments__beneficiary','appraisals__fee__supporting_document','auctions','utilities__supporting_document','utility_obligations','decisions','commission_decisions__spaces','timeline__document','alerts__assigned_to','file_movements','workflows','source_documents','property_links__mother_property'),code=code)
+ s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','contracts__beneficiary','contract_circulations__transfers','contract_circulations__signature_steps','beneficiary_assignments__beneficiary','appraisals__fee__supporting_document','auctions','utilities__supporting_document','utility_obligations','decisions','commission_decisions__spaces','timeline__document','alerts__assigned_to','file_movements','workflows','source_documents','property_links__mother_property'),code=code)
  timeline=s.timeline.all();event_type=request.GET.get('event_type','').strip()
  if event_type:timeline=timeline.filter(event_type=event_type)
  event_types=s.timeline.order_by().values_list('event_type',flat=True).distinct()
@@ -253,6 +253,10 @@ def report_builder(request):
  fields=[('code','کد فضا'),('name','نام فضا / مرکز'),('status','وضعیت'),('region','منطقه'),('current_usage','کاربری'),('area','مساحت')]
  return render(request,'ui/report_builder.html',{'fields':fields,'saved':SavedReport.objects.filter(owner=request.user),'report_domains':[(key,DOMAIN_LISTS[key][0]) for key in ('contracts','beneficiaries','appraisals','fees','auctions','utilities','workflows','documents','alerts')]})
 @login_required
+def report_preview(request):
+ labels,rows=output_table(_query(request)[:100],request.GET.getlist('layout'),request.GET.getlist('field'),request.GET.getlist('blank'))
+ return render(request,'ui/report_preview.html',{'labels':labels,'rows':rows,'query':request.GET.urlencode()})
+@login_required
 @require_POST
 def report_save(request):
  from services.reports import save_report
@@ -275,11 +279,11 @@ def report_archive(request,report_id):
  return redirect('report-builder')
 def _query(request): return filter_spaces(request.GET)[:5000]
 @login_required
-def spaces_excel(request):return HttpResponse(excel(_query(request),request.GET.getlist('blank'),request.GET.getlist('field')),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="spaces.xlsx"'})
+def spaces_excel(request):return HttpResponse(excel(_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape')),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="spaces.xlsx"'})
 @login_required
-def spaces_docx(request):return HttpResponse(docx(_query(request),request.GET.getlist('blank'),request.GET.getlist('field')),content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':'attachment; filename="spaces.docx"'})
+def spaces_docx(request):return HttpResponse(docx(_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape')),content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':'attachment; filename="spaces.docx"'})
 @login_required
-def spaces_pdf(request):return HttpResponse(pdf(_query(request),request.GET.getlist('field'),request.GET.getlist('blank')),content_type='application/pdf',headers={'Content-Disposition':'attachment; filename="spaces.pdf"'})
+def spaces_pdf(request):return HttpResponse(pdf(_query(request),request.GET.getlist('field'),request.GET.getlist('blank'),request.GET.getlist('layout'),request.GET.get('orientation','landscape')),content_type='application/pdf',headers={'Content-Disposition':'attachment; filename="spaces.pdf"'})
 @login_required
 @user_passes_test(lambda u:u.is_staff)
 def user_list(request):
@@ -541,3 +545,43 @@ def user_toggle_active(request,user_id):
  if target==request.user:
   messages.error(request,'مدیر نمی‌تواند حساب جاری خود را غیرفعال کند.');return redirect('user-list')
  before=target.is_active;target.is_active=not before;target.save(update_fields=['is_active']);AuditEvent.objects.create(actor=request.user,action='USER_STATUS_CHANGE',entity_type='User',entity_id=str(target.pk),reason=request.POST.get('reason','تغییر وضعیت دسترسی').strip(),before={'active':before},after={'active':target.is_active},ip_address=request.META.get('REMOTE_ADDR'));messages.success(request,'وضعیت کاربر تغییر کرد.');return redirect('user-list')
+
+@login_required
+def contract_circulation_workspace(request):
+ from domains.contracts.models import ContractCirculation
+ cases=ContractCirculation.objects.select_related('space','beneficiary','official_contract').prefetch_related('transfers','signature_steps').order_by('-pk')
+ code=request.GET.get('space','').strip()
+ if code:cases=cases.filter(space__code=code)
+ return render(request,'ui/contract_circulation.html',{'cases':cases[:100],'selected_space':CommercialSpace.objects.filter(code=code).first(),'spaces':CommercialSpace.objects.order_by('code'),'beneficiaries':Beneficiary.objects.order_by('name')[:1000]})
+
+@login_required
+@require_POST
+def contract_circulation_create(request):
+ from django.core.exceptions import ValidationError
+ from services.contract_circulation import create_circulation
+ space=get_object_or_404(CommercialSpace,code=request.POST.get('space_code'));beneficiary=get_object_or_404(Beneficiary,pk=request.POST.get('beneficiary'))
+ try:create_circulation(space=space,beneficiary=beneficiary,subject=request.POST.get('subject','').strip(),operational_start_date=request.POST.get('operational_start_date',''),next_action=request.POST.get('next_action','').strip(),due_date=request.POST.get('due_date',''),actor=request.user)
+ except ValidationError as exc:messages.error(request,' '.join(exc.messages))
+ else:messages.success(request,'پرونده گردش قرارداد ثبت شد؛ این پرونده هنوز قرارداد رسمی نیست.')
+ return redirect(reverse('contract-circulation')+f'?space={space.code}')
+
+@login_required
+@require_POST
+def contract_transfer(request,case_id):
+ from django.core.exceptions import ValidationError
+ from django.utils.dateparse import parse_datetime
+ from services.contract_circulation import transfer
+ case=get_object_or_404(__import__('domains.contracts.models',fromlist=['ContractCirculation']).ContractCirculation,pk=case_id)
+ try:transfer(circulation=case,sender=request.POST.get('sender',''),receiver=request.POST.get('receiver',''),unit=request.POST.get('unit',''),purpose=request.POST.get('purpose',''),next_action=request.POST.get('next_action',''),delivered_at=parse_datetime(request.POST.get('delivered_at','')) or __import__('django.utils.timezone',fromlist=['now']).now(),due_date=request.POST.get('due_date',''),actor=request.user)
+ except ValidationError as exc:messages.error(request,' '.join(exc.messages))
+ return redirect(reverse('contract-circulation')+f'?space={case.space.code}')
+
+@login_required
+@require_POST
+def contract_return(request,case_id):
+ from django.core.exceptions import ValidationError
+ from services.contract_circulation import return_custody
+ case=get_object_or_404(__import__('domains.contracts.models',fromlist=['ContractCirculation']).ContractCirculation,pk=case_id)
+ try:return_custody(circulation=case,actor=request.user,note=request.POST.get('note',''))
+ except ValidationError as exc:messages.error(request,' '.join(exc.messages))
+ return redirect(reverse('contract-circulation')+f'?space={case.space.code}')

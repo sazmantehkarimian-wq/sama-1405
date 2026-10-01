@@ -25,11 +25,11 @@
   --nav-font-size: .75rem;
   --nav-item-padding: .45rem;
   --shell-side-width: 11.25rem;
-  --control-compact: 2rem;
-  --control-standard: 2.5rem;
-  --control-emphasized: 2.75rem;
+  --control-compact: 1.8rem;
+  --control-standard: 2.25rem;
+  --control-emphasized: 2.5rem;
   --table-header-height: 2.25rem;
-  --table-row-height: 2.5rem;
+  --table-row-height: 2.25rem;
   --radius-sm: .25rem;
   --radius-md: .5rem;
   --radius-lg: .75rem;
