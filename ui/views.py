@@ -410,6 +410,7 @@ def auction_workspace(request):
   'rules':AuctionRule.objects.order_by('-effective_year','-id'),
   'evaluations':AuctionEvaluation.objects.select_related('space','rule','evaluated_by').order_by('-evaluated_at')[:100],
   'periods':AuctionPeriod.objects.prefetch_related('lots__space').order_by('-id'),
+  'instructions':AuctionInstruction.objects.select_related('space','created_by','commission_decision').order_by('-effective_from','-id')[:100],
  })
 
 @login_required
