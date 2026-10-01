@@ -202,18 +202,20 @@ def create_instruction(*, space, actor, values, commission_decision=None, ip_add
         raise ValidationError("پایان اثر نمی‌تواند قبل از شروع اثر باشد.")
     if source==AuctionInstruction.Source.COMMISSION and commission_decision is None:
         raise ValidationError("برای دستور کمیسیون، انتخاب تصمیم کمیسیون الزامی است.")
+    effective_from_text=effective_from.strftime("%Y/%m/%d")
+    effective_to_text=effective_to.strftime("%Y/%m/%d") if effective_to else ""
     item=AuctionInstruction.objects.create(
         space=space,source=source,direction=direction,reason=reason,reference=reference,
-        effective_from=effective_from,effective_to=effective_to,
+        effective_from=effective_from_text,effective_to=effective_to_text,
         commission_decision=commission_decision,created_by=actor,
     )
     AuditEvent.objects.create(
         actor=actor,action="AUCTION_INSTRUCTION_CREATE",entity_type="AuctionInstruction",
         entity_id=str(item.pk),after={"space":space.code,"source":source,"direction":direction,"reference":reference,
-        "effective_from":effective_from,"effective_to":effective_to},reason=reason,ip_address=ip_address,
+        "effective_from":effective_from_text,"effective_to":effective_to_text},reason=reason,ip_address=ip_address,
     )
     TimelineEvent.objects.create(
-        space=space,event_type="AUCTION_INSTRUCTION_CREATE",jalali_date=effective_from,
+        space=space,event_type="AUCTION_INSTRUCTION_CREATE",jalali_date=effective_from_text,
         source_entity="AuctionInstruction",source_entity_id=str(item.pk),
         title="ثبت دستور مؤثر بر مزایده",description=f"{item.get_source_display()} — {item.get_direction_display()} — {reference}",
         new_state=direction,responsible_person=actor.get_full_name() or actor.username,
