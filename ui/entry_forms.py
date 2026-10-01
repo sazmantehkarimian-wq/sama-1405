@@ -4,7 +4,8 @@ from django.core.exceptions import ValidationError
 from domains.contracts.models import Beneficiary, Contract
 from domains.operations.models import (
     Appraiser, AppraisalNotification, ElectricityAllocation,
-    ElectricityConsumptionCategory, UtilityMeasurement, UtilityParameterRule, UtilityUnit,
+    ElectricityConsumptionCategory, UtilityBill, UtilityConnection, UtilityMeasurement,
+    UtilityParameterRule, UtilityUnit,
 )
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
 from services.text import normalize_digits, normalize_persian_text, normalize_space_code
@@ -574,4 +575,45 @@ class UtilityParameterRuleForm(forms.ModelForm):
             raise ValidationError("برای هر Rule فقط یکی از مقدار عددی یا متنی را ثبت کنید.")
         if cleaned.get("effective_from") and cleaned.get("effective_to") and cleaned["effective_from"] > cleaned["effective_to"]:
             self.add_error("effective_to", "پایان اعتبار نمی‌تواند قبل از تاریخ اثر باشد.")
+        return cleaned
+
+
+
+class UtilityConnectionForm(forms.Form):
+    utility_type=forms.ChoiceField(label="نوع انشعاب",choices=UtilityConnection.Type.choices)
+    account_number=forms.CharField(label="شماره اشتراک",max_length=120)
+    meter_number=forms.CharField(label="شماره کنتور",max_length=120,required=False)
+    provider=forms.CharField(label="شرکت / تأمین‌کننده",max_length=255,required=False)
+    status=forms.ChoiceField(label="وضعیت",choices=UtilityConnection.Status.choices,initial=UtilityConnection.Status.ACTIVE)
+    notes=forms.CharField(label="توضیحات",required=False,widget=forms.Textarea(attrs={"rows":3}))
+
+
+class UtilityBillForm(forms.Form):
+    period_start=JalaliDateField(label="شروع دوره",required=True)
+    period_end=JalaliDateField(label="پایان دوره",required=True)
+    bill_date=JalaliDateField(label="تاریخ قبض",required=False)
+    amount_rial=forms.DecimalField(label="مبلغ قبض (ریال)",min_value=0,decimal_places=0,max_digits=24)
+    consumption=forms.DecimalField(label="مصرف",required=False,min_value=0,decimal_places=3,max_digits=20)
+    measurement=forms.ModelChoiceField(label="Measurement مرتبط",queryset=UtilityMeasurement.objects.none(),required=False,empty_label="بدون Measurement")
+    payment_status=forms.ChoiceField(label="وضعیت پرداخت",choices=UtilityBill.PaymentStatus.choices,initial=UtilityBill.PaymentStatus.UNKNOWN)
+    payment_date=JalaliDateField(label="تاریخ پرداخت",required=False)
+    notes=forms.CharField(label="توضیحات",required=False,widget=forms.Textarea(attrs={"rows":3}))
+
+    def __init__(self,*args,connection=None,**kwargs):
+        self.connection=connection
+        super().__init__(*args,**kwargs)
+        qs=UtilityMeasurement.objects.none()
+        if connection:
+            qs=UtilityMeasurement.objects.filter(
+                space=connection.space,utility_type=connection.utility_type,is_valid=True
+            ).order_by("-reading_date","-id")
+        self.fields["measurement"].queryset=qs
+        self.fields["amount_rial"].widget.attrs.update({"inputmode":"numeric","min":"0"})
+
+    def clean(self):
+        cleaned=super().clean()
+        start,end=cleaned.get("period_start"),cleaned.get("period_end")
+        if start and end and start>end:self.add_error("period_end","پایان دوره نمی‌تواند قبل از شروع دوره باشد.")
+        if cleaned.get("payment_status")==UtilityBill.PaymentStatus.PAID and not cleaned.get("payment_date"):
+            self.add_error("payment_date","برای قبض پرداخت‌شده، تاریخ پرداخت الزامی است.")
         return cleaned
