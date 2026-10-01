@@ -155,6 +155,30 @@ def create_period(*, identity: str, title: str, planned_date: str, actor, ip_add
     return period
 
 
+OPEN_PERIOD_STATES = {
+    AuctionPeriod.State.DRAFT,
+    AuctionPeriod.State.READY,
+    AuctionPeriod.State.OPENED,
+}
+
+
+def _ensure_space_not_in_other_open_period(*, period, space):
+    conflict = (
+        AuctionLot.objects.filter(
+            space=space,
+            archived=False,
+            period__state__in=OPEN_PERIOD_STATES,
+        )
+        .exclude(period=period)
+        .select_related("period")
+        .first()
+    )
+    if conflict:
+        raise ValidationError(
+            f"این کد فضا هم‌اکنون در دوره باز {conflict.period.identity} قرار دارد."
+        )
+
+
 @retry_locked
 @transaction.atomic
 def add_evaluated_lot(*, period: AuctionPeriod, evaluation: AuctionEvaluation, actor,
@@ -163,9 +187,15 @@ def add_evaluated_lot(*, period: AuctionPeriod, evaluation: AuctionEvaluation, a
         raise ValidationError("افزودن فضا فقط به دوره پیش‌نویس مجاز است.")
     if evaluation.decision != AuctionEvaluation.Decision.CANDIDATE:
         raise ValidationError("فقط ارزیابی کاندیدا می‌تواند وارد دوره شود.")
+    _ensure_space_not_in_other_open_period(period=period, space=evaluation.space)
     lot, created = AuctionLot.objects.get_or_create(
         period=period, space=evaluation.space,
-        defaults={"evaluation": evaluation, "readiness": evaluation.readiness},
+        defaults={
+            "evaluation": evaluation,
+            "entry_method": AuctionLot.EntryMethod.EVALUATED,
+            "added_by": actor,
+            "readiness": evaluation.readiness,
+        },
     )
     if not created:
         raise ValidationError("این فضا قبلاً در دوره ثبت شده است.")
@@ -177,6 +207,65 @@ def add_evaluated_lot(*, period: AuctionPeriod, evaluation: AuctionEvaluation, a
     TimelineEvent.objects.create(space=evaluation.space,event_type="AUCTION_LOT_ADD",jalali_date=period.planned_date,source_entity="AuctionLot",source_entity_id=str(lot.pk),title=f"افزودن به دوره مزایده {period.title}",new_state=lot.readiness,responsible_person=actor.get_full_name() or actor.username,provenance="ثبت عملیاتی دوره مزایده",target_url=f"/spaces/{evaluation.space.code}/")
     return lot
 
+
+
+@retry_locked
+@transaction.atomic
+def add_manual_lot(*, period: AuctionPeriod, space, actor, reason: str, reference: str, ip_address=None) -> AuctionLot:
+    if not actor.is_staff:
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied("افزودن دستی به دوره مزایده فقط برای کاربر مجاز امکان‌پذیر است.")
+    if period.state != AuctionPeriod.State.DRAFT:
+        raise ValidationError("افزودن دستی فقط به دوره پیش‌نویس مجاز است.")
+    reason = (reason or "").strip()
+    reference = (reference or "").strip()
+    if not reason or not reference:
+        raise ValidationError("برای افزودن دستی، علت و مرجع رسمی الزامی است.")
+    if space.status != "ACTIVE":
+        raise ValidationError("فضای خارج از چرخه ابتدا باید از Lifecycle فضای تجاری به وضعیت فعال برگردد.")
+    _ensure_space_not_in_other_open_period(period=period, space=space)
+    if AuctionLot.objects.filter(period=period, space=space).exists():
+        raise ValidationError("این فضا قبلاً در دوره ثبت شده است.")
+
+    lot = AuctionLot.objects.create(
+        period=period,
+        space=space,
+        evaluation=None,
+        entry_method=AuctionLot.EntryMethod.MANUAL,
+        manual_reason=reason,
+        manual_reference=reference,
+        added_by=actor,
+        readiness="REVIEW_REQUIRED",
+    )
+    AuditEvent.objects.create(
+        actor=actor,
+        action="AUCTION_LOT_MANUAL_ADD",
+        entity_type="AuctionLot",
+        entity_id=str(lot.pk),
+        reason=reason,
+        after={
+            "period": period.identity,
+            "space": space.code,
+            "entry_method": lot.entry_method,
+            "reference": reference,
+            "readiness": lot.readiness,
+        },
+        ip_address=ip_address,
+    )
+    TimelineEvent.objects.create(
+        space=space,
+        event_type="AUCTION_LOT_MANUAL_ADD",
+        jalali_date=period.planned_date,
+        source_entity="AuctionLot",
+        source_entity_id=str(lot.pk),
+        title=f"افزودن دستی به دوره مزایده {period.title}",
+        description=f"مرجع: {reference} — علت: {reason}",
+        new_state=lot.readiness,
+        responsible_person=actor.get_full_name() or actor.username,
+        provenance="انتخاب رسمی دستی با مرجع و Audit",
+        target_url=f"/spaces/{space.code}/",
+    )
+    return lot
 
 
 @retry_locked
