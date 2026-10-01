@@ -23,7 +23,8 @@ jobs:
           from domains.properties.models import MotherProperty, CommercialSpace
           from domains.contracts.models import Contract, Beneficiary
           from domains.operations.models import (
-            Appraisal, Auction, UtilityRecord, UtilityConnection, UtilityBill,
+            Appraisal, AppraisalFee, ExpertFeePaymentBatch, ExpertFeeBatchItem,
+            Auction, UtilityRecord, UtilityConnection, UtilityBill,
             UtilityMeasurement, UtilityUnit, ElectricityBill, ElectricityAllocation,
             ElectricityCalculationSnapshot,
             FileMovement, TimelineEvent,
@@ -34,6 +35,9 @@ jobs:
             'contracts':Contract.objects.count(),
             'beneficiaries':Beneficiary.objects.count(),
             'appraisals':Appraisal.objects.count(),
+            'appraisal_fees':AppraisalFee.objects.count(),
+            'fee_batches':ExpertFeePaymentBatch.objects.count(),
+            'fee_batch_items':ExpertFeeBatchItem.objects.count(),
             'auctions':Auction.objects.count(),
             'utilities':UtilityRecord.objects.count(),
             'utility_connections':UtilityConnection.objects.count(),
