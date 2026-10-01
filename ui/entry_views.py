@@ -7,11 +7,11 @@ from domains.contracts.models import Beneficiary
 from domains.identity.models import AuditEvent
 from domains.operations.models import Appraiser
 from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
-from services.contracts import create_contract
+from services.contracts import assign_beneficiary, create_contract
 from services.operations import create_appraisal
 from ui.entry_forms import (
-    AppraisalEntryForm, AppraiserForm, BeneficiaryForm, CenterForm,
-    CommercialSpaceForm, ContractEntryForm, MotherPropertyForm, RegionForm,
+    AppraisalEntryForm, AppraiserForm, BeneficiaryAssignmentForm, BeneficiaryForm,
+    CenterForm, CommercialSpaceForm, ContractEntryForm, MotherPropertyForm, RegionForm,
 )
 
 
@@ -516,5 +516,43 @@ def appraisal_create(request, code):
             "cancel_kwargs": {"code": space.code},
             "secondary_action_url": "appraiser-create",
             "secondary_action_label": "ثبت کارشناس جدید",
+        },
+    )
+
+
+
+@login_required
+@transaction.atomic
+def beneficiary_assign(request, code):
+    space = get_object_or_404(CommercialSpace, code=code)
+    form = BeneficiaryAssignmentForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        from django.core.exceptions import ValidationError
+        try:
+            assignment = assign_beneficiary(
+                space=space,
+                beneficiary=form.cleaned_data["beneficiary"],
+                actor=request.user,
+                start_date=form.cleaned_data["start_date"],
+                basis=form.cleaned_data.get("basis", ""),
+                termination_reason=form.cleaned_data.get("termination_reason", ""),
+                ip_address=_ip(request),
+            )
+        except ValidationError as exc:
+            form.add_error(None, " ".join(exc.messages))
+        else:
+            messages.success(request, f"بهره‌بردار {assignment.beneficiary.name} برای فضای {space.code} ثبت شد.")
+            return redirect("space-detail", code=space.code)
+    return render(
+        request,
+        "ui/entity_form.html",
+        {
+            "form": form,
+            "title": f"ثبت / تغییر بهره‌بردار فضای {space.code}",
+            "subtitle": "وجود بهره‌بردار مستقل از وجود قرارداد است؛ تغییر بهره‌بردار سابقه قبلی را حذف نمی‌کند.",
+            "cancel_url": "space-detail",
+            "cancel_kwargs": {"code": space.code},
+            "secondary_action_url": "beneficiary-create",
+            "secondary_action_label": "ثبت بهره‌بردار جدید",
         },
     )
