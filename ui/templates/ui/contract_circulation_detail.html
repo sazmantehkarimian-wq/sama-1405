@@ -1,0 +1,66 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}گردش قرارداد {{ case.identity }}{% endblock %}
+{% block section_class %}section-contracts{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p><a href="{% url 'space-detail' case.space.code %}">فضای {{ case.space.code }}</a> / گردش قرارداد</p><h1>{{ case.identity }}</h1><p>{{ case.subject }} — {{ case.beneficiary.name }}</p></div>
+  <div class="button-row"><span class="badge">{{ case.get_state_display }}</span>{% if case.official_contract %}<a class="button emphasized compact" href="{% url 'space-detail' case.space.code %}#contracts">قرارداد {{ case.official_contract.number }}</a>{% endif %}</div>
+</div>
+<section class="card dossier-section">
+  <h2>وضعیت گردش</h2>
+  <div class="detail-grid">
+    <div><small>کد فضا</small><strong>{{ case.space.code }}</strong></div>
+    <div><small>بهره‌بردار</small><strong><a href="{% url 'beneficiary-detail' case.beneficiary.pk %}">{{ case.beneficiary.name }}</a></strong></div>
+    <div><small>شروع عملیاتی</small><strong>{{ case.operational_start_date }}</strong></div>
+    <div><small>اقدام بعدی</small><strong>{{ case.next_action }}</strong></div>
+    <div><small>مهلت</small><strong>{{ case.due_date|default:'ثبت نشده' }}</strong></div>
+    <div><small>وضعیت</small><strong>{{ case.get_state_display }}</strong></div>
+  </div>
+  {% if case.close_reason %}<div class="notice">علت مختومه‌سازی: {{ case.close_reason }}</div>{% endif %}
+</section>
+
+<section class="card dossier-section">
+  <div class="page-header"><div><h2>مراحل امضا</h2><p>نقش امضا از دستور کار واقعی وارد می‌شود؛ سما نقش ساختگی ایجاد نمی‌کند.</p></div></div>
+  <div class="table-wrap"><table><thead><tr><th>ترتیب</th><th>نقش</th><th>واحد</th><th>شخص</th><th>الزام</th><th>وضعیت</th><th>زمان‌ها</th><th>اقدام</th></tr></thead><tbody>
+  {% for step in case.signature_steps.all %}
+  <tr><td>{{ step.order }}</td><td>{{ step.role }}</td><td>{{ step.unit }}</td><td>{{ step.person|default:'—' }}</td><td>{% if step.required %}الزامی{% else %}اختیاری{% endif %}</td><td>{{ step.get_status_display }}</td><td>ارسال: {{ step.sent_at|jalali_datetime|default:'—' }}<br>امضا: {{ step.signed_at|jalali_datetime|default:'—' }}<br>برگشت: {{ step.returned_at|jalali_datetime|default:'—' }}</td><td>{% if case.state != 'CONVERTED' and case.state != 'CLOSED_NO_CONTRACT' %}<details><summary class="button secondary compact">تغییر وضعیت</summary><form class="inline-form" method="post" action="{% url 'contract-circulation-signature-transition' step.pk %}">{% csrf_token %}<label>وضعیت<select name="status"><option value="SENT">ارسال‌شده برای امضا</option><option value="SIGNED">امضاشده</option><option value="RETURNED">برگشت برای اصلاح</option>{% if not step.required %}<option value="WAIVED">صرف‌نظر از مرحله اختیاری</option>{% endif %}</select></label><label>شرح<textarea name="note"></textarea></label><button>ثبت</button></form></details>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="8">هنوز مرحله امضایی ثبت نشده است.</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% if case.state != 'CONVERTED' and case.state != 'CLOSED_NO_CONTRACT' %}
+  <details class="no-print"><summary class="button emphasized compact">افزودن مرحله امضا</summary><form class="entity-form" method="post" action="{% url 'contract-circulation-signature-add' case.pk %}">{% csrf_token %}<div class="form-grid">{% for field in step_form %}<label class="field"><span>{{ field.label }}</span>{{ field }}</label>{% endfor %}</div><button>ثبت مرحله</button></form></details>
+  {% endif %}
+</section>
+
+<section class="card dossier-section">
+  <h2>الان دست کیه — گردش قرارداد</h2>
+  {% if custody %}
+  <div class="detail-grid">
+    <div><small>تحویل‌گیرنده</small><strong>{{ custody.receiver }}</strong></div><div><small>واحد / محل</small><strong>{{ custody.unit }}</strong></div>
+    <div><small>تحویل‌دهنده</small><strong>{{ custody.sender }}</strong></div><div><small>زمان تحویل</small><strong>{{ custody.delivered_at|jalali_datetime }}</strong></div>
+    <div><small>هدف</small><strong>{{ custody.purpose }}</strong></div><div><small>اقدام بعدی</small><strong>{{ custody.next_action }}</strong></div>
+    <div><small>مهلت</small><strong>{{ custody.due_date|default:'—' }}</strong></div><div><small>وضعیت امضا</small><strong>{{ custody.signature_status|default:'—' }}</strong></div>
+  </div>
+  <form class="inline-form no-print" method="post" action="{% url 'contract-circulation-return' case.pk %}">{% csrf_token %}<label>شرح بازگشت<textarea name="note" required></textarea></label><button class="secondary">ثبت بازگشت</button></form>
+  {% else %}
+  <p class="empty">تحویل باز وجود ندارد.</p>
+  {% if case.state != 'CONVERTED' and case.state != 'CLOSED_NO_CONTRACT' %}<details class="no-print"><summary class="button secondary compact">ثبت تحویل</summary><form class="entity-form" method="post" action="{% url 'contract-circulation-transfer' case.pk %}">{% csrf_token %}<div class="form-grid">{% for field in transfer_form %}<label class="field"><span>{{ field.label }}</span>{{ field }}</label>{% endfor %}</div><button>ثبت تحویل</button></form></details>{% endif %}
+  {% endif %}
+  <h3>تاریخچه رفت‌وبرگشت</h3>
+  <div class="table-wrap"><table><thead><tr><th>تحویل</th><th>بازگشت</th><th>از</th><th>به</th><th>واحد</th><th>هدف</th><th>اقدام بعدی</th><th>امضا</th></tr></thead><tbody>
+  {% for row in case.transfers.all %}<tr><td>{{ row.delivered_at|jalali_datetime }}</td><td>{{ row.returned_at|jalali_datetime|default:'جاری' }}</td><td>{{ row.sender }}</td><td>{{ row.receiver }}</td><td>{{ row.unit }}</td><td>{{ row.purpose }}</td><td>{{ row.next_action }}</td><td>{{ row.signature_status|default:'—' }}</td></tr>{% empty %}<tr><td colspan="8">سابقه تحویل ثبت نشده است.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+{% if case.state != 'CONVERTED' and case.state != 'CLOSED_NO_CONTRACT' %}
+<section class="card dossier-section no-print">
+  <h2>نهایی‌سازی گردش</h2>
+  {% if case.state != 'APPROVED' %}
+  <form class="inline-form" method="post" action="{% url 'contract-circulation-approve' case.pk %}">{% csrf_token %}<label>یادداشت تأیید<textarea name="note"></textarea></label><button class="emphasized">تأیید نهایی</button></form>
+  {% else %}
+  <div class="notice">تأیید نهایی ثبت شده است. اکنون می‌توان قرارداد رسمی را ایجاد کرد.</div>
+  <details><summary class="button emphasized compact">ایجاد قرارداد رسمی</summary><form class="entity-form" method="post" action="{% url 'contract-circulation-convert' case.pk %}">{% csrf_token %}<div class="form-grid">{% for field in conversion_form %}<label class="field"><span>{{ field.label }}</span>{{ field }}</label>{% endfor %}</div><button>ثبت قرارداد رسمی</button></form></details>
+  {% endif %}
+  <details><summary class="button tertiary compact">مختومه بدون قرارداد</summary><form class="inline-form" method="post" action="{% url 'contract-circulation-close' case.pk %}">{% csrf_token %}<label>علت مختومه‌سازی<textarea name="reason" required></textarea></label><button class="danger">مختومه‌سازی</button></form></details>
+</section>
+{% endif %}
+{% endblock %}
