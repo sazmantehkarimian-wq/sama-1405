@@ -19,7 +19,8 @@ def normalized_report_definition(data):
         if values: filters[key] = values if key in MULTI_KEYS else values[-1]
     sorting = filters.get("sort", ["code"])
     grouping = [value for value in data.getlist("group") if value in {"status", "region", "center", "current_usage"}]
-    layout=[f"{kind}:{value}" for kind,value in layout_columns(data.getlist("layout"),fields,blanks)]
+    requested_layout=data.getlist("layout")
+    layout=[f"{kind}:{value}" for kind,value in layout_columns(requested_layout,fields,blanks)] if requested_layout else []
     orientation=data.get("orientation","landscape") if data.get("orientation") in {"landscape","portrait"} else "landscape"
     return {"fields": fields, "blank_columns": blanks, "layout":layout,"orientation":orientation,"filters": filters, "sorting": sorting, "grouping": grouping}
 
@@ -34,7 +35,9 @@ def report_query_string(report):
     pairs = []
     for key,value in report.filters.items():
         pairs.extend((key,item) for item in value) if isinstance(value,list) else pairs.append((key,value))
-    pairs += [("field", value) for value in report.fields] + [("blank", value) for value in report.blank_columns]+[("layout",value) for value in report.layout]+[("orientation",report.orientation)]
+    pairs += [("field", value) for value in report.fields] + [("blank", value) for value in report.blank_columns]
+    if report.layout:pairs += [("layout",value) for value in report.layout]
+    if report.orientation!='landscape':pairs.append(("orientation",report.orientation))
     return urlencode(pairs)
 
 def archive_report(*, report, actor, ip_address=None):
