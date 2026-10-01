@@ -20,6 +20,7 @@ path('utilities/electricity/categories/new/',entry_views.electricity_category_cr
 path('utilities/electricity/bills/new/',entry_views.electricity_bill_create,name='electricity-bill-create'),
 path('utilities/electricity/bills/<int:bill_id>/',entry_views.electricity_bill_detail,name='electricity-bill-detail'),
 path('utilities/electricity/bills/<int:bill_id>/allocations/',entry_views.electricity_allocation_save,name='electricity-allocation-save'),
+path('utilities/electricity/bills/<int:bill_id>/update/',entry_views.electricity_bill_update,name='electricity-bill-update'),
 path('utilities/electricity/bills/<int:bill_id>/recalculate/',entry_views.electricity_recalculate,name='electricity-recalculate'),
 path('utilities/electricity/bills/<int:bill_id>/finalize/',entry_views.electricity_finalize,name='electricity-finalize'),
 path('utilities/electricity/bills/<int:bill_id>/reopen/',entry_views.electricity_reopen,name='electricity-reopen'),
