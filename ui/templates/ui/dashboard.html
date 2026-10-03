@@ -32,17 +32,17 @@
   <a class="card kpi" href="{% url 'space-list' %}?{{ links.contract_present }}"><span class="kpi-icon" aria-hidden="true">ق</span><span>قرارداد جاری</span><strong>{{ current_contract_count|fa_digits }}</strong><small>فضاهای فعال دارای قرارداد جاری</small></a>
   <a class="card kpi" href="{% url 'space-list' %}?{{ links.contract_empty }}"><span class="kpi-icon" aria-hidden="true">ب</span><span>فاقد قرارداد جاری</span><strong>{{ without_contract_count|fa_digits }}</strong><small>نیازمند بررسی وضعیت بهره‌برداری</small></a>
   <a class="card kpi" href="{% url 'space-list' %}?{{ links.appraisal_empty }}"><span class="kpi-icon" aria-hidden="true">ک</span><span>فاقد کارشناسی مرجع</span><strong>{{ without_appraisal_count|fa_digits }}</strong><small>فضاهای فعال بدون Current Appraisal</small></a>
-  <a class="card kpi" href="{% url 'domain-list' 'alerts' %}"><span class="kpi-icon" aria-hidden="true">!</span><span>موارد نیازمند پیگیری</span><strong>{{ alert_count|fa_digits }}</strong><small>{{ critical_alert_count|fa_digits }} بحرانی / {{ high_alert_count|fa_digits }} زیاد</small></a>
-  <a class="card kpi" href="{% url 'domain-list' 'workflows' %}"><span class="kpi-icon" aria-hidden="true">پ</span><span>فرایندهای باز</span><strong>{{ open_workflow_count|fa_digits }}</strong><small>{{ overdue_workflow_count|fa_digits }} مورد از مهلت گذشته</small></a>
+  <a class="card kpi" href="{% url 'action-center' %}?{{ links.action_alerts }}"><span class="kpi-icon" aria-hidden="true">!</span><span>موارد نیازمند پیگیری</span><strong>{{ alert_count|fa_digits }}</strong><small>{{ critical_alert_count|fa_digits }} بحرانی / {{ high_alert_count|fa_digits }} زیاد</small></a>
+  <a class="card kpi" href="{% url 'action-center' %}?{{ links.action_workflows }}"><span class="kpi-icon" aria-hidden="true">پ</span><span>فرایندهای باز</span><strong>{{ open_workflow_count|fa_digits }}</strong><small>{{ overdue_workflow_count|fa_digits }} مورد از مهلت گذشته</small></a>
 </section>
 
 <div class="dashboard-grid">
   <section class="card card-accent">
-    <div class="page-header"><div><h2>مرکز اقدام عملیاتی</h2><p>اولویت با موارد واقعی نیازمند اقدام است.</p></div></div>
+    <div class="page-header"><div><h2>مرکز اقدام عملیاتی</h2><p>اولویت با موارد واقعی نیازمند اقدام است.</p></div><a class="button secondary compact" href="{% url 'action-center' %}?{{ links.action_all }}">مشاهده همه</a></div>
     <ul class="summary-list">
-      {% if critical_alert_count %}<li><span>هشدار بحرانی</span><a href="{% url 'domain-list' 'alerts' %}">{{ critical_alert_count|fa_digits }} مورد</a></li>{% endif %}
-      {% if overdue_alert_count %}<li><span>هشدار گذشته از مهلت</span><a href="{% url 'domain-list' 'alerts' %}">{{ overdue_alert_count|fa_digits }} مورد</a></li>{% endif %}
-      {% if overdue_workflow_count %}<li><span>فرایند گذشته از مهلت</span><a href="{% url 'domain-list' 'workflows' %}">{{ overdue_workflow_count|fa_digits }} مورد</a></li>{% endif %}
+      {% if critical_alert_count %}<li><span>هشدار بحرانی</span><a href="{% url 'action-center' %}?{{ links.action_critical }}">{{ critical_alert_count|fa_digits }} مورد</a></li>{% endif %}
+      {% if overdue_alert_count %}<li><span>هشدار گذشته از مهلت</span><a href="{% url 'action-center' %}?{{ links.action_alerts_overdue }}">{{ overdue_alert_count|fa_digits }} مورد</a></li>{% endif %}
+      {% if overdue_workflow_count %}<li><span>فرایند گذشته از مهلت</span><a href="{% url 'action-center' %}?{{ links.action_workflows_overdue }}">{{ overdue_workflow_count|fa_digits }} مورد</a></li>{% endif %}
       <li><span>قراردادهای پایان امروز</span><a href="{% url 'space-list' %}?{{ links.contract_today }}">{{ contract_today_count|fa_digits }} پرونده</a></li>
       <li><span>قراردادهای ۱ تا ۳۰ روز مانده</span><a href="{% url 'space-list' %}?{{ links.contract_1_30 }}">{{ contract_1_30_count|fa_digits }} پرونده</a></li>
       <li><span>قراردادهای ۳۱ تا ۶۰ روز مانده</span><a href="{% url 'space-list' %}?{{ links.contract_31_60 }}">{{ contract_31_60_count|fa_digits }} پرونده</a></li>
