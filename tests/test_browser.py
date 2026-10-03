@@ -62,7 +62,7 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
                     codes=page.locator("tbody tr td:first-child").all_inner_texts();assert codes[:2]==["2","10"] and codes.count("1")==1
                 if name == "contract-circulation":
                     assert page.locator(".topnav details.active summary",has_text="قراردادها").get_attribute("aria-current")=="page"
-                    assert page.locator("[data-search-picker]").is_visible() and page.locator('select[name="space_code"]').count()==0
+                    assert page.locator("[data-search-picker]").count() >= 1 and page.locator("[data-search-picker]").first.is_visible() and page.locator('select[name="space_code"]').count()==0
                 if name == "dossier":
                     tabs = page.locator(".tabs a")
                     tab_boxes = tabs.evaluate_all("els => els.map(el => { const r=el.getBoundingClientRect(); return [Math.round(r.top+r.height/2), Math.round(r.height)] })")
