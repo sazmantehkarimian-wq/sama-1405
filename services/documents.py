@@ -29,6 +29,26 @@ def store_document(*,uploaded,title,document_type,entity_type,entity_id,user,ref
  return document
 
 
+def open_verified_document(document):
+ try:
+  handle=document.file.open('rb')
+ except (FileNotFoundError,OSError) as exc:
+  raise ValidationError('فایل سند در مخزن فیزیکی موجود نیست.') from exc
+ digest=hashlib.sha256()
+ size=0
+ try:
+  while True:
+   chunk=handle.read(1024*1024)
+   if not chunk:break
+   size+=len(chunk);digest.update(chunk)
+  if size!=document.byte_size or digest.hexdigest()!=document.sha256:
+   raise ValidationError('کنترل صحت فایل ناموفق بود؛ دانلود برای جلوگیری از تحویل فایل مخدوش متوقف شد.')
+  handle.seek(0)
+  return handle
+ except Exception:
+  handle.close()
+  raise
+
 
 @transaction.atomic
 def archive_document(*,document,user,reason,ip_address=None):
