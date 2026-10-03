@@ -2,7 +2,8 @@ name: Sama UAT prerelease
 on:
   workflow_dispatch:
   push:
-    tags: ['v5.0.0-uat.9']
+    branches: [clean/sama-next]
+    paths: ['VERSION']
 permissions:
   contents: write
 jobs:
@@ -18,6 +19,13 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+      - name: Resolve release version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw -Encoding utf8).Trim()
+          if ($version -notmatch '^5\.0\.0-uat\.\d+$') { throw "Unexpected UAT VERSION: $version" }
+          "SAMA_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SAMA_TAG=v$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install build dependencies
         run: python -m pip install -e ".[test]"
       - name: Verify immutable authorities
@@ -58,33 +66,56 @@ jobs:
           '@ | python -
       - name: Build self-contained Windows package
         shell: pwsh
-        run: ./scripts/build_windows_release.ps1
-      - name: Package and verify SHA-256
+        run: ./scripts/build_windows_release.ps1 -Version $env:SAMA_VERSION
+      - name: Package, extract and smoke-test UAT runtime
         shell: pwsh
         run: |
+          $package = "SAMA_$env:SAMA_VERSION"
           New-Item release -ItemType Directory -Force | Out-Null
-          Compress-Archive -Path "build/SAMA_5.0.0-uat.9" -DestinationPath "release/SAMA_5.0.0-uat.9.zip" -CompressionLevel Optimal
-          $hash = (Get-FileHash "release/SAMA_5.0.0-uat.9.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  SAMA_5.0.0-uat.9.zip" | Set-Content "release/SHA256SUMS.txt" -Encoding utf8NoBOM
+          Compress-Archive -Path "build/$package" -DestinationPath "release/$package.zip" -CompressionLevel Optimal
+          $hash = (Get-FileHash "release/$package.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $package.zip" | Set-Content "release/SHA256SUMS.txt" -Encoding utf8NoBOM
           New-Item verify-package -ItemType Directory | Out-Null
-          Expand-Archive "release/SAMA_5.0.0-uat.9.zip" verify-package
-          if (-not (Test-Path "verify-package/SAMA_5.0.0-uat.9/runtime/python.exe")) { throw "Portable runtime missing" }
-          if (-not (Test-Path "verify-package/SAMA_5.0.0-uat.9/data/sama.sqlite3")) { throw "Canonical DB missing" }
-          $check = ((Get-FileHash "release/SAMA_5.0.0-uat.9.zip" -Algorithm SHA256).Hash.ToLowerInvariant() + "  SAMA_5.0.0-uat.9.zip")
+          Expand-Archive "release/$package.zip" verify-package
+          $root = "verify-package/$package"
+          if (-not (Test-Path "$root/runtime/python.exe")) { throw "Portable runtime missing" }
+          if (-not (Test-Path "$root/data/sama.sqlite3")) { throw "Canonical DB missing" }
+          if (-not (Test-Path "$root/UAT_BUILD")) { throw "UAT marker missing" }
+          $check = ((Get-FileHash "release/$package.zip" -Algorithm SHA256).Hash.ToLowerInvariant() + "  $package.zip")
           if ($check -ne (Get-Content "release/SHA256SUMS.txt" -Raw -Encoding utf8).Trim()) { throw "Release hash verification failed" }
+          Push-Location $root
+          & .\runtime\python.exe scripts\first_start.py
+          if ($LASTEXITCODE -ne 0) { throw "Extracted package first-start failed" }
+          $env:SAMA_PORT = '8765'
+          $server = Start-Process -FilePath ".\runtime\python.exe" -ArgumentList "scripts\run_server.py" -PassThru -WindowStyle Hidden
+          try {
+            $ok = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              Start-Sleep -Milliseconds 500
+              try {
+                $response = Invoke-WebRequest "http://127.0.0.1:8765/login/" -UseBasicParsing -TimeoutSec 2
+                if ($response.StatusCode -eq 200) { $ok = $true; break }
+              } catch { }
+            }
+            if (-not $ok) { throw "Extracted package HTTP smoke test failed" }
+          } finally {
+            if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+          }
+          Pop-Location
       - uses: actions/upload-artifact@v4
         with:
-          name: SAMA_5.0.0-uat.9
+          name: SAMA_${{ env.SAMA_VERSION }}
           path: release/*
       - name: Publish and verify GitHub Release assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view v5.0.0-uat.9 *> $null
-          if ($LASTEXITCODE -ne 0) { gh release create v5.0.0-uat.9 --prerelease --target "${{ github.sha }}" --title "سما — 5.0.0-uat.9" --notes "UI/UX and Design System remediation UAT candidate. Not approved for Production/LAN use." }
-          gh release upload v5.0.0-uat.9 release/SAMA_5.0.0-uat.9.zip release/SHA256SUMS.txt --clobber
-          $asset = gh api repos/${{ github.repository }}/releases/tags/v5.0.0-uat.9 --jq '.assets[] | select(.name == "SAMA_5.0.0-uat.9.zip") | [.name,.size] | @tsv'
+          $package = "SAMA_$env:SAMA_VERSION"
+          gh release view $env:SAMA_TAG *> $null
+          if ($LASTEXITCODE -ne 0) { gh release create $env:SAMA_TAG --prerelease --target "${{ github.sha }}" --title "سما — $env:SAMA_VERSION" --notes "Owner UAT candidate. Windows portable package passed authority, regression, database integrity, extracted-runtime first-start and HTTP smoke gates. Not approved for Production/LAN use; official Golden Master and owner acceptance remain separate gates." }
+          gh release upload $env:SAMA_TAG "release/$package.zip" release/SHA256SUMS.txt --clobber
+          $asset = gh api repos/${{ github.repository }}/releases/tags/$env:SAMA_TAG --jq ".assets[] | select(.name == \"$package.zip\") | [.name,.size] | @tsv"
           if (-not $asset) { throw "Release ZIP asset is not visible through GitHub API" }
-          gh release download v5.0.0-uat.9 --pattern SAMA_5.0.0-uat.9.zip --dir downloaded --clobber
-          if ((Get-FileHash downloaded/SAMA_5.0.0-uat.9.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-FileHash release/SAMA_5.0.0-uat.9.zip -Algorithm SHA256).Hash.ToLowerInvariant()) { throw "Published asset hash differs" }
+          gh release download $env:SAMA_TAG --pattern "$package.zip" --dir downloaded --clobber
+          if ((Get-FileHash "downloaded/$package.zip" -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-FileHash "release/$package.zip" -Algorithm SHA256).Hash.ToLowerInvariant()) { throw "Published asset hash differs" }
