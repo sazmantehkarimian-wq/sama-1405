@@ -49,13 +49,13 @@
       <li><span>قراردادهای ۶۱ تا ۹۰ روز مانده</span><a href="{% url 'space-list' %}?{{ links.contract_61_90 }}">{{ contract_61_90_count|fa_digits }} پرونده</a></li>
       <li><span>فاقد قرارداد جاری</span><a href="{% url 'space-list' %}?{{ links.contract_empty }}">{{ without_contract_count|fa_digits }} پرونده</a></li>
       <li><span>فاقد کارشناسی مرجع</span><a href="{% url 'space-list' %}?{{ links.appraisal_empty }}">{{ without_appraisal_count|fa_digits }} پرونده</a></li>
-      <li><span>مزایده نیازمند بررسی</span><a href="{% url 'auction-workspace' %}">{{ auction_review_count|fa_digits }} مورد</a></li>
-      <li><span>کاندیدای دارای اقدام باز</span><a href="{% url 'auction-workspace' %}">{{ auction_action_count|fa_digits }} مورد</a></li>
+      <li><span>مزایده نیازمند بررسی</span><a href="{% url 'dashboard-auction-drilldown' %}?{{ links.auction_review }}">{{ auction_review_count|fa_digits }} مورد</a></li>
+      <li><span>کاندیدای دارای اقدام باز</span><a href="{% url 'dashboard-auction-drilldown' %}?{{ links.auction_action }}">{{ auction_action_count|fa_digits }} مورد</a></li>
     </ul>
   </section>
   <section class="card card-accent"><h2>پراکندگی فضاهای فعال در دامنه</h2><div class="bar-list">{% for row in region_rows %}<div class="bar-row"><span>{{ row.region__name }}</span><span class="bar-track"><span class="bar-fill" data-percent="{{ row.percent }}"></span></span><strong>{{ row.total|fa_digits }}</strong></div>{% empty %}<p class="empty">در دامنه جاری داده منطقه‌ای ثبت نشده است.</p>{% endfor %}</div></section>
 </div>
 
-<section class="card"><h2>ترکیب وضعیت جاری</h2><div class="detail-grid"><div><small>دارای بهره‌بردار جاری</small><strong>{{ with_beneficiary_count|fa_digits }}</strong></div><div><small>فاقد بهره‌بردار جاری</small><strong>{{ without_beneficiary_count|fa_digits }}</strong></div><div><small>دارای کارشناسی مرجع</small><strong>{{ current_appraisal_count|fa_digits }}</strong></div><div><small>قرارداد بیش از ۳۶۵ روز</small><strong>{{ long_term_contract_count|fa_digits }}</strong></div><div><small>آخرین ارزیابی Candidate</small><strong>{{ auction_candidate_count|fa_digits }}</strong></div><div><small>فرایند باز</small><strong>{{ open_workflow_count|fa_digits }}</strong></div></div></section>
+<section class="card"><h2>ترکیب وضعیت جاری</h2><div class="detail-grid"><div><small>دارای بهره‌بردار جاری</small><strong>{{ with_beneficiary_count|fa_digits }}</strong></div><div><small>فاقد بهره‌بردار جاری</small><strong>{{ without_beneficiary_count|fa_digits }}</strong></div><div><small>دارای کارشناسی مرجع</small><strong>{{ current_appraisal_count|fa_digits }}</strong></div><div><small>قرارداد بیش از ۳۶۵ روز</small><strong>{{ long_term_contract_count|fa_digits }}</strong></div><div><small>آخرین ارزیابی Candidate</small><strong><a href="{% url 'dashboard-auction-drilldown' %}?{{ links.auction_candidate }}">{{ auction_candidate_count|fa_digits }}</a></strong></div><div><small>فرایند باز</small><strong>{{ open_workflow_count|fa_digits }}</strong></div></div></section>
 <section class="card data-quality-panel"><div><h2>کنترل کیفیت داده</h2><p>مغایرت‌ها جدا از اقدام عملیاتی نگهداری می‌شوند و حدس داده ممنوع است.</p></div><a class="button secondary compact" href="{% url 'domain-list' 'discrepancies' %}">{{ discrepancy_count|fa_digits }} مغایرت در انتظار بررسی</a></section>
 {% endblock %}
