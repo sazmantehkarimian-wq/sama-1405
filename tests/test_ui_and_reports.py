@@ -11,7 +11,7 @@ def user(db):return get_user_model().objects.create_user('u',password='A-very-sa
 def test_space_list_and_dossier(client,user):
  client.force_login(user);s=CommercialSpace.objects.create(code='9',name='فضای آزمون',status='ACTIVE',source_row=5,source_classification='authority')
  assert client.get('/spaces/').status_code==200
- body=client.get('/spaces/9/').content.decode();assert 'پرونده فضای 9' in body and 'الان دست کیه؟' in body and 'None' not in body
+ body=client.get('/spaces/9/').content.decode();assert 'فضای 9' in body and 'دارنده فعلی پرونده' in body and 'None' not in body
 
 @pytest.mark.django_db
 def test_advanced_space_filters_and_saved_view(client,user):
@@ -77,7 +77,7 @@ def test_saved_report_and_immutable_snapshot(client,user,settings,tmp_path):
  assert response.status_code==302
  report=SavedReport.objects.get(owner=user)
  assert report.filters=={'status':['ACTIVE']} and report.fields==['code','status']
- assert client.get(f'/reports/{report.pk}/open/').url=='/spaces/?status=ACTIVE&field=code&field=status&blank=%D8%A7%D9%82%D8%AF%D8%A7%D9%85'
+ assert client.get(f'/reports/{report.pk}/open/').url=='/reports/preview/?domain=commercial_spaces&status=ACTIVE&field=code&field=status&blank=%D8%A7%D9%82%D8%AF%D8%A7%D9%85'
  assert client.post(f'/reports/{report.pk}/archive/').status_code==302
  snapshot=ArchivedReportSnapshot.objects.get(report=report);payload=snapshot.file.read()
  assert snapshot.row_count==1 and hashlib.sha256(payload).hexdigest()==snapshot.sha256
