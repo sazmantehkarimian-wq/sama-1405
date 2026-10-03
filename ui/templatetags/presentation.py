@@ -1,4 +1,6 @@
 """Central, null-safe Persian presentation rules for every product template."""
+import re
+
 from django import template
 from django.utils import timezone
 
@@ -7,6 +9,7 @@ from services.money import format_rial
 
 register = template.Library()
 _FA = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+_MACHINE_IDENTIFIER_RE = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9._/-]+$")
 _ADMIN_LABELS = {
     "OPEN": "در انتظار بررسی", "REVIEWING": "در حال بررسی", "RESOLVED": "حل‌شده",
     "MEDIUM": "متوسط", "HIGH": "زیاد", "LOW": "کم", "CRITICAL": "بحرانی",
@@ -76,7 +79,15 @@ def jalali_datetime(value):
 def administrative(value, empty="—"):
     if value is None or value == "":
         return empty
-    return _ADMIN_LABELS.get(str(value), str(value)).translate(_FA)
+    raw = str(value)
+    label = _ADMIN_LABELS.get(raw)
+    if label is not None:
+        return label.translate(_FA)
+    # Business/system identifiers must stay byte-for-byte recognizable in UI,
+    # reports and support conversations. Examples: P-0201, APR-000123, CNT-14/05.
+    if _MACHINE_IDENTIFIER_RE.fullmatch(raw):
+        return raw
+    return raw.translate(_FA)
 
 
 @register.filter
