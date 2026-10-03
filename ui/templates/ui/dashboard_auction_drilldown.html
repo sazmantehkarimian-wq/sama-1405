@@ -1,0 +1,8 @@
+{% extends 'ui/base.html' %}{% load presentation %}
+{% block title %}Drill-down مزایده{% endblock %}
+{% block section_class %}section-auctions{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Drill-down مزایده</h1><p>آخرین ارزیابی هر فضای تجاری در دامنه فعال.</p></div><a class="button tertiary compact" href="{% url 'dashboard' %}">بازگشت به داشبورد</a></div>
+{% if scope_summary %}<div class="scope-summary">{% for item in scope_summary %}<span class="badge">{{ item }}</span>{% endfor %}<span class="badge">{{ row_count|fa_digits }} رکورد</span></div>{% endif %}
+<section class="card"><div class="table-wrap"><table><thead><tr><th>کد فضا</th><th>نام فضا</th><th>تصمیم</th><th>Readiness</th><th>علت</th><th>قانون</th><th>اقدام</th></tr></thead><tbody>{% for item in rows %}<tr><td>{{ item.space.code }}</td><td>{{ item.space.name }}</td><td>{{ item.decision }}</td><td>{{ item.readiness }}</td><td>{{ item.reason_code|default:'—' }}</td><td>{{ item.rule|default:'—' }}</td><td><a class="button compact" href="{% url 'space-detail' item.space.code %}">پرونده</a></td></tr>{% empty %}<tr><td colspan="7">رکوردی برای این Drill-down وجود ندارد.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}
