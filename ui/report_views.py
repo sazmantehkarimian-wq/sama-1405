@@ -4,6 +4,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from domains.identity.models import SavedReport
+from domains.properties.models import Region
 from queries.spaces import filter_spaces
 from queries.mother_properties import filter_mother_properties
 from reporting.engine import FIELD_MAP, MOTHER_FIELD_MAP, output_table, excel, pdf, docx
@@ -42,10 +43,15 @@ def report_builder(request):
         'saved': SavedReport.objects.filter(owner=request.user),
         'report_domain': domain,
         'report_title': _title(domain),
-        'report_domains': [
-            ('commercial_spaces', 'فضاهای تجاری'),
-            ('mother_properties', 'املاک مادر'),
-        ],
+        'report_domains': [('commercial_spaces', 'فضاهای تجاری'), ('mother_properties', 'املاک مادر')],
+        'regions': Region.objects.order_by('name'),
+        'initial_code': request.GET.get('code', ''),
+        'initial_q': request.GET.get('q', ''),
+        'initial_identifier': request.GET.get('identifier', ''),
+        'initial_property_name': request.GET.get('property_name', ''),
+        'initial_region_id': request.GET.get('region_id', ''),
+        'initial_blank_rows': _blank_rows(request),
+        'initial_orientation': request.GET.get('orientation', 'landscape'),
     })
 
 
