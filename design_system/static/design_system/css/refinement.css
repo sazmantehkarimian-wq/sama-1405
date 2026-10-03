@@ -1,0 +1,98 @@
+:root{
+  --nav-height:2.625rem;
+  --control-compact:1.875rem;
+  --control-standard:2.25rem;
+  --control-emphasized:2.25rem;
+}
+
+/* Global shell alignment: every direct navigation item occupies exactly one row. */
+.topnav{
+  min-height:var(--nav-height);
+  height:var(--nav-height);
+  align-items:stretch;
+  gap:0;
+}
+.topnav>a,
+.topnav>details{
+  height:100%;
+  min-height:100%;
+  margin:0;
+  flex:0 0 auto;
+}
+.topnav>details{display:block}
+.topnav>a,
+.topnav>details>summary{
+  height:100%;
+  min-height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 .7rem;
+  line-height:1.15;
+  border-bottom-width:2px;
+}
+.topnav details>div{top:100%}
+
+/* One button geometry across all operational screens. */
+button,.button{
+  min-height:var(--control-standard);
+  height:var(--control-standard);
+  min-width:6.5rem;
+  padding:.35rem .85rem;
+  border-radius:.375rem;
+  line-height:1;
+  white-space:nowrap;
+}
+.button.compact,button.compact{
+  min-height:var(--control-compact);
+  height:var(--control-compact);
+  min-width:5.75rem;
+  padding:.25rem .7rem;
+}
+.button.emphasized,button.emphasized{
+  min-height:var(--control-standard);
+  height:var(--control-standard);
+  padding-inline:.95rem;
+}
+.button-row{
+  align-items:center;
+  gap:.5rem;
+}
+.button-row>.button,
+.button-row>button{flex:0 0 auto}
+
+/* Keep filter actions compact instead of allowing visually oversized controls. */
+.filter-primary button{
+  width:7rem;
+  min-width:7rem;
+  justify-self:start;
+  align-self:end;
+}
+.filters button{
+  min-width:7rem;
+  justify-self:start;
+}
+
+/* Controls and form rhythm. */
+input,select,.control{min-height:var(--control-standard)}
+.multi-select>summary{min-height:var(--control-standard)}
+.container{padding-block:1.25rem 2rem}
+.page-header{margin-bottom:1rem;align-items:center}
+.card,.panel{padding:.875rem;margin-bottom:1rem}
+.form-grid,.detail-grid{gap:1rem}
+.entity-form{gap:1rem}
+.entity-form .form-grid{gap:1rem 1.25rem}
+.filter-panel-header{padding:.65rem 1rem}
+.filter-primary{padding:.875rem 1rem;gap:.75rem}
+.filter-advanced>summary{padding:.65rem 1rem}
+
+/* Responsive navigation remains one horizontal rail and scrolls instead of stepping vertically. */
+@media(max-width:1200px){
+  .topnav{overflow-x:auto;overflow-y:visible;scrollbar-width:thin}
+  .topnav>a,.topnav>details>summary{padding-inline:.6rem}
+}
+
+@media(max-width:600px){
+  button,.button{min-width:auto}
+  .button-row{align-items:center}
+}
