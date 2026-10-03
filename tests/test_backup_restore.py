@@ -26,6 +26,21 @@ def test_tampered_media_blocks_restore(tmp_path):
  database=tmp_path/'live.sqlite3';media=tmp_path/'media';media.mkdir();(media/'proof.bin').write_bytes(b'proof');make_database(database)
  backup=create_backup(database,media,tmp_path/'backups');(backup/'media'/'proof.bin').write_bytes(b'tampered')
  with pytest.raises(ValueError,match='Media manifest mismatch'):validate_backup(backup)
+def test_tampered_database_blocks_restore(tmp_path):
+ database=tmp_path/'live.sqlite3';media=tmp_path/'media';media.mkdir();make_database(database)
+ backup=create_backup(database,media,tmp_path/'backups')
+ with (backup/'sama.sqlite3').open('ab') as stream:stream.write(b'tampered')
+ with pytest.raises(ValueError,match='Database checksum mismatch'):validate_backup(backup)
+def test_manifest_cannot_redirect_database_outside_backup(tmp_path):
+ database=tmp_path/'live.sqlite3';media=tmp_path/'media';media.mkdir();make_database(database)
+ backup=create_backup(database,media,tmp_path/'backups')
+ manifest_path=backup/'manifest.json';manifest=json.loads(manifest_path.read_text(encoding='utf-8'));manifest['database']['path']='../live.sqlite3';manifest_path.write_text(json.dumps(manifest),encoding='utf-8')
+ with pytest.raises(ValueError,match='Invalid database manifest entry'):validate_backup(backup)
+def test_manifest_rejects_unsafe_media_paths(tmp_path):
+ database=tmp_path/'live.sqlite3';media=tmp_path/'media';media.mkdir();(media/'proof.bin').write_bytes(b'proof');make_database(database)
+ backup=create_backup(database,media,tmp_path/'backups')
+ manifest_path=backup/'manifest.json';manifest=json.loads(manifest_path.read_text(encoding='utf-8'));manifest['media'][0]['path']='../../proof.bin';manifest_path.write_text(json.dumps(manifest),encoding='utf-8')
+ with pytest.raises(ValueError,match='Unsafe media manifest path'):validate_backup(backup)
 @pytest.mark.django_db
 def test_maintenance_lock_rejects_writes_but_allows_reads(client):
  lock=Path(settings.DATABASES['default']['NAME']).parent/'.maintenance-lock';lock.parent.mkdir(parents=True,exist_ok=True);lock.write_text('test')
