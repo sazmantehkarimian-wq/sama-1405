@@ -75,14 +75,47 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
                 assert page.evaluate("scrollX === 0 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
                 page.screenshot(path=evidence / f"{name}-{width}.png", full_page=True)
         page.goto(f"{live_server.url}/spaces/");page.get_by_label("جست‌وجوی سراسری").fill("BROWSER-501");page.get_by_role("button",name="جست‌وجو").click();page.get_by_role("link",name="مشاهده پرونده").click()
-        assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()
+        assert "فضای BROWSER-501" in page.locator("h1").inner_text()
         for label,title in (("شروع گردش قرارداد","ایجاد پرونده گردش قرارداد"),("ثبت کارشناسی جدید","ثبت کارشناسی جدید"),("بارگذاری سند","بارگذاری سند"),("ثبت انشعاب / مصرف","ثبت انشعاب یا مصرف"),("ثبت تحویل","ثبت تحویل پرونده"),("ثبت مورد پیگیری","ثبت مورد نیازمند پیگیری")):
             page.get_by_role("link",name=label,exact=True).click()
             assert page.get_by_role("heading",name=title,exact=True).is_visible()
             assert "پرونده فضای BROWSER-501" in page.locator(".page-header").inner_text()
             if label == "شروع گردش قرارداد": page.screenshot(path=evidence / "contract-operation-context-1366.png", full_page=True)
             page.get_by_role("link",name="بازگشت به پرونده").click()
-            assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()
+            assert "فضای BROWSER-501" in page.locator("h1").inner_text()
+    finally:
+        browser.close();manager.stop()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_visual_freeze_regions_header_report_and_picker_in_browser(live_server):
+    from playwright.sync_api import Error, sync_playwright
+    user=get_user_model().objects.create_user('visual-browser',password='A-very-safe-password',is_staff=True)
+    UserProfile.objects.create(user=user,display_name='کاربر بصری',must_change_password=False)
+    region=Region.objects.create(code='6',name='منطقه ۶');center=Center.objects.create(name='مرکز شش',region=region);special=Center.objects.create(name='مرکز خاص شش',region=region,is_special=True)
+    CommercialSpace.objects.create(code='61',name='فضای منطقه شش',status='ACTIVE',region=region,center=center,source_row=1,source_classification='authority')
+    CommercialSpace.objects.create(code='62',name='فضای مرکز خاص',status='ACTIVE',region=region,center=special,source_row=2,source_classification='authority')
+    manager=None
+    try:
+        manager=sync_playwright().start();browser=manager.chromium.launch(headless=True)
+    except Error:
+        if manager:manager.stop()
+        if os.environ.get('SAMA_REQUIRE_BROWSER')=='1':raise
+        pytest.skip('Chromium binary is not installed')
+    try:
+        page=browser.new_page(viewport={'width':1366,'height':768});page.goto(f'{live_server.url}/login/')
+        page.get_by_label('نام کاربری').fill(user.username);page.get_by_label('گذرواژه').fill('A-very-safe-password');page.get_by_role('button',name='ورود').click()
+        page.goto(f'{live_server.url}/regions/6/');page.wait_for_load_state('networkidle')
+        assert page.get_by_text('منطقه ۶ — نمای مدیریتی',exact=True).is_visible()
+        assert page.get_by_role('link',name='مراکز خاص').is_visible()
+        assert page.get_by_text('مدیریت اقتصادی و املاک',exact=True).is_visible() and page.get_by_text('اداره املاک و مستغلات',exact=True).is_visible()
+        page.goto(f'{live_server.url}/reports/?domain=mother_properties')
+        assert page.get_by_role('link',name='املاک مادر',exact=True).count()>=1
+        assert page.get_by_label('ردیف خالی خروجی').is_visible()
+        page.goto(f'{live_server.url}/auctions/')
+        picker=page.locator('[data-search-picker]').first;query=picker.locator('[data-picker-query]');query.fill('61');query.focus()
+        picker.locator('[data-picker-option]').filter(has_text='61').first.click()
+        assert 'open' not in (picker.get_attribute('class') or '')
     finally:
         browser.close();manager.stop()
 
