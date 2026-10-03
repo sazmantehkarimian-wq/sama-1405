@@ -71,16 +71,16 @@ def test_action_center_priority_drilldown_matches_dashboard_kpi(client):
     client.force_login(user)
     region=Region.objects.create(code='5',name='منطقه ۵')
     space=CommercialSpace.objects.create(code='9601',name='فضای اقدام',status='ACTIVE',region=region)
-    Alert.objects.create(space=space,subject='بحرانی',reason='اقدام',priority='CRITICAL',status='OPEN',target_url='/spaces/9601/')
-    Alert.objects.create(space=space,subject='متوسط',reason='اقدام',priority='MEDIUM',status='OPEN',target_url='/spaces/9601/')
+    critical_alert=Alert.objects.create(space=space,subject='بحرانی',reason='اقدام',priority='CRITICAL',status='OPEN',target_url='/spaces/9601/')
+    medium_alert=Alert.objects.create(space=space,subject='متوسط',reason='اقدام',priority='MEDIUM',status='OPEN',target_url='/spaces/9601/')
 
     dashboard=client.get('/',{'region_id':str(region.pk)})
     critical=client.get('/actions/',{'region_id':str(region.pk),'kind':'alerts','priority':'CRITICAL'})
     assert critical.status_code==200
     assert critical.context['alert_count']==dashboard.context['critical_alert_count']==1
-    body=critical.content.decode()
-    assert 'بحرانی' in body
-    assert 'متوسط' not in body
+    rows=list(critical.context['alert_page'].object_list)
+    assert [item.pk for item in rows]==[critical_alert.pk]
+    assert medium_alert.pk not in [item.pk for item in rows]
 
 
 @pytest.mark.django_db
