@@ -43,7 +43,7 @@ FONT=BASE/'design_system/static/design_system/fonts/Vazirmatn-Regular.ttf'
 
 def _style_xlsx(ws,header,total):
  ws.freeze_panes=f'A{header+1}';ws.auto_filter.ref=f'A{header}:{ws.cell(max(header,ws.max_row),total).coordinate}'
- ws.sheet_properties.pageSetUpPr.fitToPage=True;ws.page_setup.orientation='landscape';ws.page_setup.fitToWidth=1;ws.page_setup.fitToHeight=0
+ ws.sheet_properties.pageSetUpPr.fitToPage=True;ws.page_setup.fitToWidth=1;ws.page_setup.fitToHeight=0
  ws.print_title_rows=f'{header}:{header}';ws.print_area=f'A1:{get_column_letter(total)}{max(header,ws.max_row)}';ws.oddFooter.center.text='&N از &P صفحه'
  side=Side(style='thin',color='D8D3CF');header_fill=PatternFill('solid',fgColor='E7F1F4')
  for row in ws.iter_rows(min_row=header):
@@ -61,7 +61,6 @@ def columns(selected=None,field_map=None):
  field_map=field_map or FIELD_MAP;selected=[key for key in (selected or tuple(field_map)) if key in field_map]
  return selected or list(field_map)
 def layout_columns(layout=None,selected=None,blank_columns=(),field_map=None):
- """Return one authoritative ordered output layout (first item is visual right)."""
  field_map=field_map or FIELD_MAP;result=[]
  for token in layout or ():
   kind,separator,value=str(token).partition(':')
@@ -91,12 +90,10 @@ def excel(spaces,blank_columns=(),selected=None,layout=None,orientation='landsca
   logo=ExcelImage(str(LOGO));logo.width=64;logo.height=64;ws.add_image(logo,'A1')
  ws.append(labels); header=ws.max_row
  for row in data:ws.append(row)
- ws.page_setup.orientation=orientation
- _style_xlsx(ws,header,total)
+ _style_xlsx(ws,header,total);ws.page_setup.orientation=orientation if orientation in {'portrait','landscape'} else 'landscape'
  out=BytesIO(); wb.save(out); return out.getvalue()
 
 def tabular_excel(title,labels,data):
- """Official Excel 2019-compatible output for typed operational domain reports."""
  wb=Workbook();ws=wb.active;ws.title=str(title)[:31];ws.sheet_view.rightToLeft=True
  total=max(1,len(labels))
  for line in HEADERS:
@@ -106,7 +103,7 @@ def tabular_excel(title,labels,data):
   logo=ExcelImage(str(LOGO));logo.width=64;logo.height=64;ws.add_image(logo,'A1')
  ws.append(list(labels));header=ws.max_row
  for values in data:ws.append(list(values))
- _style_xlsx(ws,header,total)
+ _style_xlsx(ws,header,total);ws.page_setup.orientation='landscape'
  out=BytesIO();wb.save(out);return out.getvalue()
 def _rtl(paragraph):
  paragraph.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -122,8 +119,7 @@ def docx(spaces,blank_columns=(),selected=None,layout=None,orientation='landscap
  header=sec.header.paragraphs[0]
  if LOGO.exists(): header.add_run().add_picture(str(LOGO),width=Mm(18))
  header.add_run('\n'+'\n'.join(HEADERS));_rtl(header)
- table=doc.add_table(rows=1,cols=len(labels));table.style='Table Grid'
- _rtl_table(table)
+ table=doc.add_table(rows=1,cols=len(labels));table.style='Table Grid';_rtl_table(table)
  for i,h in enumerate(labels):table.rows[0].cells[i].text=h;_rtl(table.rows[0].cells[i].paragraphs[0])
  table.rows[0]._tr.get_or_add_trPr().append(OxmlElement('w:tblHeader'))
  for row in data:
@@ -136,13 +132,11 @@ def _fa(value):return get_display(arabic_reshaper.reshape(str(value).translate(s
 def pdf(spaces,selected=None,blank_columns=(),layout=None,orientation='landscape',field_map=None,blank_rows=0):
  labels,body=output_table(spaces,layout,selected,blank_columns,field_map,blank_rows=blank_rows);out=BytesIO();pdfmetrics.registerFont(TTFont('Vazirmatn',str(FONT)));page_size=landscape(A4) if orientation=='landscape' else A4
  doc=SimpleDocTemplate(out,pagesize=page_size,rightMargin=12*mm,leftMargin=12*mm,topMargin=10*mm,bottomMargin=12*mm,title='گزارش رسمی املاک')
- style=ParagraphStyle('fa',fontName='Vazirmatn',fontSize=9,leading=14,alignment=TA_CENTER)
- story=[]
+ style=ParagraphStyle('fa',fontName='Vazirmatn',fontSize=9,leading=14,alignment=TA_CENTER);story=[]
  if LOGO.exists():story.append(Image(str(LOGO),width=18*mm,height=18*mm))
  for line in HEADERS:story.append(Paragraph(_fa(line),style))
  story.append(Spacer(1,5*mm))
- data=[[Paragraph(_fa(value),style) for value in labels]]+[[Paragraph(_fa(value),style) if value!='' else '' for value in row] for row in body]
- data=[list(reversed(row)) for row in data]
+ data=[[Paragraph(_fa(value),style) for value in labels]]+[[Paragraph(_fa(value),style) if value!='' else '' for value in row] for row in body];data=[list(reversed(row)) for row in data]
  available=page_size[0]-24*mm;table=Table(data,repeatRows=1,hAlign='CENTER',splitByRow=1,colWidths=[available/max(1,len(labels))]*len(labels))
  table.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Vazirmatn'),('FONTSIZE',(0,0),(-1,-1),8),('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('GRID',(0,0),(-1,-1),.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#f1edf2')),('LEADING',(0,0),(-1,-1),12)]));story.append(table)
  def numbered_page(canvas,document):
