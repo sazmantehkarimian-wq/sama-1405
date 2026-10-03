@@ -65,7 +65,6 @@ def test_document_upload_rejects_invalid_jalali_date(client, tmp_path, settings)
     assert Document.objects.count() == 0
 
 
-
 @pytest.mark.django_db
 def test_document_archive_keeps_file_and_audits_without_hard_delete(client,tmp_path,settings):
     settings.MEDIA_ROOT=tmp_path
@@ -94,3 +93,23 @@ def test_document_archive_keeps_file_and_audits_without_hard_delete(client,tmp_p
     assert "REF-1" in dossier
     download=client.get(f"/documents/{document.pk}/download/")
     assert download.status_code==200
+
+
+@pytest.mark.django_db
+def test_document_download_fails_closed_when_file_hash_changes(client,tmp_path,settings):
+    settings.MEDIA_ROOT=tmp_path
+    user=get_user_model().objects.create_user("document-integrity",password="A-very-safe-password")
+    client.force_login(user)
+    CommercialSpace.objects.create(code="8904",name="فضا",status="ACTIVE")
+    client.post("/spaces/8904/documents/",{
+        "title":"سند کنترل صحت","document_type":"نامه",
+        "file":SimpleUploadedFile("integrity.pdf",b"%PDF-1.4\nORIGINAL",content_type="application/pdf"),
+    })
+    document=Document.objects.get()
+    path=document.file.path
+    with open(path,"wb") as handle:
+        handle.write(b"%PDF-1.4\nTAMPERED")
+
+    response=client.get(f"/documents/{document.pk}/download/")
+    assert response.status_code==409
+    assert "کنترل صحت فایل ناموفق بود" in response.json()["detail"]
