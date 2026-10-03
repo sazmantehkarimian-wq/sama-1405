@@ -28,19 +28,24 @@ def _scope_from_request(request):
     return scope
 
 
-def _scope_pairs(scope):
+def _scope_pairs(scope, *, exclude_keys=()):
+    excluded = set(exclude_keys)
     pairs = []
     for key in _SCOPE_KEYS:
+        if key in excluded:
+            continue
         for value in scope.get(key, []):
             pairs.append((key, value))
-    if scope.get("usage"):
+    if "usage" not in excluded and scope.get("usage"):
         pairs.append(("usage", scope["usage"]))
         pairs.append(("usage_op", "contains"))
     return pairs
 
 
 def _scope_query(scope, **extra):
-    pairs = _scope_pairs(scope)
+    # Extra values intentionally replace the same scope key rather than being
+    # appended to it. This prevents contradictory duplicated status filters.
+    pairs = _scope_pairs(scope, exclude_keys=extra.keys())
     for key, value in extra.items():
         if value is None:
             continue
@@ -88,30 +93,49 @@ def _scope_summary(scope):
     return parts
 
 
+def _status_allowed(scope, value):
+    statuses = scope.get("status", [])
+    return not statuses or value in statuses
+
+
 @login_required
 def dashboard(request):
     scope = _scope_from_request(request)
     scope_qs = filter_spaces(scope)
     scope_ids = list(scope_qs.values_list("pk", flat=True))
 
+    active_allowed = _status_allowed(scope, CommercialSpace.Status.ACTIVE)
+    inactive_allowed = _status_allowed(scope, CommercialSpace.Status.OUT_OF_CYCLE)
     active_count = scope_qs.filter(status=CommercialSpace.Status.ACTIVE).count()
     inactive_count = scope_qs.filter(status=CommercialSpace.Status.OUT_OF_CYCLE).count()
 
     active_scope = dict(scope)
     active_scope["status"] = [CommercialSpace.Status.ACTIVE]
-    current_contract_count = filter_spaces({**active_scope, "current_contract": "present"}).count()
-    without_contract_count = filter_spaces({**active_scope, "current_contract": "empty"}).count()
-    current_appraisal_count = filter_spaces({**active_scope, "current_appraisal": "present"}).count()
-    without_appraisal_count = filter_spaces({**active_scope, "current_appraisal": "empty"}).count()
-    contract_today_count = filter_spaces({**active_scope, "contract_bucket": "TODAY"}).count()
-    contract_1_30_count = filter_spaces({**active_scope, "contract_bucket": "1_30"}).count()
-    contract_31_60_count = filter_spaces({**active_scope, "contract_bucket": "31_60"}).count()
-    contract_61_90_count = filter_spaces({**active_scope, "contract_bucket": "61_90"}).count()
-    long_term_contract_count = filter_spaces({**active_scope, "contract_bucket": "LONG_TERM"}).count()
-
-    active_annotated = filter_spaces(active_scope)
-    with_beneficiary_count = active_annotated.filter(current_beneficiary_name__isnull=False).count()
-    without_beneficiary_count = active_annotated.filter(current_beneficiary_name__isnull=True).count()
+    if active_allowed:
+        current_contract_count = filter_spaces({**active_scope, "current_contract": "present"}).count()
+        without_contract_count = filter_spaces({**active_scope, "current_contract": "empty"}).count()
+        current_appraisal_count = filter_spaces({**active_scope, "current_appraisal": "present"}).count()
+        without_appraisal_count = filter_spaces({**active_scope, "current_appraisal": "empty"}).count()
+        contract_today_count = filter_spaces({**active_scope, "contract_bucket": "TODAY"}).count()
+        contract_1_30_count = filter_spaces({**active_scope, "contract_bucket": "1_30"}).count()
+        contract_31_60_count = filter_spaces({**active_scope, "contract_bucket": "31_60"}).count()
+        contract_61_90_count = filter_spaces({**active_scope, "contract_bucket": "61_90"}).count()
+        long_term_contract_count = filter_spaces({**active_scope, "contract_bucket": "LONG_TERM"}).count()
+        active_annotated = filter_spaces(active_scope)
+        with_beneficiary_count = active_annotated.filter(current_beneficiary_name__isnull=False).count()
+        without_beneficiary_count = active_annotated.filter(current_beneficiary_name__isnull=True).count()
+    else:
+        current_contract_count = 0
+        without_contract_count = 0
+        current_appraisal_count = 0
+        without_appraisal_count = 0
+        contract_today_count = 0
+        contract_1_30_count = 0
+        contract_31_60_count = 0
+        contract_61_90_count = 0
+        long_term_contract_count = 0
+        with_beneficiary_count = 0
+        without_beneficiary_count = 0
 
     region_rows = list(
         scope_qs.filter(status=CommercialSpace.Status.ACTIVE)
@@ -158,6 +182,8 @@ def dashboard(request):
         "scope_count": scope_qs.count(),
         "active_count": active_count,
         "inactive_count": inactive_count,
+        "active_scope_enabled": active_allowed,
+        "inactive_scope_enabled": inactive_allowed,
         "property_count": MotherProperty.objects.count(),
         "discrepancy_count": Discrepancy.objects.exclude(status=Discrepancy.Status.RESOLVED).count(),
         "alert_count": open_alerts.count(),
