@@ -4,6 +4,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 class ForcePasswordChangeMiddleware:
  def __init__(self,get_response): self.get_response=get_response
  def __call__(self,request):
@@ -46,3 +47,23 @@ class MaintenanceWriteLockMiddleware:
   if request.method not in {'GET','HEAD','OPTIONS'} and self.lock_file.exists():
    return JsonResponse({'detail':'سامانه برای بازیابی پشتیبان موقتاً در حالت فقط خواندنی است.'},status=503)
   return self.get_response(request)
+
+
+class DocumentIntegrityMiddleware:
+ """Fail closed before serving a stored document whose size/hash no longer matches metadata."""
+ def __init__(self,get_response): self.get_response=get_response
+ def __call__(self,request): return self.get_response(request)
+ def process_view(self,request,view_func,view_args,view_kwargs):
+  resolver=getattr(request,'resolver_match',None)
+  if not resolver or resolver.url_name!='document-download' or not getattr(request,'user',None) or not request.user.is_authenticated:
+   return None
+  from domains.documents.models import Document
+  from services.documents import open_verified_document
+  document=Document.objects.filter(pk=view_kwargs.get('document_id')).first()
+  if not document:return None
+  try:
+   handle=open_verified_document(document)
+  except ValidationError as exc:
+   return JsonResponse({'detail':' '.join(exc.messages)},status=409)
+  handle.close()
+  return None
