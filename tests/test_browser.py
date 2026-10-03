@@ -107,7 +107,7 @@ def test_visual_freeze_regions_header_report_and_picker_in_browser(live_server):
         page.get_by_label('نام کاربری').fill(user.username);page.get_by_label('گذرواژه').fill('A-very-safe-password');page.get_by_role('button',name='ورود').click()
         page.goto(f'{live_server.url}/regions/6/');page.wait_for_load_state('networkidle')
         assert page.get_by_text('منطقه ۶ — نمای مدیریتی',exact=True).is_visible()
-        assert page.get_by_role('link',name='مراکز خاص').is_visible()
+        assert page.get_by_role('link',name='مراکز خاص').first.is_visible()
         assert page.get_by_text('مدیریت اقتصادی و املاک',exact=True).is_visible() and page.get_by_text('اداره املاک و مستغلات',exact=True).is_visible()
         page.goto(f'{live_server.url}/reports/?domain=mother_properties')
         assert page.get_by_role('link',name='املاک مادر',exact=True).count()>=1
