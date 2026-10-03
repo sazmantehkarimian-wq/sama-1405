@@ -1,8 +1,10 @@
 param(
-  [string]$Version = "5.0.0-uat.9",
+  [string]$Version = "",
   [string]$OutputRoot = "build"
 )
 $ErrorActionPreference = "Stop"
+if (-not $Version) { $Version = (Get-Content "VERSION" -Raw -Encoding utf8).Trim() }
+if ($Version -notmatch '^5\.0\.0-uat\.\d+$') { throw "Unexpected UAT VERSION: $Version" }
 $package = Join-Path $OutputRoot "SAMA_$Version"
 if (Test-Path $package) { Remove-Item $package -Recurse -Force }
 New-Item $package -ItemType Directory | Out-Null
