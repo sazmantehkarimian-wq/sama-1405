@@ -9,7 +9,7 @@
 | جدایی معماری از Legacy | PASS | `LEGACY_BOUNDARY.md`; root commit مستقل؛ آزمون الگوهای ممنوع |
 | Authority/hash/data baseline | PASS | بازخوانی مستقیم workbook: ۲۲۵ / ۳۵۰ / ۱۵۱ / ۵۰۱، بدون overlap/duplicate |
 | Raw provenance | PASS | ۸۴٬۶۱۸ cell غیرتهی با منبع، مختصات و fingerprint |
-| Registry | PASS | ۱۲۴ کلید: ۷۷ mapped، ۳۱ reference-only و ۱۶ unresolved audit-only برای سلول‌های خارج جدول بدون heading؛ raw evidence محفوظ است |
+| Registry | PASS | Import جاری ۱۲۴ canonical field گزارش می‌کند؛ raw evidence محفوظ است. |
 | Typed canonical domains | PASS | مدل‌های رابطه‌ای و migrations؛ JSON فقط برای پیکربندی/ممیزی است |
 | Design system/navigation/dossier | PASS | token enforcement، Vazirmatn محلی، navigation افقی و dossier یکپارچه |
 | Historical contracts/beneficiaries/appraisals/auctions | PASS | import رابطه‌ای با provenance |
@@ -23,10 +23,21 @@
 | Official auction/legal document engine | BLOCKED — GOLDEN MASTER NOT YET APPROVED | سند `MD اسناد رسمی و Golden Master مزایده — FINAL FROZEN.md` TemplateVersion، Snapshot، DocumentInstance، Hash، PDF/DOCX parity، Visual Regression، Atomic Page و Print Test واقعی را الزام می‌کند. مدل فعلی `domains.documents.Document` فقط فایل بارگذاری‌شده را ثبت می‌کند؛ بنابراین PASS گزارش‌های جدولی نباید به Document Engine رسمی تعمیم داده شود. Production coding/finalization این بخش تا تأیید Golden Master چاپی مالک متوقف می‌ماند. |
 | RBAC/user administration | PASS | مدیریت بومی create/reset/activate، اجبار تعویض رمز، staff enforcement و audit |
 | Backup/restore | PASS | DB/media manifest، lock نوشتن، pre-restore، integrity/FK و rollback؛ مسیر دیتابیس Manifest روی `sama.sqlite3` قفل شده و DB tamper، media tamper و path traversal با تست رد می‌شود. |
-| Browser/UI regression | PASS | Chromium واقعی و screenshot برای UI و گزارش‌های عمومی؛ این شاهد جایگزین Golden Master Print QA نیست. |
+| Browser/UI regression | PASS | Chromium واقعی برای UI و گزارش‌های عمومی؛ CI باید screenshotهای واقعی را به‌عنوان artifact ذخیره کند و نبود artifact از این پس Gate را Fail می‌کند. |
 | Golden Master physical print QA | NOT PASSED | چاپ واقعی صفحه‌به‌صفحه و تأیید انسانی برای COMMERCIAL / CAFE / SPORT و تمام اسناد الزامی هنوز شاهد تأییدشده ندارد. |
 | Concurrency/security | PASS | login throttle، پنج read/report و پنج write هم‌زمان پاس |
 | Windows portable/prerelease asset | PASS (UAT ONLY) | workflow Windows و بسته prerelease وجود دارد؛ این شاهد فقط UAT candidate است و مجوز Production/LAN نیست. |
+
+## Current automated evidence
+
+آخرین Gate کامل پیش از اصلاح سخت‌گیری artifact مرورگر:
+
+- `pytest -q`: **55 passed, 2 skipped**
+- Chromium gate: **2 passed**
+- `python manage.py check --deploy`: **0 issues**
+- import inventory: **225 mother properties / 350 active / 151 out-of-cycle / 501 unique spaces / 84,618 raw cells / 124 canonical fields / 1,884 discrepancies**
+
+پس از اصلاح workflow، browser screenshot artifact نیز باید واقعاً وجود داشته باشد؛ سبز بودن job بدون artifact دیگر پذیرفته نیست.
 
 اصلاحات فنی UAT شامل نگاشت semantic قرارداد/بهره‌بردار/کارشناسی، timeline، ارائه مرکزی، خروجی رسمی RTL و بازبینی Chromium واقعی است. وضعیت تا پذیرش انسانی مالک و عبور Golden Master Print QA همچنان UAT REMEDIATION IN PROGRESS می‌ماند؛ PR شماره ۲ نباید به‌عنوان Production/LAN-ready ادغام شود.
 
