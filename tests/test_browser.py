@@ -5,7 +5,7 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from domains.identity.models import UserProfile
-from domains.properties.models import CommercialSpace, MotherProperty
+from domains.properties.models import Center, CommercialSpace, MotherProperty, Region
 
 
 @pytest.mark.django_db(transaction=True)
@@ -15,6 +15,8 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
     user = get_user_model().objects.create_user("browser-user", password="A-very-safe-password", is_staff=True)
     profile = UserProfile.objects.create(user=user, display_name="کاربر آزمون پذیرش", must_change_password=True)
     MotherProperty.objects.create(identifier="P-BROWSER",name="ملک آزمون مرورگر",source_row=2)
+    region=Region.objects.create(code="2",name="منطقه ۲");regular=Center.objects.create(name="مرکز عادی",region=region);special_region=Region.objects.create(code="1",name="منطقه ۱");special=Center.objects.create(name="مرکز خاص",region=special_region,is_special=True)
+    CommercialSpace.objects.create(code="10",name="فضای ده",status="ACTIVE",region=region,center=regular,source_row=10,source_classification="authority");CommercialSpace.objects.create(code="2",name="فضای دو",status="ACTIVE",region=region,center=regular,source_row=2,source_classification="authority");CommercialSpace.objects.create(code="1",name="فضای خاص",status="ACTIVE",region=special_region,center=special,source_row=1,source_classification="authority")
     CommercialSpace.objects.create(code="BROWSER-501", name="فضای آزمون مرورگر", status="ACTIVE", current_usage="فرهنگی", source_row=2, source_classification="authority")
     manager = None
     try:
@@ -56,6 +58,11 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
                 assert abs(geometry["center"] - geometry["viewportCenter"]) <= 2
                 assert page.evaluate("[...document.querySelectorAll('.brand-shell,.account')].every(el => { const r=el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth })")
                 assert len(set(geometry["heights"])) == 1 and len(set(geometry["centers"])) == 1 and geometry["fits"]
+                if name == "active-spaces":
+                    codes=page.locator("tbody tr td:first-child").all_inner_texts();assert codes[:2]==["2","10"] and codes.count("1")==1
+                if name == "contract-circulation":
+                    assert page.locator(".topnav details.active summary",has_text="قراردادها").get_attribute("aria-current")=="page"
+                    assert page.locator("[data-search-picker]").is_visible() and page.locator('select[name="space_code"]').count()==0
                 if name == "dossier":
                     tabs = page.locator(".tabs a")
                     tab_boxes = tabs.evaluate_all("els => els.map(el => { const r=el.getBoundingClientRect(); return [Math.round(r.top+r.height/2), Math.round(r.height)] })")

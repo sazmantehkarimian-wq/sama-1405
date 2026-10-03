@@ -115,7 +115,12 @@ jobs:
           gh release view $env:SAMA_TAG *> $null
           if ($LASTEXITCODE -ne 0) { gh release create $env:SAMA_TAG --prerelease --target "${{ github.sha }}" --title "سما — $env:SAMA_VERSION" --notes "Owner UAT candidate. Windows portable package passed authority, regression, database integrity, extracted-runtime first-start and HTTP smoke gates. Not approved for Production/LAN use; official Golden Master and owner acceptance remain separate gates." }
           gh release upload $env:SAMA_TAG "release/$package.zip" release/SHA256SUMS.txt --clobber
-          $asset = gh api repos/${{ github.repository }}/releases/tags/$env:SAMA_TAG --jq ".assets[] | select(.name == \"$package.zip\") | [.name,.size] | @tsv"
-          if (-not $asset) { throw "Release ZIP asset is not visible through GitHub API" }
+          $releaseJson = gh api "repos/${{ github.repository }}/releases/tags/$env:SAMA_TAG"
+          if ($LASTEXITCODE -ne 0) { throw "GitHub Release is not visible through the API" }
+          $release = $releaseJson | ConvertFrom-Json
+          $assets = @($release.assets | Where-Object { $_.name -ceq "$package.zip" })
+          if ($assets.Count -ne 1) { throw "Expected exactly one release asset named $package.zip; found $($assets.Count)" }
+          if ([int64]$assets[0].size -le 0) { throw "Published release asset is empty" }
           gh release download $env:SAMA_TAG --pattern "$package.zip" --dir downloaded --clobber
+          if ((Get-Item "downloaded/$package.zip").Length -ne [int64]$assets[0].size) { throw "Downloaded release asset size differs from GitHub API metadata" }
           if ((Get-FileHash "downloaded/$package.zip" -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-FileHash "release/$package.zip" -Algorithm SHA256).Hash.ToLowerInvariant()) { throw "Published asset hash differs" }

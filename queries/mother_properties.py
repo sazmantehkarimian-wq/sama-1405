@@ -1,11 +1,14 @@
 """Canonical query for the Mother Property first-class domain."""
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Case, When, Value, IntegerField
+from django.db.models.functions import Cast, Replace
 from domains.properties.models import MotherProperty
 
-SORTS={'identifier':'identifier','name':'name','region':'region__name','area':'area','space_count':'space_count'}
+SORTS={'identifier':'identifier','name':'name','region':'region_numeric','area':'area','space_count':'space_count'}
 
 def filter_mother_properties(params):
-    qs=MotherProperty.objects.select_related('region').annotate(space_count=Count('space_links',distinct=True))
+    region='region__code'
+    for fa,en in zip('۰۱۲۳۴۵۶۷۸۹','0123456789'):region=Replace(region,Value(fa),Value(en))
+    qs=MotherProperty.objects.select_related('region').annotate(space_count=Count('space_links',distinct=True),region_numeric=Case(When(region__code__regex=r'^[0-9۰-۹]+$',then=Cast(region,IntegerField())),default=Value(999),output_field=IntegerField()))
     q=(params.get('q','') or '').strip()
     if q:qs=qs.filter(Q(identifier__icontains=q)|Q(name__icontains=q)|Q(address__icontains=q))
     if params.get('identifier'):qs=qs.filter(identifier__icontains=params['identifier'].strip())
@@ -18,4 +21,4 @@ def filter_mother_properties(params):
     for item in requested[:3]:
         descending=item.startswith('-');key=item.lstrip('-')
         if key in SORTS:ordering.append(('-' if descending else '')+SORTS[key])
-    return qs.order_by(*(ordering or ['identifier']))
+    return qs.order_by(*(ordering or ['region_numeric','name','identifier']))

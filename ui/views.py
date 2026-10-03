@@ -94,7 +94,7 @@ def operation_create(request,action):
   appraisal=get_object_or_404(Appraisal.objects.select_related('space'),pk=request.GET.get('appraisal'));space=appraisal.space;kwargs={'appraisal_id':appraisal.pk}
  elif space:kwargs={'code':space.code}
  operation={**operation,'post_url':reverse(operation['post_name'],kwargs=kwargs) if kwargs else ''}
- return render(request,'ui/operation_form.html',{'action':action,'operation':operation,'space':space,'contract':contract,'appraisal':appraisal,'beneficiary':beneficiary,'spaces':CommercialSpace.objects.select_related('region').order_by('code')})
+ return render(request,'ui/operation_form.html',{'action':action,'operation':operation,'space':space,'contract':contract,'appraisal':appraisal,'beneficiary':beneficiary,'spaces':filter_spaces({})})
 
 @login_required
 def space_detail(request,code):
@@ -244,7 +244,7 @@ def auction_workspace(request):
   'rules':AuctionRule.objects.order_by('-effective_year','-id'),
   'evaluations':AuctionEvaluation.objects.select_related('space','rule','evaluated_by').order_by('-evaluated_at')[:100],
   'periods':AuctionPeriod.objects.prefetch_related('lots__space').order_by('-id'),
-  'spaces':CommercialSpace.objects.select_related('region').order_by('code'),
+  'spaces':filter_spaces({}),
  })
 
 @login_required
@@ -285,7 +285,7 @@ def commission_workspace(request):
  return render(request,'ui/commission_workspace.html',{
   'decisions':CommissionDecision.objects.prefetch_related('spaces').order_by('-id')[:100],
   'documents':Document.objects.filter(archived_at__isnull=True).order_by('-uploaded_at')[:100],
-  'spaces':CommercialSpace.objects.select_related('region').order_by('code'),
+  'spaces':filter_spaces({}),
  })
 
 @login_required
@@ -612,7 +612,7 @@ def contract_circulation_workspace(request):
  if request.GET.get('holder'):cases=cases.filter(transfers__returned_at__isnull=True,transfers__receiver__icontains=request.GET['holder'])
  if request.GET.get('unit'):cases=cases.filter(transfers__returned_at__isnull=True,transfers__unit__icontains=request.GET['unit'])
  if request.GET.get('ready')=='1':cases=cases.filter(state='READY_APPROVAL')
- return render(request,'ui/contract_circulation.html',{'cases':cases.distinct()[:100],'selected_space':CommercialSpace.objects.filter(code=code).first(),'spaces':CommercialSpace.objects.select_related('region').order_by('code'),'beneficiaries':Beneficiary.objects.order_by('name')[:1000],'states':__import__('domains.contracts.models',fromlist=['ContractCirculation']).ContractCirculation.State.choices})
+ return render(request,'ui/contract_circulation.html',{'cases':cases.distinct()[:100],'selected_space':CommercialSpace.objects.filter(code=code).first(),'spaces':filter_spaces({}),'beneficiaries':Beneficiary.objects.order_by('name')[:1000],'states':__import__('domains.contracts.models',fromlist=['ContractCirculation']).ContractCirculation.State.choices})
 
 @login_required
 @require_POST

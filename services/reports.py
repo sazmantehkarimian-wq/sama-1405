@@ -19,7 +19,7 @@ def normalized_report_definition(data):
     for key in FILTER_KEYS:
         values = [value.strip() for value in data.getlist(key) if value.strip()]
         if values: filters[key] = values if key in MULTI_KEYS else values[-1]
-    sorting = filters.get("sort", ["code"])
+    sorting = filters.get("sort", [])
     grouping = [value for value in data.getlist("group") if value in {"status", "region", "center", "current_usage"}]
     requested_layout=data.getlist("layout")
     layout=[f"{kind}:{value}" for kind,value in layout_columns(requested_layout,fields,blanks,field_map)] if requested_layout else []

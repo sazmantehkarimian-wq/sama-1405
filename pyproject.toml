@@ -1,6 +1,6 @@
 [project]
 name = "sama-next"
-version = "5.0.0rc10"
+version = "5.0.0rc11"
 description = "سما — سامانه اداره املاک و مستغلات"
 requires-python = ">=3.11"
 dependencies = [
