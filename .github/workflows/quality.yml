@@ -24,7 +24,7 @@ jobs:
       - run: pytest -q tests/test_browser.py
         env:
           SAMA_REQUIRE_BROWSER: '1'
-          SAMA_BROWSER_SCREENSHOT: artifacts/browser/space-dossier.png
+          SAMA_BROWSER_SCREENSHOT_DIR: artifacts/browser
       - run: python manage.py check --deploy
         env: {SAMA_HTTPS: '1'}
       - uses: actions/upload-artifact@v4
@@ -32,3 +32,4 @@ jobs:
         with:
           name: browser-evidence
           path: artifacts/browser/
+          if-no-files-found: error
