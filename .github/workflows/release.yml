@@ -1,8 +1,9 @@
-name: Sama UAT prerelease
+name: Sama Zero-Data UAT prerelease
 on:
   workflow_dispatch:
   push:
-    tags: ['v5.0.0-uat.6']
+    branches: [work/zero-data-foundation]
+    paths: ['VERSION']
 permissions:
   contents: write
 jobs:
@@ -18,14 +19,64 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+      - name: Resolve release version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw -Encoding utf8).Trim()
+          if ($version -notmatch '^5\.0\.0-uat\.\d+$') { throw "Unexpected UAT VERSION: $version" }
+          "SAMA_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SAMA_TAG=v$version-zero-data" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install build dependencies
         run: python -m pip install -e ".[test]"
-      - name: Build zero-data database
+      - name: Build empty operational database
         shell: pwsh
         run: |
           if (Test-Path data) { Remove-Item data -Recurse -Force }
           python manage.py migrate --noinput
           python manage.py collectstatic --noinput
+      - name: Verify zero operational data
+        shell: pwsh
+        run: |
+          @'
+          import os
+          os.environ.setdefault('DJANGO_SETTINGS_MODULE','sama.settings')
+          import django; django.setup()
+          from domains.properties.models import MotherProperty, MotherPropertyOwnership, MotherPropertyOwnershipDocument, MotherPropertyUsageHistory, MotherPropertyCorrespondence, MotherPropertyNote, CommercialSpace
+          from domains.contracts.models import Contract, Beneficiary, ContractCirculation, ContractCustodyTransfer, ContractFinalApproval, ContractSignatureStep
+          from domains.operations.models import Appraisal, AppraisalFee, ExpertFeePaymentBatch, ExpertFeeBatchItem, Auction, UtilityRecord, UtilityConnection, UtilityBill, UtilityMeasurement, UtilityUnit, ElectricityBill, ElectricityAllocation, ElectricityCalculationSnapshot, FileMovement, TimelineEvent
+          checks = {
+            'mother_properties': MotherProperty.objects.count(),
+            'mother_property_ownership': MotherPropertyOwnership.objects.count(),
+            'mother_property_ownership_documents': MotherPropertyOwnershipDocument.objects.count(),
+            'mother_property_usage': MotherPropertyUsageHistory.objects.count(),
+            'mother_property_correspondence': MotherPropertyCorrespondence.objects.count(),
+            'mother_property_notes': MotherPropertyNote.objects.count(),
+            'commercial_spaces': CommercialSpace.objects.count(),
+            'contracts': Contract.objects.count(),
+            'beneficiaries': Beneficiary.objects.count(),
+            'contract_circulations': ContractCirculation.objects.count(),
+            'contract_custody': ContractCustodyTransfer.objects.count(),
+            'contract_signatures': ContractSignatureStep.objects.count(),
+            'contract_final_approvals': ContractFinalApproval.objects.count(),
+            'appraisals': Appraisal.objects.count(),
+            'appraisal_fees': AppraisalFee.objects.count(),
+            'fee_batches': ExpertFeePaymentBatch.objects.count(),
+            'fee_batch_items': ExpertFeeBatchItem.objects.count(),
+            'auctions': Auction.objects.count(),
+            'utilities': UtilityRecord.objects.count(),
+            'utility_connections': UtilityConnection.objects.count(),
+            'utility_bills': UtilityBill.objects.count(),
+            'utility_units': UtilityUnit.objects.count(),
+            'measurements': UtilityMeasurement.objects.count(),
+            'electricity_bills': ElectricityBill.objects.count(),
+            'electricity_allocations': ElectricityAllocation.objects.count(),
+            'electricity_snapshots': ElectricityCalculationSnapshot.objects.count(),
+            'movements': FileMovement.objects.count(),
+            'timeline': TimelineEvent.objects.count(),
+          }
+          assert all(v == 0 for v in checks.values()), checks
+          print(checks)
+          '@ | python -
       - name: Regression and deployment checks
         shell: pwsh
         run: |
@@ -37,43 +88,83 @@ jobs:
           c=sqlite3.connect('data/sama.sqlite3')
           assert c.execute('pragma integrity_check').fetchone()[0]=='ok'
           assert not c.execute('pragma foreign_key_check').fetchall()
-          assert c.execute('select count(*) from properties_motherproperty').fetchone()[0]==0
-          assert c.execute('select count(*) from properties_motherpropertyownership').fetchone()[0]==0
-          assert c.execute('select count(*) from properties_motherpropertyownershipdocument').fetchone()[0]==0
-          assert c.execute('select count(*) from properties_motherpropertyusagehistory').fetchone()[0]==0
-          assert c.execute('select count(*) from properties_motherpropertycorrespondence').fetchone()[0]==0
-          assert c.execute('select count(*) from properties_motherpropertynote').fetchone()[0]==0
-          assert c.execute('select count(*) from properties_commercialspace').fetchone()[0]==0
           '@ | python -
-      - name: Build self-contained Windows package
+      - name: Build self-contained zero-data Windows package
         shell: pwsh
-        run: ./scripts/build_windows_release.ps1
-      - name: Package and verify SHA-256
+        run: ./scripts/build_windows_release.ps1 -Version $env:SAMA_VERSION
+      - name: Extract, inspect and smoke-test package
         shell: pwsh
         run: |
+          $package = "SAMA_$env:SAMA_VERSION"
           New-Item release -ItemType Directory -Force | Out-Null
-          Compress-Archive -Path "build/SAMA_5.0.0-uat.6" -DestinationPath "release/SAMA_5.0.0-uat.6.zip" -CompressionLevel Optimal
-          $hash = (Get-FileHash "release/SAMA_5.0.0-uat.6.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  SAMA_5.0.0-uat.6.zip" | Set-Content "release/SHA256SUMS.txt" -Encoding utf8NoBOM
+          Compress-Archive -Path "build/$package" -DestinationPath "release/$package-zero-data.zip" -CompressionLevel Optimal
+          $hash = (Get-FileHash "release/$package-zero-data.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $package-zero-data.zip" | Set-Content "release/SHA256SUMS.txt" -Encoding utf8NoBOM
           New-Item verify-package -ItemType Directory | Out-Null
-          Expand-Archive "release/SAMA_5.0.0-uat.6.zip" verify-package
-          if (-not (Test-Path "verify-package/SAMA_5.0.0-uat.6/runtime/python.exe")) { throw "Portable runtime missing" }
-          if (-not (Test-Path "verify-package/SAMA_5.0.0-uat.6/data/sama.sqlite3")) { throw "Canonical DB missing" }
-          $check = ((Get-FileHash "release/SAMA_5.0.0-uat.6.zip" -Algorithm SHA256).Hash.ToLowerInvariant() + "  SAMA_5.0.0-uat.6.zip")
-          if ($check -ne (Get-Content "release/SHA256SUMS.txt" -Raw -Encoding utf8).Trim()) { throw "Release hash verification failed" }
+          Expand-Archive "release/$package-zero-data.zip" verify-package
+          $root = "verify-package/$package"
+          foreach ($required in @('runtime/python.exe','data/sama.sqlite3','UAT_BUILD','START_SAMA.bat')) {
+            if (-not (Test-Path "$root/$required")) { throw "Missing package requirement: $required" }
+          }
+          foreach ($forbidden in @('authority','import_pipeline','fixtures')) {
+            if (Test-Path "$root/$forbidden") { throw "Forbidden Zero-Data package directory: $forbidden" }
+          }
+          $forbiddenFiles = Get-ChildItem $root -Recurse -File | Where-Object { $_.Extension -in @('.xlsx','.xls','.csv') }
+          if ($forbiddenFiles) { throw "Data/import files leaked into package" }
+          Push-Location $root
+          & .\runtime\python.exe scripts\first_start.py
+          if ($LASTEXITCODE -ne 0) { throw "Extracted package first-start failed" }
+          @'
+          import os
+          os.environ.setdefault('DJANGO_SETTINGS_MODULE','sama.settings')
+          import django; django.setup()
+          from domains.properties.models import MotherProperty, CommercialSpace
+          from domains.contracts.models import Contract, Beneficiary
+          from domains.operations.models import Appraisal, Auction, FileMovement, TimelineEvent
+          checks = {
+            'mother_properties': MotherProperty.objects.count(),
+            'commercial_spaces': CommercialSpace.objects.count(),
+            'contracts': Contract.objects.count(),
+            'beneficiaries': Beneficiary.objects.count(),
+            'appraisals': Appraisal.objects.count(),
+            'auctions': Auction.objects.count(),
+            'movements': FileMovement.objects.count(),
+            'timeline': TimelineEvent.objects.count(),
+          }
+          assert all(v == 0 for v in checks.values()), checks
+          print(checks)
+          '@ | .\runtime\python.exe -
+          $env:SAMA_PORT = '8765'
+          $server = Start-Process -FilePath ".\runtime\python.exe" -ArgumentList "scripts\run_server.py" -PassThru -WindowStyle Hidden
+          try {
+            $ok = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              Start-Sleep -Milliseconds 500
+              try {
+                $response = Invoke-WebRequest "http://127.0.0.1:8765/login/" -UseBasicParsing -TimeoutSec 2
+                if ($response.StatusCode -eq 200) { $ok = $true; break }
+              } catch { }
+            }
+            if (-not $ok) { throw "Extracted Zero-Data package HTTP smoke test failed" }
+          } finally {
+            if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+          }
+          Pop-Location
       - uses: actions/upload-artifact@v4
         with:
-          name: SAMA_5.0.0-uat.6
+          name: SAMA_${{ env.SAMA_VERSION }}_ZERO_DATA
           path: release/*
-      - name: Publish and verify GitHub Release assets
+          if-no-files-found: error
+      - name: Publish zero-data GitHub prerelease
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view v5.0.0-uat.6 *> $null
-          if ($LASTEXITCODE -ne 0) { gh release create v5.0.0-uat.6 --prerelease --target "${{ github.sha }}" --title "سما — 5.0.0-uat.6" --notes "UI/UX and Design System remediation UAT candidate. Not approved for Production/LAN use." }
-          gh release upload v5.0.0-uat.6 release/SAMA_5.0.0-uat.6.zip release/SHA256SUMS.txt --clobber
-          $asset = gh api repos/${{ github.repository }}/releases/tags/v5.0.0-uat.6 --jq '.assets[] | select(.name == "SAMA_5.0.0-uat.6.zip") | [.name,.size] | @tsv'
-          if (-not $asset) { throw "Release ZIP asset is not visible through GitHub API" }
-          gh release download v5.0.0-uat.6 --pattern SAMA_5.0.0-uat.6.zip --dir downloaded --clobber
-          if ((Get-FileHash downloaded/SAMA_5.0.0-uat.6.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-FileHash release/SAMA_5.0.0-uat.6.zip -Algorithm SHA256).Hash.ToLowerInvariant()) { throw "Published asset hash differs" }
+          $asset = "SAMA_$env:SAMA_VERSION-zero-data.zip"
+          gh release view $env:SAMA_TAG *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:SAMA_TAG --prerelease --target "${{ github.sha }}" --title "سما — $env:SAMA_VERSION — Zero Data" --notes "نسخه UAT خام: صفر داده عملیاتی، بدون Import Excel/CSV، ورود اطلاعات فقط دستی. بسته Windows پس از Extract، first-start، کنترل صفر داده و HTTP smoke test بررسی شده است. Production-ready نیست تا پذیرش Owner انجام شود."
+          }
+          gh release upload $env:SAMA_TAG "release/$asset" release/SHA256SUMS.txt --clobber
+          gh release download $env:SAMA_TAG --pattern "$asset" --dir downloaded --clobber
+          if ((Get-FileHash "downloaded/$asset" -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-FileHash "release/$asset" -Algorithm SHA256).Hash.ToLowerInvariant()) { throw "Published asset hash differs" }
