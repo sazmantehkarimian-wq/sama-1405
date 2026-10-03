@@ -7,7 +7,15 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from domains.documents.models import Document
 from domains.identity.models import AuditEvent
-from domains.operations.models import AuctionLot, AuctionParticipant, AuctionPeriod, AuctionProposal
+from domains.operations.models import (
+    AuctionEvaluation,
+    AuctionInstruction,
+    AuctionLot,
+    AuctionParticipant,
+    AuctionPeriod,
+    AuctionProposal,
+    AuctionRule,
+)
 from services.documents import store_document
 from ui.fields import JalaliDateField
 
@@ -81,6 +89,16 @@ class AuctionPeriodDocumentForm(forms.Form):
     document_date = JalaliDateField(label="تاریخ سند", required=False)
     notes = forms.CharField(label="توضیحات", required=False, widget=forms.Textarea(attrs={"rows": 2}))
     file = forms.FileField(label="فایل")
+
+
+@login_required
+def auction_workspace(request):
+    return render(request, "ui/auction_workspace.html", {
+        "rules": AuctionRule.objects.order_by("-effective_year", "-id"),
+        "evaluations": AuctionEvaluation.objects.select_related("space", "rule", "evaluated_by").order_by("-evaluated_at")[:100],
+        "periods": AuctionPeriod.objects.prefetch_related("lots__space").order_by("-id"),
+        "instructions": AuctionInstruction.objects.select_related("space", "created_by", "commission_decision").order_by("-effective_from", "-id")[:100],
+    })
 
 
 @login_required
