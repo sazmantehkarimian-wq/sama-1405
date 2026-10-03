@@ -2,7 +2,7 @@
 
 ## وضعیت جاری: UAT REMEDIATION IN PROGRESS
 
-پذیرش UI/UX و Design System در UAT مالک رد شده است. وضعیت‌های PASS زیر شواهد فنی پیشین را ثبت می‌کنند و به معنی آمادگی Production/LAN یا مجوز ادغام نیستند. انتشار جدید فقط پس از تکمیل اصلاحات، بازبینی واقعی مرورگر و تأیید دوباره همه Gateها مجاز است.
+پذیرش UI/UX و Design System در UAT مالک هنوز نهایی نشده است. وضعیت‌های PASS زیر فقط شواهد فنی همان Gate را ثبت می‌کنند و به معنی آمادگی Production/LAN یا مجوز ادغام نیستند. علاوه بر پذیرش انسانی UI/UX، Golden Master اسناد رسمی مزایده نیز طبق سند FINAL FROZEN به Print QA واقعی نیاز دارد.
 
 | الزام بحرانی | وضعیت | شاهد/شکاف |
 |---|---|---|
@@ -19,25 +19,30 @@
 | Documents/alerts/audit | PASS | upload امن server-side و checksum؛ اقدام هشدار و audit موجود |
 | Advanced filters/saved views | PASS | operatorهای متنی، خالی/ناخالی، ranges، multi-select/sort، AND/OR، column chooser و فیلتر ذخیره‌شده |
 | Auction engine | PASS | موتور نسخه‌دار fail-safe، snapshot، تست مرزی و UI ارزیابی/دوره/lot |
-| Official exports | PASS | XLSX/DOCX/PDF واقعی server-side، فیلتر/ستون جاری و header رسمی |
+| Official tabular reports | PASS | XLSX/DOCX/PDF واقعی server-side برای گزارش‌های جدولی، فیلتر/ستون جاری و header رسمی |
+| Official auction/legal document engine | BLOCKED — GOLDEN MASTER NOT YET APPROVED | سند `MD اسناد رسمی و Golden Master مزایده — FINAL FROZEN.md` TemplateVersion، Snapshot، DocumentInstance، Hash، PDF/DOCX parity، Visual Regression، Atomic Page و Print Test واقعی را الزام می‌کند. مدل فعلی `domains.documents.Document` فقط فایل بارگذاری‌شده را ثبت می‌کند؛ بنابراین PASS گزارش‌های جدولی نباید به Document Engine رسمی تعمیم داده شود. Production coding/finalization این بخش تا تأیید Golden Master چاپی مالک متوقف می‌ماند. |
 | RBAC/user administration | PASS | مدیریت بومی create/reset/activate، اجبار تعویض رمز، staff enforcement و audit |
-| Backup/restore | PASS | DB/media/config manifest، lock نوشتن، pre-restore، integrity/FK و rollback tests |
-| Browser/print/concurrency/security | PASS | Chromium واقعی و screenshot، PDF ساختاری، login throttle، پنج read/report و پنج write هم‌زمان پاس |
-| Windows portable/prerelease asset | PASS | workflow [`36867980923`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36867980923) روی runtime commit `385d13b` پاس شد. `v5.0.0-uat.8` prerelease دارای ZIP ۵۸٬۳۶۹٬۷۸۰ بایتی است؛ SHA-256 دانلود مستقل `b3a8e06dde07d3af465236c30236288f8e57699396e8ebe41c7019e0af07b4c2` است. |
+| Backup/restore | PASS | DB/media manifest، lock نوشتن، pre-restore، integrity/FK و rollback؛ مسیر دیتابیس Manifest روی `sama.sqlite3` قفل شده و DB tamper، media tamper و path traversal با تست رد می‌شود. |
+| Browser/UI regression | PASS | Chromium واقعی و screenshot برای UI و گزارش‌های عمومی؛ این شاهد جایگزین Golden Master Print QA نیست. |
+| Golden Master physical print QA | NOT PASSED | چاپ واقعی صفحه‌به‌صفحه و تأیید انسانی برای COMMERCIAL / CAFE / SPORT و تمام اسناد الزامی هنوز شاهد تأییدشده ندارد. |
+| Concurrency/security | PASS | login throttle، پنج read/report و پنج write هم‌زمان پاس |
+| Windows portable/prerelease asset | PASS (UAT ONLY) | workflow Windows و بسته prerelease وجود دارد؛ این شاهد فقط UAT candidate است و مجوز Production/LAN نیست. |
 
-اصلاحات فنی UAT.8 شامل نگاشت semantic قرارداد/بهره‌بردار/کارشناسی، timeline، ارائه مرکزی، خروجی رسمی RTL و بازبینی Chromium واقعی است. وضعیت تا پذیرش انسانی مالک همچنان UAT REMEDIATION IN PROGRESS می‌ماند؛ PR شماره ۲ نباید ادغام شود و این نسخه آماده Production/LAN نیست.
-
+اصلاحات فنی UAT شامل نگاشت semantic قرارداد/بهره‌بردار/کارشناسی، timeline، ارائه مرکزی، خروجی رسمی RTL و بازبینی Chromium واقعی است. وضعیت تا پذیرش انسانی مالک و عبور Golden Master Print QA همچنان UAT REMEDIATION IN PROGRESS می‌ماند؛ PR شماره ۲ نباید به‌عنوان Production/LAN-ready ادغام شود.
 
 ## قفل حساب مالک در UAT
 
 در بسته UAT، `SAMA_UAT_FIXED_ADMIN` تنها مرجع فعال‌سازی است. حساب `admin` با گذرواژه `admin` در هر راه‌اندازی به‌صورت idempotent بازنشانی می‌شود؛ تغییر گذرواژه، بازنشانی، غیرفعال‌سازی، تغییر نام کاربری و حذف آن از رابط مدیریتی ارائه نمی‌شود. این استثناء در حالت Production غیرفعال است و سیاست امن کاربران عملیاتی را تغییر نمی‌دهد.
 
+معماری پرونده را نمای ۳۶۰ درجه فقط‌خواندنی و ماژول‌های تخصصی را محل ثبت عملیات می‌داند. تعریف، جمعیت، predicate و drill-down شاخص‌های داشبورد در `docs/DASHBOARD_KPI_CATALOG.md` ثبت شده است.
 
-معماری UAT.8 پرونده را نمای ۳۶۰ درجه فقط‌خواندنی و ماژول‌های تخصصی را محل ثبت عملیات می‌داند. تعریف، جمعیت، predicate و drill-down همه شاخص‌های داشبورد در `docs/DASHBOARD_KPI_CATALOG.md` ثبت شده است. وضعیت همچنان UAT REMEDIATION IN PROGRESS است.
+## Post-UAT remediation
 
+Contract circulation یک aggregate عملیاتی ممیزی‌شده مستقل است و بدون امضاها و تأیید نهایی نباید قرارداد رسمی شود. Custody فقط از رویدادهای append-only تحویل/عودت مشتق می‌شود. قراردادهای تاریخی حفظ می‌شوند و Workflow ساختگی دریافت نمی‌کنند. تعریف گزارش مرکزی layout ترکیبی مرتب از ستون‌های canonical و blank output-only، multi-sort، orientation و filter را در preview/XLSX/PDF/DOCX و snapshot حفظ می‌کند.
 
-یادداشت زنجیره انتشار UAT.8: runtime و تمام اصلاحات پرونده/ماژول از commit `385d13b` بسته‌بندی شده‌اند. commit بعدی فقط شواهد workflow و checksum را ثبت می‌کند و محتوای runtime را تغییر نمی‌دهد.
+## Production/LAN release blockers
 
-## Post-UAT.8 remediation (UAT.9 candidate)
+تا عبور هر دو مورد زیر، هیچ برچسب Production/LAN-ready معتبر نیست:
 
-Status remains **UAT REMEDIATION IN PROGRESS**. Contract circulation is now a distinct audited operational aggregate; it cannot become an official contract until required signatures and final approval exist. Custody is derived solely from append-only transfer/return events. Historical contracts are preserved and receive no fabricated workflow events. The central report definition now preserves an ordered mixed layout of canonical and output-only blank columns, multi-sort, orientation, and filters across preview, XLSX, PDF, DOCX, saved definitions, and immutable snapshots. Owner human UAT remains required.
+1. پذیرش انسانی Owner برای UI/UX و Design System.
+2. تأیید Golden Master و Print QA واقعی برای اسناد رسمی مزایده مطابق FINAL FROZEN.
