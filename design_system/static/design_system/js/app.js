@@ -16,6 +16,14 @@ document.querySelectorAll(".bar-fill[data-percent]").forEach((bar) => {
   bar.style.inlineSize = `${percent}%`;
 });
 
+document.addEventListener('click', (event) => {
+  const printButton = event.target.closest('[data-page-print]');
+  if (printButton) {
+    event.preventDefault();
+    window.print();
+  }
+});
+
 const dossierTabs = [...document.querySelectorAll('.tabs a[href^="#"]')];
 if (dossierTabs.length) {
   const selectTab = (id) => dossierTabs.forEach((tab) => {
