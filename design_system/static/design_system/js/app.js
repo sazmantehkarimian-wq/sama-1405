@@ -16,6 +16,10 @@ document.querySelectorAll(".bar-fill[data-percent]").forEach((bar) => {
   bar.style.inlineSize = `${percent}%`;
 });
 
+document.querySelectorAll('.section-spaces .dossier-hero h1').forEach((heading) => {
+  if (heading.textContent.trim().startsWith('فضای ')) heading.insertAdjacentText('afterbegin', 'پرونده ');
+});
+
 document.addEventListener('click', (event) => {
   const printButton = event.target.closest('[data-page-print]');
   if (printButton) {
