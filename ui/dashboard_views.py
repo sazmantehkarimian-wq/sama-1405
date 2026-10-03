@@ -149,6 +149,9 @@ def dashboard(request):
         "action_alerts_overdue": _scope_query(scope, kind="alerts", overdue="1"),
         "action_workflows": _scope_query(scope, kind="workflows"),
         "action_workflows_overdue": _scope_query(scope, kind="workflows", overdue="1"),
+        "auction_candidate": _scope_query(scope, mode="candidate"),
+        "auction_review": _scope_query(scope, mode="review"),
+        "auction_action": _scope_query(scope, mode="action"),
     }
 
     context = {
