@@ -52,6 +52,36 @@ def test_dashboard_action_center_is_scoped_to_visible_spaces(client):
     assert response.context['open_workflow_count']==1
     assert response.context['overdue_workflow_count']==1
 
+    alerts=client.get('/actions/',{'region_id':str(r1.pk),'kind':'alerts'})
+    assert alerts.status_code==200
+    assert alerts.context['alert_count']==response.context['alert_count']==1
+    assert alerts.context['workflow_count']==0
+    assert '9301' in alerts.content.decode()
+    assert '9401' not in alerts.content.decode()
+
+    workflows=client.get('/actions/',{'region_id':str(r1.pk),'kind':'workflows','overdue':'1'})
+    assert workflows.status_code==200
+    assert workflows.context['workflow_count']==response.context['overdue_workflow_count']==1
+    assert workflows.context['alert_count']==0
+
+
+@pytest.mark.django_db
+def test_action_center_priority_drilldown_matches_dashboard_kpi(client):
+    user=get_user_model().objects.create_user('dashboard-priority',password='A-very-safe-password')
+    client.force_login(user)
+    region=Region.objects.create(code='5',name='منطقه ۵')
+    space=CommercialSpace.objects.create(code='9601',name='فضای اقدام',status='ACTIVE',region=region)
+    Alert.objects.create(space=space,subject='بحرانی',reason='اقدام',priority='CRITICAL',status='OPEN',target_url='/spaces/9601/')
+    Alert.objects.create(space=space,subject='متوسط',reason='اقدام',priority='MEDIUM',status='OPEN',target_url='/spaces/9601/')
+
+    dashboard=client.get('/',{'region_id':str(region.pk)})
+    critical=client.get('/actions/',{'region_id':str(region.pk),'kind':'alerts','priority':'CRITICAL'})
+    assert critical.status_code==200
+    assert critical.context['alert_count']==dashboard.context['critical_alert_count']==1
+    body=critical.content.decode()
+    assert 'بحرانی' in body
+    assert 'متوسط' not in body
+
 
 @pytest.mark.django_db
 def test_dashboard_usage_scope_is_explicit_and_resettable(client):
