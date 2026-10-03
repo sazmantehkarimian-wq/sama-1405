@@ -1,22 +1,35 @@
 param(
-  [string]$Version = "5.0.0-uat.6",
+  [string]$Version = "",
   [string]$OutputRoot = "build"
 )
 $ErrorActionPreference = "Stop"
+if (-not $Version) { $Version = (Get-Content "VERSION" -Raw -Encoding utf8).Trim() }
+if ($Version -notmatch '^5\.0\.0-uat\.\d+$') { throw "Unexpected UAT VERSION: $Version" }
 $package = Join-Path $OutputRoot "SAMA_$Version"
 if (Test-Path $package) { Remove-Item $package -Recurse -Force }
 New-Item $package -ItemType Directory | Out-Null
 
+# Zero-Data package boundary: application/runtime only. Authority source workbooks,
+# import tooling, fixtures and sample data must never enter the LAN package.
 $directories = @("core", "design_system", "domains", "queries", "reporting", "sama", "scripts", "services", "ui", "docs")
 foreach ($directory in $directories) { Copy-Item $directory $package -Recurse }
 $files = @("manage.py", "pyproject.toml", "README.md", "LEGACY_BOUNDARY.md", "VERSION", "START_SAMA.bat", "STOP_SAMA.bat")
 foreach ($file in $files) { Copy-Item $file $package }
-"Owner UAT build - fixed test credential policy enabled" | Set-Content (Join-Path $package "UAT_BUILD") -Encoding utf8NoBOM
+"Owner UAT build - ZERO DATA - manual entry only" | Set-Content (Join-Path $package "UAT_BUILD") -Encoding utf8NoBOM
 
 New-Item (Join-Path $package "data") -ItemType Directory | Out-Null
 Copy-Item "data/sama.sqlite3" (Join-Path $package "data/sama.sqlite3")
-# Zero-Data contract: authority workbooks and import tools are never packaged.
 if (Test-Path "collected_static") { Copy-Item "collected_static" $package -Recurse }
+
+# Fail closed if forbidden source/import artifacts accidentally enter the package.
+$forbiddenDirectories = @("authority", "import_pipeline", "fixtures")
+foreach ($name in $forbiddenDirectories) {
+  if (Test-Path (Join-Path $package $name)) { throw "Forbidden Zero-Data package directory: $name" }
+}
+$forbiddenFiles = Get-ChildItem $package -Recurse -File | Where-Object {
+  $_.Extension -in @('.xlsx','.xls','.csv','.zip') -or $_.Name -match 'fixture|sample[_-]?data|seed'
+}
+if ($forbiddenFiles) { throw "Forbidden data/import artifact in Zero-Data package: $($forbiddenFiles.FullName -join ', ')" }
 
 $runtime = Join-Path $package "runtime"
 $pythonZip = Join-Path $env:TEMP "python-3.11.9-embed-amd64.zip"
@@ -34,4 +47,4 @@ if ($LASTEXITCODE -ne 0) { throw "Portable runtime dependency installation faile
 
 Get-ChildItem $package -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 Get-ChildItem $package -Recurse -Include "*.pyc", ".secret-key", "FIRST_LOGIN_CREDENTIALS.txt" | Remove-Item -Force
-Write-Host "Built clean Windows/LAN package at $package"
+Write-Host "Built clean ZERO-DATA Windows/LAN package at $package"
