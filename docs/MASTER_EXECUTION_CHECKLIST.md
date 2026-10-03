@@ -21,12 +21,21 @@
 | Workflow | PASS | ایجاد فقط با نوع عملیاتی مجاز، transition تراکنشی، تاریخچه و Audit در dossier |
 | Documents / alerts / audit | PASS | upload امن server-side، checksum، permission، اقدام/مختومه‌سازی هشدار و Audit |
 | Search/filter/saved views | PASS | exact/contains/starts، empty/nonempty، multi-select، ranges، AND/OR، multi-sort، column chooser و فیلترهای ذخیره‌شده |
-| Official PDF/XLSX/DOCX engine | PASS | server-side structures, local Persian PDF font, exact filters/selected columns |
+| Official tabular PDF/XLSX/DOCX reporting | PASS | خروجی server-side گزارش‌های جدولی با فونت فارسی محلی، فیلتر/ستون/چیدمان انتخابی و هویت رسمی سازمان؛ این Gate به معنی Golden Master اسناد حقوقی مزایده نیست. |
+| Auction official document Golden Master | BLOCKED — HUMAN PRINT QA REQUIRED | طبق `authority/reference/MD اسناد رسمی و Golden Master مزایده — FINAL FROZEN.md`، سه خانواده مستقل COMMERCIAL/CAFE/SPORT و اسناد مزایده/قرارداد/پاکت‌های الف‌ب‌ج/منع مداخله/صورتجلسه باید Master مستقل، Snapshot، Version، Hash، PDF/DOCX data parity، Visual Regression و Print Test صفحه‌به‌صفحه داشته باشند. مدل فعلی `domains.documents.Document` فقط سند بارگذاری‌شده را نگه می‌دارد؛ تا تأیید Golden Master چاپی مالک، Document Engine رسمی Production نباید PASS یا Production-ready اعلام شود. |
 | Report builder / archived snapshot | PASS | تعریف زنده، اجرای مجدد، نسخه ثابت XLSX با query context، تعداد ردیف، SHA-256 و Audit؛ `test_saved_report_and_immutable_snapshot` |
 | RBAC/user provisioning | PASS | native create/reset/activate UI، one-time passwords، forced change، staff gate و audit tests |
-| Backup/restore | PASS | DB/media manifests، checksum، integrity/FK، global write lock، pre-restore backup، atomic restore و rollback tests |
+| Backup/restore | PASS | DB/media manifests، checksum، integrity/FK، global write lock، pre-restore backup، atomic restore و rollback؛ Manifest دیتابیس روی `sama.sqlite3` قفل است و path traversal/DB tamper/media tamper با تست رد می‌شود. |
 | Auction candidate rules/lifecycle | PASS | Rule نسخه‌دار، تست مرزها و fail-safe، snapshot، UI ارزیابی، دوره و lot؛ participant/proposal schema |
-| Browser/print QA | PASS | Chromium واقعی RTL/login/filter/dossier و screenshot؛ PDF server-side واقعی با صفحه، metadata و نبود URL |
+| Browser UI regression | PASS | Chromium واقعی RTL/login/filter/dossier و screenshot در viewportهای مصوب. |
+| Golden Master visual/physical print regression | NOT PASSED | تست PDF عمومی سامانه جایگزین Print Test Golden Master نیست. طبق سند Frozen، تعداد/ترتیب صفحات، Atomic Page، overflow، محل امضا، فونت، RTL و چاپ واقعی باید برای هر Template Version تأیید انسانی شود. |
 | Five-user application concurrency | PASS | پنج کاربر authenticated در read/search/report و پنج write عملیاتی هم‌زمان با retry محدود SQLite |
-| Clean Windows UAT prerelease | PASS | اجرای Windows [`36867980923`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36867980923) روی runtime commit `385d13b` پاس شد؛ `v5.0.0-uat.8` prerelease با ZIP برابر ۵۸٬۳۶۹٬۷۸۰ بایت و SHA-256 برابر `b3a8e06dde07d3af465236c30236288f8e57699396e8ebe41c7019e0af07b4c2` منتشر و پس از دانلود تأیید شد. |
-| Owner UI/UX and Design System UAT | UAT REMEDIATION IN PROGRESS | اصلاح فنی UAT.8، ردگیری داده واقعی و بازبینی Chromium در سه viewport انجام شده است؛ فقط پذیرش انسانی مالک باز است؛ prerelease ویندوزی مجوز Production/LAN نیست. |
+| Clean Windows UAT prerelease | PASS | اجرای Windows [`36867980923`](https://github.com/sazmantehkarimian-wq/sama-1405/actions/runs/36867980923) روی runtime commit `385d13b` پاس شد؛ `v5.0.0-uat.8` prerelease با ZIP برابر ۵۸٬۳۶۹٬۷۸۰ بایت و SHA-256 برابر `b3a8e06dde07d3af465236c30236288f8e57699396e8ebe41c7019e0af07b4c2` منتشر و پس از دانلود تأیید شد. این شاهد فقط UAT prerelease است. |
+| Owner UI/UX and Design System UAT | UAT REMEDIATION IN PROGRESS | اصلاح فنی UAT.8/UAT.9، ردگیری داده واقعی و بازبینی Chromium در سه viewport انجام شده است؛ پذیرش انسانی مالک باز است؛ prerelease ویندوزی مجوز Production/LAN نیست. |
+
+## Release truth
+
+تا زمانی که هر دو Gate زیر PASS نشده‌اند، پروژه فقط UAT candidate است و PR #2 نباید به‌عنوان Production/LAN-ready ادغام یا معرفی شود:
+
+1. Owner UI/UX human acceptance.
+2. Golden Master visual + physical print acceptance برای اسناد رسمی مزایده.
