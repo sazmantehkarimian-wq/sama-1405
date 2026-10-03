@@ -17,8 +17,9 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.db import transaction
 
-from domains.identity.models import UserProfile
 from core.uat import provision_fixed_uat_admin
+from domains.identity.models import UserProfile
+from services.startup import StartupSafetyError, run_preflight
 
 USERS = (
     ("aghorbani", "اکبر", "قربانی", False),
@@ -36,6 +37,16 @@ def password() -> str:
 
 
 def main() -> None:
+    try:
+        preflight = run_preflight()
+    except (StartupSafetyError, ValueError, OSError) as exc:
+        raise SystemExit(f"SAMA startup safety check failed: {exc}") from exc
+
+    if preflight["backup"]:
+        print(f"Startup safety backup: {preflight['backup']}")
+    if preflight["pending"]:
+        print(f"Applying {len(preflight['pending'])} pending migration(s) after verified backup.")
+
     call_command("migrate", interactive=False, verbosity=0)
     provision_fixed_uat_admin()
     credentials = []
