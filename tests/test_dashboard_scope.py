@@ -98,3 +98,27 @@ def test_dashboard_usage_scope_is_explicit_and_resettable(client):
     body=response.content.decode()
     assert 'بازگشت به کل سازمان' in body
     assert 'ورزشی' in body
+
+
+@pytest.mark.django_db
+def test_dashboard_status_scope_applies_to_every_active_only_kpi(client):
+    user=get_user_model().objects.create_user('dashboard-status',password='A-very-safe-password')
+    client.force_login(user)
+    CommercialSpace.objects.create(code='9801',name='فعال',status='ACTIVE')
+    CommercialSpace.objects.create(code='9802',name='خارج',status='OUT_OF_CYCLE')
+
+    response=client.get('/',{'status':'OUT_OF_CYCLE'})
+    assert response.status_code==200
+    assert response.context['scope_count']==1
+    assert response.context['active_count']==0
+    assert response.context['inactive_count']==1
+    assert response.context['active_scope_enabled'] is False
+    assert response.context['inactive_scope_enabled'] is True
+    for key in (
+        'current_contract_count','without_contract_count','current_appraisal_count',
+        'without_appraisal_count','contract_today_count','contract_1_30_count',
+        'contract_31_60_count','contract_61_90_count','long_term_contract_count',
+        'with_beneficiary_count','without_beneficiary_count',
+    ):
+        assert response.context[key]==0
+    assert 'خارج از دامنه انتخاب‌شده' in response.content.decode()
