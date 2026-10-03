@@ -1,0 +1,16 @@
+from django.conf import settings
+from django.db import models
+class Region(models.Model):
+ code=models.CharField(max_length=20,unique=True); name=models.CharField(max_length=120)
+class Center(models.Model):
+ name=models.CharField(max_length=255); region=models.ForeignKey(Region,null=True,on_delete=models.PROTECT); is_special=models.BooleanField(default=False)
+class MotherProperty(models.Model):
+ identifier=models.CharField(max_length=30,unique=True); name=models.CharField(max_length=255); region=models.ForeignKey(Region,null=True,blank=True,on_delete=models.PROTECT); center_type=models.CharField(max_length=120,blank=True); primary_usage=models.CharField(max_length=120,blank=True); usage_group=models.CharField(max_length=120,blank=True); area=models.DecimalField(max_digits=16,decimal_places=2,null=True); address=models.TextField(blank=True); notes=models.TextField(blank=True); source_row=models.PositiveIntegerField()
+class CommercialSpace(models.Model):
+ class Status(models.TextChoices): ACTIVE='ACTIVE','فعال'; OUT_OF_CYCLE='OUT_OF_CYCLE','خارج از چرخه'
+ code=models.CharField(max_length=30,unique=True,db_index=True); name=models.CharField(max_length=255); status=models.CharField(max_length=20,choices=Status.choices,db_index=True); region=models.ForeignKey(Region,null=True,blank=True,on_delete=models.PROTECT); center=models.ForeignKey(Center,null=True,blank=True,on_delete=models.PROTECT); organizational_scope=models.CharField(max_length=120,blank=True); asset_type=models.CharField(max_length=120,blank=True); area=models.DecimalField(max_digits=16,decimal_places=2,null=True); address=models.TextField(blank=True); physical_details=models.TextField(blank=True); current_usage=models.CharField(max_length=255,blank=True); proposed_activity=models.CharField(max_length=255,blank=True); activity_group=models.CharField(max_length=255,blank=True); previous_usage=models.CharField(max_length=255,blank=True); notes=models.TextField(blank=True); source_row=models.PositiveIntegerField(); source_classification=models.CharField(max_length=30)
+class MotherPropertySpaceLink(models.Model):
+ mother_property=models.ForeignKey(MotherProperty,on_delete=models.PROTECT,related_name='space_links'); space=models.ForeignKey(CommercialSpace,on_delete=models.PROTECT,related_name='property_links'); evidence=models.TextField(); source_file=models.ForeignKey('registry.SourceFile',on_delete=models.PROTECT); source_sheet=models.CharField(max_length=255); source_row=models.PositiveIntegerField(); confirmed=models.BooleanField(default=True)
+ class Meta: constraints=[models.UniqueConstraint(fields=['mother_property','space'],name='uniq_property_space')]
+class CommercialSpaceStatusHistory(models.Model):
+ space=models.ForeignKey(CommercialSpace,on_delete=models.PROTECT,related_name='status_history'); previous_state=models.CharField(max_length=20,blank=True); new_state=models.CharField(max_length=20); effective_date=models.CharField(max_length=10); reason=models.TextField(); responsible_user=models.ForeignKey(settings.AUTH_USER_MODEL,null=True,on_delete=models.PROTECT); source_document=models.ForeignKey('documents.Document',null=True,blank=True,on_delete=models.PROTECT); source_file=models.ForeignKey('registry.SourceFile',null=True,on_delete=models.PROTECT); created_at=models.DateTimeField(auto_now_add=True)
