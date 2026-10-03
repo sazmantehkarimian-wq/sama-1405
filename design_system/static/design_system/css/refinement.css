@@ -78,6 +78,32 @@ button,.button{
 .table-wrap button.compact{min-inline-size:5.25rem}
 .page-header .button.compact{min-inline-size:0}
 
+/* Compact KPI collections used in fee / utilities / operational summaries. */
+.kpi-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:.75rem;
+  margin-bottom:1rem;
+}
+.kpi-grid .kpi{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:center;
+  min-height:5.25rem;
+  padding:.75rem 1rem;
+  gap:.18rem;
+  margin:0;
+}
+.kpi-grid .kpi small{
+  width:100%;
+  line-height:1.5;
+}
+.kpi-grid .kpi strong{
+  font-size:1.35rem;
+  line-height:1.4;
+}
+
 /* Controls and form rhythm. */
 input,select,.control{min-height:var(--control-standard)}
 .multi-select>summary{min-height:var(--control-standard)}
@@ -93,6 +119,7 @@ textarea{line-height:1.65}
 .filter-advanced>summary{padding:.65rem 1rem}
 .inline-form{align-items:end}
 .inline-form button,.inline-form .button{align-self:end}
+.dossier-section>.detail-grid>div{padding:.25rem 0}
 
 /* Long administrative actions must remain readable on one or two clean lines. */
 .button-row .button,
@@ -100,14 +127,20 @@ textarea{line-height:1.65}
 .filter-primary button,
 .filters button{overflow:visible}
 
+/* Empty states should remain compact; no oversized blank panels for zero values. */
+.kpi-grid+.card{margin-top:0}
+.table-wrap .empty{padding:1.25rem}
+
 /* Responsive navigation remains one horizontal rail and scrolls instead of stepping vertically. */
 @media(max-width:1200px){
   .topnav{overflow-x:auto;overflow-y:visible;scrollbar-width:thin}
   .topnav>a,.topnav>details>summary{padding-inline:.6rem}
+  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
 @media(max-width:600px){
   button,.button{min-width:0;width:auto}
   .button-row{align-items:center}
   .page-header{align-items:flex-start}
+  .kpi-grid{grid-template-columns:1fr}
 }
