@@ -68,3 +68,11 @@ def test_dossier_is_read_only_and_operations_use_shared_specialist_workspace():
  assert '<style' not in operation and ' style=' not in operation
  for action in ('contract','appraisal','document','utility','movement','workflow','alert','beneficiary'):
   assert f"action == '{action}'" in operation
+
+def test_uat10_mother_domain_picker_and_contract_language_are_enforced():
+ base=(ROOT/'ui/templates/ui/base.html').read_text();detail=(ROOT/'ui/templates/ui/space_detail.html').read_text();circulation=(ROOT/'ui/templates/ui/contract_circulation.html').read_text();picker=(ROOT/'ui/templates/ui/components/space_picker.html').read_text()
+ assert "mother-list" in base and "mother-detail" in detail
+ assert "شروع گردش قرارداد" in detail and "ثبت قرارداد جدید" not in detail
+ assert "ایجاد گردش قرارداد به معنی ایجاد قرارداد رسمی نیست" in circulation
+ assert 'role="listbox"' in picker and '<select' not in picker
+ assert "route == 'contract-circulation'" in base

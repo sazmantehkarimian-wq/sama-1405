@@ -57,3 +57,7 @@ Contract circulation یک aggregate عملیاتی ممیزی‌شده مستق�
 
 1. پذیرش انسانی Owner برای UI/UX و Design System.
 2. تأیید Golden Master و Print QA واقعی برای اسناد رسمی مزایده مطابق FINAL FROZEN.
+
+## UAT.10 Mother Property and surgical UX remediation
+
+Status remains **UAT REMEDIATION IN PROGRESS** pending explicit Owner acceptance. The existing Authority-backed `MotherProperty` aggregate is exposed as a first-class list, read-focused dossier, evidence-based cross-linked relationship view, drillable dashboard KPI, and central-engine RTL report source. Contract-circulation terminology consistently distinguishes starting a circulation from creating an official contract; its parent navigation state is persistent. Specialist filters, the shared searchable space picker, and dated/undated timeline separation preserve all historical source records.

@@ -5,7 +5,7 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from domains.identity.models import UserProfile
-from domains.properties.models import CommercialSpace
+from domains.properties.models import CommercialSpace, MotherProperty
 
 
 @pytest.mark.django_db(transaction=True)
@@ -14,6 +14,7 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
 
     user = get_user_model().objects.create_user("browser-user", password="A-very-safe-password", is_staff=True)
     profile = UserProfile.objects.create(user=user, display_name="کاربر آزمون پذیرش", must_change_password=True)
+    MotherProperty.objects.create(identifier="P-BROWSER",name="ملک آزمون مرورگر",source_row=2)
     CommercialSpace.objects.create(code="BROWSER-501", name="فضای آزمون مرورگر", status="ACTIVE", current_usage="فرهنگی", source_row=2, source_classification="authority")
     manager = None
     try:
@@ -34,7 +35,7 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
         page.screenshot(path=evidence / "password-change-1366.png", full_page=True)
         page.get_by_label("گذرواژه فعلی").fill("A-very-safe-password");page.get_by_label("گذرواژه جدید", exact=True).fill("A-different-very-safe-password");page.get_by_label("تکرار گذرواژه جدید").fill("A-different-very-safe-password");page.get_by_role("button",name="ذخیره گذرواژه").click()
         assert page.url.rstrip("/")==live_server.url
-        routes=[("dashboard","/"),("active-spaces","/spaces/?status=ACTIVE"),("out-of-cycle","/spaces/?status=OUT_OF_CYCLE"),("dossier","/spaces/BROWSER-501/"),("contracts","/records/contracts/"),("beneficiaries","/records/beneficiaries/"),("appraisals","/records/appraisals/"),("fees","/records/fees/"),("auction","/auctions/"),("commission","/commissions/"),("utilities","/records/utilities/"),("workflows","/records/workflows/"),("documents","/records/documents/"),("alerts","/records/alerts/"),("reports","/reports/"),("users","/users/")]
+        routes=[("dashboard","/"),("mother-properties","/mother-properties/"),("mother-dossier","/mother-properties/P-BROWSER/"),("contract-circulation","/contract-circulation/"),("active-spaces","/spaces/?status=ACTIVE"),("out-of-cycle","/spaces/?status=OUT_OF_CYCLE"),("dossier","/spaces/BROWSER-501/"),("contracts","/records/contracts/"),("beneficiaries","/records/beneficiaries/"),("appraisals","/records/appraisals/"),("fees","/records/fees/"),("auction","/auctions/"),("commission","/commissions/"),("utilities","/records/utilities/"),("workflows","/records/workflows/"),("documents","/records/documents/"),("alerts","/records/alerts/"),("reports","/reports/"),("users","/users/")]
         for width,height in ((1366,768),(1600,900),(1920,1080)):
             page.set_viewport_size({"width":width,"height":height})
             for name,path in routes:
@@ -68,11 +69,11 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
                 page.screenshot(path=evidence / f"{name}-{width}.png", full_page=True)
         page.goto(f"{live_server.url}/spaces/");page.get_by_label("جست‌وجوی سراسری").fill("BROWSER-501");page.get_by_role("button",name="جست‌وجو").click();page.get_by_role("link",name="مشاهده پرونده").click()
         assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()
-        for label,title in (("ثبت قرارداد جدید","ثبت قرارداد جدید"),("ثبت کارشناسی جدید","ثبت کارشناسی جدید"),("بارگذاری سند","بارگذاری سند"),("ثبت انشعاب / مصرف","ثبت انشعاب یا مصرف"),("ثبت تحویل","ثبت تحویل پرونده"),("ثبت مورد پیگیری","ثبت مورد نیازمند پیگیری")):
+        for label,title in (("شروع گردش قرارداد","ایجاد پرونده گردش قرارداد"),("ثبت کارشناسی جدید","ثبت کارشناسی جدید"),("بارگذاری سند","بارگذاری سند"),("ثبت انشعاب / مصرف","ثبت انشعاب یا مصرف"),("ثبت تحویل","ثبت تحویل پرونده"),("ثبت مورد پیگیری","ثبت مورد نیازمند پیگیری")):
             page.get_by_role("link",name=label,exact=True).click()
             assert page.get_by_role("heading",name=title,exact=True).is_visible()
             assert "پرونده فضای BROWSER-501" in page.locator(".page-header").inner_text()
-            if label == "ثبت قرارداد جدید": page.screenshot(path=evidence / "contract-operation-context-1366.png", full_page=True)
+            if label == "شروع گردش قرارداد": page.screenshot(path=evidence / "contract-operation-context-1366.png", full_page=True)
             page.get_by_role("link",name="بازگشت به پرونده").click()
             assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()
     finally:

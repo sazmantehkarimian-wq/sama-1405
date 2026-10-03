@@ -91,7 +91,7 @@ def test_dossier_is_read_only_and_specialist_operations_preserve_space_context(c
  client.force_login(user);response=client.get(f'/spaces/{s.code}/');body=response.content.decode()
  for forbidden in ('action="/spaces/CTX-1/contracts/"','action="/spaces/CTX-1/appraisals/"','action="/spaces/CTX-1/utilities/"','action="/spaces/CTX-1/documents/"','action="/spaces/CTX-1/movement/"','action="/spaces/CTX-1/alerts/"'):
   assert forbidden not in body
- for action,label in (('contract','ثبت قرارداد جدید'),('appraisal','ثبت کارشناسی جدید'),('document','بارگذاری سند'),('utility','ثبت انشعاب / مصرف'),('movement','ثبت تحویل'),('alert','ثبت مورد پیگیری')):
+ for action,label in (('contract','شروع گردش قرارداد'),('appraisal','ثبت کارشناسی جدید'),('document','بارگذاری سند'),('utility','ثبت انشعاب / مصرف'),('movement','ثبت تحویل'),('alert','ثبت مورد پیگیری')):
   assert label in body
   operation=client.get(f'/operations/{action}/?space={s.code}')
   assert operation.status_code==200 and f'پرونده فضای {s.code}' in operation.content.decode()

@@ -15,7 +15,7 @@ from domains.operations.models import Appraisal, AppraisalFee, Auction, AuctionE
 from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from services.file_movement import current_holder
-from reporting.engine import excel,docx,pdf,tabular_excel,output_table
+from reporting.engine import excel,docx,pdf,tabular_excel,output_table,MOTHER_FIELD_MAP
 from ui.forms import PersianPasswordChangeForm
 from core.uat import is_fixed_uat_admin
 from services.money import format_rial
@@ -26,6 +26,37 @@ def dashboard(request):
  for row in region_rows:row['percent']=round(row['total']*100/maximum)
  context={'space_count':spaces.count(),'active_count':active.count(),'inactive_count':spaces.filter(status='OUT_OF_CYCLE').count(),'property_count':MotherProperty.objects.count(),'discrepancy_count':Discrepancy.objects.exclude(status='RESOLVED').count(),'contract_count':Contract.objects.count(),'appraisal_count':Appraisal.objects.count(),'alert_count':Alert.objects.exclude(status='RESOLVED').count(),'without_contract_count':active.filter(contracts__isnull=True).count(),'without_appraisal_count':active.filter(appraisals__isnull=True).count(),'open_workflow_count':WorkflowInstance.objects.filter(state='OPEN').count(),'region_rows':region_rows}
  return render(request,'ui/dashboard.html',context)
+@login_required
+def mother_property_list(request):
+ from queries.mother_properties import filter_mother_properties
+ qs=filter_mother_properties(request.GET);page=Paginator(qs,25).get_page(request.GET.get('page'))
+ available=(('name','نام'),('region','منطقه'),('usage','کاربری'),('area','مساحت'),('space_count','فضاهای مرتبط'))
+ requested=[value for value in request.GET.getlist('column') if value in dict(available)]
+ return render(request,'ui/mother_property_list.html',{'page':page,'total':qs.count(),'dataset_total':MotherProperty.objects.count(),'regions':Region.objects.order_by('name'),'available_columns':available,'visible_columns':requested or [x[0] for x in available]})
+
+@login_required
+def mother_property_detail(request,identifier):
+ item=get_object_or_404(MotherProperty.objects.select_related('region').prefetch_related('space_links__space__beneficiary_assignments__beneficiary'),identifier=identifier)
+ documents=Document.objects.filter(entity_type='MotherProperty',entity_id=item.identifier,archived_at__isnull=True)
+ return render(request,'ui/mother_property_detail.html',{'property':item,'documents':documents})
+
+def _mother_query(request):
+ from queries.mother_properties import filter_mother_properties
+ return filter_mother_properties(request.GET)[:5000]
+@login_required
+def mother_report(request):
+ fields=[(key,label) for key,(label,_) in MOTHER_FIELD_MAP.items()]
+ return render(request,'ui/mother_property_report.html',{'fields':fields,'query':request.GET.urlencode()})
+@login_required
+def mother_report_preview(request):
+ labels,rows=output_table(_mother_query(request)[:100],request.GET.getlist('layout'),request.GET.getlist('field'),request.GET.getlist('blank'),MOTHER_FIELD_MAP)
+ return render(request,'ui/report_preview.html',{'labels':labels,'rows':rows,'query':request.GET.urlencode(),'export_prefix':'mother-properties'})
+@login_required
+def mother_excel(request):return HttpResponse(excel(_mother_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP,'املاک مادر'),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="mother-properties.xlsx"'})
+@login_required
+def mother_docx(request):return HttpResponse(docx(_mother_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP),content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':'attachment; filename="mother-properties.docx"'})
+@login_required
+def mother_pdf(request):return HttpResponse(pdf(_mother_query(request),request.GET.getlist('field'),request.GET.getlist('blank'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP),content_type='application/pdf',headers={'Content-Disposition':'attachment; filename="mother-properties.pdf"'})
 @login_required
 def space_list(request):
  qs=filter_spaces(request.GET);page=Paginator(qs,25).get_page(request.GET.get('page'))
@@ -63,15 +94,18 @@ def operation_create(request,action):
   appraisal=get_object_or_404(Appraisal.objects.select_related('space'),pk=request.GET.get('appraisal'));space=appraisal.space;kwargs={'appraisal_id':appraisal.pk}
  elif space:kwargs={'code':space.code}
  operation={**operation,'post_url':reverse(operation['post_name'],kwargs=kwargs) if kwargs else ''}
- return render(request,'ui/operation_form.html',{'action':action,'operation':operation,'space':space,'contract':contract,'appraisal':appraisal,'beneficiary':beneficiary,'spaces':CommercialSpace.objects.order_by('code')})
+ return render(request,'ui/operation_form.html',{'action':action,'operation':operation,'space':space,'contract':contract,'appraisal':appraisal,'beneficiary':beneficiary,'spaces':CommercialSpace.objects.select_related('region').order_by('code')})
 
 @login_required
 def space_detail(request,code):
  s=get_object_or_404(CommercialSpace.objects.select_related('region','center').prefetch_related('status_history','contracts__amendments','contracts__beneficiary','contract_circulations__transfers','contract_circulations__signature_steps','beneficiary_assignments__beneficiary','appraisals__fee__supporting_document','auctions','utilities__supporting_document','utility_obligations','decisions','commission_decisions__spaces','timeline__document','alerts__assigned_to','file_movements','workflows','source_documents','property_links__mother_property'),code=code)
  timeline=s.timeline.all();event_type=request.GET.get('event_type','').strip()
- if event_type:timeline=timeline.filter(event_type=event_type)
- event_types=s.timeline.order_by().values_list('event_type',flat=True).distinct()
- return render(request,'ui/space_detail.html',{'space':s,'holder':current_holder(s),'timeline_events':timeline,'event_types':event_types,'uploaded_documents':Document.objects.filter(entity_type='CommercialSpace',entity_id=s.code,archived_at__isnull=True),'history':__import__('domains.operations.models',fromlist=['OperationalHistory']).OperationalHistory.objects.filter(entity_type__in=['WorkflowInstance','AppraisalFee','UtilityRecord','CommissionDecision','Alert'])[:100]})
+ undated=timeline.filter(jalali_date='')
+ dated=timeline.exclude(jalali_date='')
+ if event_type=='UNDATED':dated=timeline.none()
+ elif event_type:dated=dated.filter(event_type=event_type)
+ event_types=s.timeline.exclude(jalali_date='').order_by().values_list('event_type',flat=True).distinct()
+ return render(request,'ui/space_detail.html',{'space':s,'holder':current_holder(s),'timeline_events':dated,'undated_events':undated,'event_types':event_types,'uploaded_documents':Document.objects.filter(entity_type='CommercialSpace',entity_id=s.code,archived_at__isnull=True),'history':__import__('domains.operations.models',fromlist=['OperationalHistory']).OperationalHistory.objects.filter(entity_type__in=['WorkflowInstance','AppraisalFee','UtilityRecord','CommissionDecision','Alert'])[:100]})
 
 @login_required
 @require_POST
@@ -146,6 +180,26 @@ def domain_list(request,domain):
  qs=_search_domain(qs,domain,q)
  if domain=='alerts' and request.GET.get('state')=='OPEN':qs=qs.exclude(status='RESOLVED')
  if domain=='workflows' and request.GET.get('state')=='OPEN':qs=qs.filter(state='OPEN')
+ if domain=='contracts':
+  if request.GET.get('space_code'):qs=qs.filter(space__code__iexact=request.GET['space_code'])
+  if request.GET.get('number'):qs=qs.filter(number__icontains=request.GET['number'])
+  if request.GET.get('beneficiary'):qs=qs.filter(beneficiary__name__icontains=request.GET['beneficiary'])
+  if request.GET.get('status'):qs=qs.filter(status__icontains=request.GET['status'])
+  if request.GET.get('origin')=='historical':qs=qs.filter(is_historical=True)
+  elif request.GET.get('origin')=='operational':qs=qs.filter(is_historical=False)
+  if request.GET.get('number_presence')=='missing':qs=qs.filter(number='')
+  elif request.GET.get('number_presence')=='present':qs=qs.exclude(number='')
+ if domain=='beneficiaries':
+  if request.GET.get('identifier'):qs=qs.filter(identity_number__icontains=request.GET['identifier'])
+  if request.GET.get('kind'):qs=qs.filter(kind=request.GET['kind'])
+  if request.GET.get('space_code'):qs=qs.filter(beneficiaryassignment__space__code__iexact=request.GET['space_code']).distinct()
+ if domain=='appraisals':
+  if request.GET.get('space_code'):qs=qs.filter(space__code__iexact=request.GET['space_code'])
+  if request.GET.get('appraiser'):qs=qs.filter(appraiser__icontains=request.GET['appraiser'])
+  if request.GET.get('status'):qs=qs.filter(status__icontains=request.GET['status'])
+  if request.GET.get('missing')=='date':qs=qs.filter(appraisal_date='')
+  elif request.GET.get('missing')=='appraiser':qs=qs.filter(appraiser='')
+  elif request.GET.get('missing')=='zero':qs=qs.filter(amount_rial=0)
  page=Paginator(qs.order_by('-pk'),30).get_page(request.GET.get('page'))
  rows=[]
  for obj in page:
@@ -190,6 +244,7 @@ def auction_workspace(request):
   'rules':AuctionRule.objects.order_by('-effective_year','-id'),
   'evaluations':AuctionEvaluation.objects.select_related('space','rule','evaluated_by').order_by('-evaluated_at')[:100],
   'periods':AuctionPeriod.objects.prefetch_related('lots__space').order_by('-id'),
+  'spaces':CommercialSpace.objects.select_related('region').order_by('code'),
  })
 
 @login_required
@@ -230,7 +285,7 @@ def commission_workspace(request):
  return render(request,'ui/commission_workspace.html',{
   'decisions':CommissionDecision.objects.prefetch_related('spaces').order_by('-id')[:100],
   'documents':Document.objects.filter(archived_at__isnull=True).order_by('-uploaded_at')[:100],
-  'spaces':CommercialSpace.objects.order_by('code'),
+  'spaces':CommercialSpace.objects.select_related('region').order_by('code'),
  })
 
 @login_required
@@ -268,7 +323,7 @@ def report_save(request):
 def report_open(request,report_id):
  from services.reports import report_query_string
  report=get_object_or_404(SavedReport,pk=report_id,owner=request.user)
- return redirect(f"/spaces/?{report_query_string(report)}")
+ return redirect(f"/{'mother-properties/report/preview' if report.domain=='mother_properties' else 'spaces/'}?{report_query_string(report)}")
 @login_required
 @require_POST
 def report_archive(request,report_id):
@@ -552,7 +607,12 @@ def contract_circulation_workspace(request):
  cases=ContractCirculation.objects.select_related('space','beneficiary','official_contract').prefetch_related('transfers','signature_steps').order_by('-pk')
  code=request.GET.get('space','').strip()
  if code:cases=cases.filter(space__code=code)
- return render(request,'ui/contract_circulation.html',{'cases':cases[:100],'selected_space':CommercialSpace.objects.filter(code=code).first(),'spaces':CommercialSpace.objects.order_by('code'),'beneficiaries':Beneficiary.objects.order_by('name')[:1000]})
+ if request.GET.get('beneficiary'):cases=cases.filter(beneficiary__name__icontains=request.GET['beneficiary'])
+ if request.GET.get('state'):cases=cases.filter(state=request.GET['state'])
+ if request.GET.get('holder'):cases=cases.filter(transfers__returned_at__isnull=True,transfers__receiver__icontains=request.GET['holder'])
+ if request.GET.get('unit'):cases=cases.filter(transfers__returned_at__isnull=True,transfers__unit__icontains=request.GET['unit'])
+ if request.GET.get('ready')=='1':cases=cases.filter(state='READY_APPROVAL')
+ return render(request,'ui/contract_circulation.html',{'cases':cases.distinct()[:100],'selected_space':CommercialSpace.objects.filter(code=code).first(),'spaces':CommercialSpace.objects.select_related('region').order_by('code'),'beneficiaries':Beneficiary.objects.order_by('name')[:1000],'states':__import__('domains.contracts.models',fromlist=['ContractCirculation']).ContractCirculation.State.choices})
 
 @login_required
 @require_POST

@@ -29,6 +29,13 @@ FIELD_MAP={
  'status':('وضعیت',lambda s:s.get_status_display()),'region':('منطقه',lambda s:s.region.name if s.region else '—'),
  'current_usage':('کاربری',lambda s:s.current_usage or '—'),'area':('مساحت (مترمربع)',lambda s:s.area if s.area is not None else '—'),
 }
+MOTHER_FIELD_MAP={
+ 'identifier':('شناسه ملک',lambda p:p.identifier),'name':('نام ملک / مرکز',lambda p:p.name or '—'),
+ 'region':('منطقه',lambda p:p.region.name if p.region else '—'),'address':('نشانی',lambda p:p.address or '—'),
+ 'primary_usage':('کاربری اصلی',lambda p:p.primary_usage or '—'),'usage_group':('گروه کاربری',lambda p:p.usage_group or '—'),
+ 'area':('مساحت (مترمربع)',lambda p:p.area if p.area is not None else '—'),
+ 'space_count':('تعداد فضاهای مرتبط',lambda p:getattr(p,'space_count',p.space_links.count())),
+}
 DEFAULT_FIELDS=tuple(FIELD_MAP)
 BASE=Path(__file__).resolve().parents[1]
 LOGO=BASE/'design_system/static/design_system/img/organization-logo.png'
@@ -50,28 +57,28 @@ def _style_xlsx(ws,header,total):
  ws.row_dimensions[header].height=28
  for column in ws.columns:ws.column_dimensions[get_column_letter(column[0].column)].width=min(42,max(14,max(len(str(cell.value or '')) for cell in column)+2))
 
-def columns(selected=None):
- selected=[key for key in (selected or DEFAULT_FIELDS) if key in FIELD_MAP]
- return selected or list(DEFAULT_FIELDS)
-def layout_columns(layout=None,selected=None,blank_columns=()):
+def columns(selected=None,field_map=None):
+ field_map=field_map or FIELD_MAP;selected=[key for key in (selected or tuple(field_map)) if key in field_map]
+ return selected or list(field_map)
+def layout_columns(layout=None,selected=None,blank_columns=(),field_map=None):
  """Return one authoritative ordered output layout (first item is visual right)."""
- result=[]
+ field_map=field_map or FIELD_MAP;result=[]
  for token in layout or ():
   kind,separator,value=str(token).partition(':')
-  if separator and kind=='field' and value in FIELD_MAP and ('field',value) not in result:result.append(('field',value))
+  if separator and kind=='field' and value in field_map and ('field',value) not in result:result.append(('field',value))
   elif separator and kind=='blank' and value.strip():result.append(('blank',value.strip()[:120]))
- if not result:result=[('field',key) for key in columns(selected)]+[('blank',str(label).strip()[:120]) for label in blank_columns if str(label).strip()]
+ if not result:result=[('field',key) for key in columns(selected,field_map)]+[('blank',str(label).strip()[:120]) for label in blank_columns if str(label).strip()]
  return result[:24]
-def output_table(spaces,layout=None,selected=None,blank_columns=()):
- configured=layout_columns(layout,selected,blank_columns)
- headers=[FIELD_MAP[value][0] if kind=='field' else value for kind,value in configured]
- data=[[FIELD_MAP[value][1](space) if kind=='field' else '' for kind,value in configured] for space in spaces]
+def output_table(spaces,layout=None,selected=None,blank_columns=(),field_map=None):
+ field_map=field_map or FIELD_MAP;configured=layout_columns(layout,selected,blank_columns,field_map)
+ headers=[field_map[value][0] if kind=='field' else value for kind,value in configured]
+ data=[[field_map[value][1](space) if kind=='field' else '' for kind,value in configured] for space in spaces]
  return headers,data
 def rows(spaces,selected=None):
  keys=columns(selected)
  for s in spaces: yield [FIELD_MAP[key][1](s) for key in keys]
-def excel(spaces,blank_columns=(),selected=None,layout=None,orientation='landscape'):
- labels,data=output_table(spaces,layout,selected,blank_columns); wb=Workbook(); ws=wb.active; ws.title='فضاها'; ws.sheet_view.rightToLeft=True
+def excel(spaces,blank_columns=(),selected=None,layout=None,orientation='landscape',field_map=None,title='فضاها'):
+ labels,data=output_table(spaces,layout,selected,blank_columns,field_map); wb=Workbook(); ws=wb.active; ws.title=title[:31]; ws.sheet_view.rightToLeft=True
  total=len(labels)
  for line in HEADERS:
   ws.append(['',line] if total>1 else [line])
@@ -104,8 +111,8 @@ def _rtl(paragraph):
   run.font.name='Vazirmatn';run.font.size=Pt(10);run._element.rPr.rFonts.set(qn('w:cs'),'Vazirmatn')
 def _rtl_table(table):
  tblPr=table._tbl.tblPr;bidi=OxmlElement('w:bidiVisual');bidi.set(qn('w:val'),'1');tblPr.append(bidi)
-def docx(spaces,blank_columns=(),selected=None,layout=None,orientation='landscape'):
- labels,data=output_table(spaces,layout,selected,blank_columns); doc=Document();sec=doc.sections[0]
+def docx(spaces,blank_columns=(),selected=None,layout=None,orientation='landscape',field_map=None):
+ labels,data=output_table(spaces,layout,selected,blank_columns,field_map); doc=Document();sec=doc.sections[0]
  if orientation=='landscape':sec.orientation=WD_ORIENT.LANDSCAPE;sec.page_width,sec.page_height=sec.page_height,sec.page_width
  sec.top_margin=Mm(40);sec.header_distance=Mm(5)
  header=sec.header.paragraphs[0]
@@ -122,18 +129,18 @@ def docx(spaces,blank_columns=(),selected=None,layout=None,orientation='landscap
  footer.add_run('صفحه ');field=OxmlElement('w:fldSimple');field.set(qn('w:instr'),'PAGE');footer._p.append(field)
  out=BytesIO();doc.save(out);return out.getvalue()
 def _fa(value):return get_display(arabic_reshaper.reshape(str(value).translate(str.maketrans('0123456789','۰۱۲۳۴۵۶۷۸۹'))))
-def pdf(spaces,selected=None,blank_columns=(),layout=None,orientation='landscape'):
- labels,body=output_table(spaces,layout,selected,blank_columns);out=BytesIO();pdfmetrics.registerFont(TTFont('Vazirmatn',str(FONT)));page_size=landscape(A4) if orientation=='landscape' else A4
+def pdf(spaces,selected=None,blank_columns=(),layout=None,orientation='landscape',field_map=None):
+ labels,body=output_table(spaces,layout,selected,blank_columns,field_map);out=BytesIO();pdfmetrics.registerFont(TTFont('Vazirmatn',str(FONT)));page_size=landscape(A4) if orientation=='landscape' else A4
  doc=SimpleDocTemplate(out,pagesize=page_size,rightMargin=12*mm,leftMargin=12*mm,topMargin=10*mm,bottomMargin=12*mm,title='گزارش رسمی املاک')
  style=ParagraphStyle('fa',fontName='Vazirmatn',fontSize=9,leading=14,alignment=TA_CENTER)
  story=[]
  if LOGO.exists():story.append(Image(str(LOGO),width=18*mm,height=18*mm))
  for line in HEADERS:story.append(Paragraph(_fa(line),style))
  story.append(Spacer(1,5*mm))
- data=[[_fa(value) for value in labels]]+[[(_fa(value) if value!='' else '') for value in row] for row in body]
+ data=[[Paragraph(_fa(value),style) for value in labels]]+[[Paragraph(_fa(value),style) if value!='' else '' for value in row] for row in body]
  # ReportLab lays its first logical column on the left; reverse for a true visual RTL table.
  data=[list(reversed(row)) for row in data]
- table=Table(data,repeatRows=1,hAlign='CENTER',splitByRow=1)
+ available=page_size[0]-24*mm;table=Table(data,repeatRows=1,hAlign='CENTER',splitByRow=1,colWidths=[available/max(1,len(labels))]*len(labels))
  table.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Vazirmatn'),('FONTSIZE',(0,0),(-1,-1),8),('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('GRID',(0,0),(-1,-1),.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#f1edf2')),('LEADING',(0,0),(-1,-1),12)]));story.append(table)
  def numbered_page(canvas,document):
   canvas.saveState();canvas.setFont('Vazirmatn',8);canvas.drawCentredString(page_size[0]/2,6*mm,_fa(f'صفحه {document.page}'));canvas.restoreState()
