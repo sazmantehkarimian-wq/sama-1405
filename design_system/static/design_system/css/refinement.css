@@ -1,8 +1,8 @@
 :root{
   --nav-height:2.625rem;
-  --control-compact:1.875rem;
-  --control-standard:2.25rem;
-  --control-emphasized:2.25rem;
+  --control-compact:2rem;
+  --control-standard:2.35rem;
+  --control-emphasized:2.35rem;
 }
 
 /* Global shell alignment: every direct navigation item occupies exactly one row. */
@@ -28,63 +28,77 @@
   align-items:center;
   justify-content:center;
   padding:0 .7rem;
-  line-height:1.15;
+  line-height:1.45;
   border-bottom-width:2px;
 }
 .topnav details>div{top:100%}
 
-/* One button geometry across all operational screens. */
+/* Persian-safe button geometry: avoid clipping ascenders/descenders and artificial equal widths. */
 button,.button{
   min-height:var(--control-standard);
-  height:var(--control-standard);
-  min-width:6.5rem;
-  padding:.35rem .85rem;
+  height:auto;
+  min-width:0;
+  padding:.42rem .9rem;
   border-radius:.375rem;
-  line-height:1;
-  white-space:nowrap;
+  line-height:1.45;
+  white-space:normal;
+  text-align:center;
+  vertical-align:middle;
 }
 .button.compact,button.compact{
   min-height:var(--control-compact);
-  height:var(--control-compact);
-  min-width:5.75rem;
-  padding:.25rem .7rem;
+  height:auto;
+  min-width:0;
+  padding:.3rem .72rem;
+  font-size:var(--font-size-label);
+  line-height:1.45;
 }
 .button.emphasized,button.emphasized{
   min-height:var(--control-standard);
-  height:var(--control-standard);
-  padding-inline:.95rem;
+  height:auto;
+  padding-inline:1rem;
 }
 .button-row{
   align-items:center;
-  gap:.5rem;
+  gap:.45rem;
+  row-gap:.45rem;
 }
 .button-row>.button,
 .button-row>button{flex:0 0 auto}
 
-/* Keep filter actions compact instead of allowing visually oversized controls. */
-.filter-primary button{
-  width:7rem;
-  min-width:7rem;
+/* Contextual sizing instead of a global forced width. */
+.filter-primary button,
+.filters button{
+  min-inline-size:6.75rem;
+  max-inline-size:100%;
   justify-self:start;
   align-self:end;
 }
-.filters button{
-  min-width:7rem;
-  justify-self:start;
-}
+.table-wrap .button.compact,
+.table-wrap button.compact{min-inline-size:5.25rem}
+.page-header .button.compact{min-inline-size:0}
 
 /* Controls and form rhythm. */
 input,select,.control{min-height:var(--control-standard)}
 .multi-select>summary{min-height:var(--control-standard)}
+textarea{line-height:1.65}
 .container{padding-block:1.25rem 2rem}
 .page-header{margin-bottom:1rem;align-items:center}
-.card,.panel{padding:.875rem;margin-bottom:1rem}
+.card,.panel{padding:.9rem;margin-bottom:1rem}
 .form-grid,.detail-grid{gap:1rem}
 .entity-form{gap:1rem}
 .entity-form .form-grid{gap:1rem 1.25rem}
 .filter-panel-header{padding:.65rem 1rem}
 .filter-primary{padding:.875rem 1rem;gap:.75rem}
 .filter-advanced>summary{padding:.65rem 1rem}
+.inline-form{align-items:end}
+.inline-form button,.inline-form .button{align-self:end}
+
+/* Long administrative actions must remain readable on one or two clean lines. */
+.button-row .button,
+.button-row button,
+.filter-primary button,
+.filters button{overflow:visible}
 
 /* Responsive navigation remains one horizontal rail and scrolls instead of stepping vertically. */
 @media(max-width:1200px){
@@ -93,6 +107,7 @@ input,select,.control{min-height:var(--control-standard)}
 }
 
 @media(max-width:600px){
-  button,.button{min-width:auto}
+  button,.button{min-width:0;width:auto}
   .button-row{align-items:center}
+  .page-header{align-items:flex-start}
 }
