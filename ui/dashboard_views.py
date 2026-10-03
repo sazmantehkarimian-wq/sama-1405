@@ -51,10 +51,6 @@ def _scope_query(scope, **extra):
     return urlencode(pairs)
 
 
-def _scoped_space_ids(scope):
-    return filter_spaces(scope).values_list("pk", flat=True)
-
-
 def _latest_auction_counts(space_ids):
     latest = {}
     for item in (
@@ -147,6 +143,12 @@ def dashboard(request):
         "contract_31_60": _scope_query(active_scope, contract_bucket="31_60"),
         "contract_61_90": _scope_query(active_scope, contract_bucket="61_90"),
         "contract_long": _scope_query(active_scope, contract_bucket="LONG_TERM"),
+        "action_all": _scope_query(scope),
+        "action_alerts": _scope_query(scope, kind="alerts"),
+        "action_critical": _scope_query(scope, kind="alerts", priority=Alert.Priority.CRITICAL),
+        "action_alerts_overdue": _scope_query(scope, kind="alerts", overdue="1"),
+        "action_workflows": _scope_query(scope, kind="workflows"),
+        "action_workflows_overdue": _scope_query(scope, kind="workflows", overdue="1"),
     }
 
     context = {
