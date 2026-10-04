@@ -68,4 +68,19 @@ class Migration(migrations.Migration):
                 ("registrar", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="registered_auction_proposals", to=settings.AUTH_USER_MODEL)),
             ],
         ),
+        migrations.CreateModel(
+            name="AuctionContractDraft",
+            fields=[
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("subject", models.CharField(max_length=255)),
+                ("start_date", models.CharField(max_length=10)),
+                ("end_date", models.CharField(max_length=10)),
+                ("amount_rial", models.DecimalField(decimal_places=0, max_digits=24)),
+                ("investment_commitment_rial", models.DecimalField(blank=True, decimal_places=0, max_digits=24, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("created_by", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="created_auction_contract_drafts", to=settings.AUTH_USER_MODEL)),
+                ("lot", models.OneToOneField(on_delete=django.db.models.deletion.PROTECT, related_name="contract_draft", to="operations.auctionlot")),
+            ],
+        ),
     ]
