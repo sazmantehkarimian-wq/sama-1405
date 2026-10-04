@@ -1,11 +1,11 @@
 {% extends 'ui/base.html' %}
 {% block title %}{{ title|default:'خطای سامانه' }}{% endblock %}
 {% block content %}
-<section class="card" role="alert" style="max-width:48rem;margin:2rem auto;text-align:center">
+<section class="card error-card" role="alert">
   <h1>{{ title|default:'خطای سامانه' }}</h1>
   <p>{{ message|default:'در انجام درخواست مشکلی رخ داده است.' }}</p>
   {% if status_code %}<p class="helper">کد وضعیت: {{ status_code }}</p>{% endif %}
-  <div class="button-row" style="justify-content:center;margin-top:1rem">
+  <div class="button-row error-actions">
     <a class="button secondary" href="javascript:history.back()">بازگشت</a>
     <a class="button" href="{% url 'dashboard' %}">داشبورد</a>
   </div>
