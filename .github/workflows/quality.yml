@@ -31,11 +31,12 @@ jobs:
           )
           from domains.operations.models import (
             Appraisal, AppraisalFee, ExpertFeePaymentBatch, ExpertFeeBatchItem,
-            Auction, UtilityRecord, UtilityConnection, UtilityBill,
+            Auction, AuctionPeriod, AuctionLot, AuctionParticipant, AuctionProposal,
+            UtilityRecord, UtilityConnection, UtilityBill,
             UtilityMeasurement, UtilityUnit, ElectricityBill, ElectricityAllocation,
-            ElectricityCalculationSnapshot,
-            FileMovement, TimelineEvent,
+            ElectricityCalculationSnapshot, FileMovement, TimelineEvent,
           )
+          from domains.auctionflow.models import AuctionPeriodProfile, AuctionLotProfile, AuctionDocumentInstance
           checks={
             'mother_properties':MotherProperty.objects.count(),
             'mother_property_ownership':MotherPropertyOwnership.objects.count(),
@@ -55,6 +56,13 @@ jobs:
             'fee_batches':ExpertFeePaymentBatch.objects.count(),
             'fee_batch_items':ExpertFeeBatchItem.objects.count(),
             'auctions':Auction.objects.count(),
+            'auction_periods':AuctionPeriod.objects.count(),
+            'auction_lots':AuctionLot.objects.count(),
+            'auction_participants':AuctionParticipant.objects.count(),
+            'auction_proposals':AuctionProposal.objects.count(),
+            'auction_period_profiles':AuctionPeriodProfile.objects.count(),
+            'auction_lot_profiles':AuctionLotProfile.objects.count(),
+            'auction_generated_documents':AuctionDocumentInstance.objects.count(),
             'utilities':UtilityRecord.objects.count(),
             'utility_connections':UtilityConnection.objects.count(),
             'utility_bills':UtilityBill.objects.count(),
@@ -69,6 +77,7 @@ jobs:
           assert all(v==0 for v in checks.values()), checks
           print(checks)
           PY
+      - run: python manage.py makemigrations --check --dry-run
       - run: pytest -q
       - run: python manage.py check --deploy
         env: {SAMA_HTTPS: '1'}
