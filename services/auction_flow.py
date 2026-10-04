@@ -1,5 +1,4 @@
 import hashlib
-import io
 import json
 from decimal import Decimal
 
@@ -7,20 +6,17 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
 from django.utils import timezone
-from docx import Document as DocxDocument
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
 
-from domains.auctionflow.models import AuctionDocumentInstance, AuctionLotProfile, AuctionPeriodProfile
+from domains.auctionflow.models import (
+    AuctionDocumentInstance, AuctionLotProfile, AuctionOrganizationProfile, AuctionPeriodProfile,
+)
 from domains.contracts.models import Beneficiary
 from domains.identity.models import AuditEvent
-from domains.operations.models import AuctionLot, AuctionProposal
+from domains.operations.models import AuctionLot, AuctionProposal, CommissionMember
+from services.auction_pdf_contracts import render_contract_pdf
+from services.auction_templates import render_docx_from_source, source_bytes, source_for
 from services.contract_circulation import create_circulation
 from services.documents import store_document
-
-TEMPLATE_VERSION = 'reference-1405-07-12-v1'
-ORG_HEADERS = ['سازمان فرهنگی هنری شهرداری تهران', 'مدیریت اقتصادی و املاک', 'اداره املاک و مستغلات']
 
 
 def _canonical(payload):
@@ -31,9 +27,13 @@ def snapshot_hash(payload):
     return hashlib.sha256(_canonical(payload)).hexdigest()
 
 
+def _raw(value):
+    return str(value) if value not in (None, '') else ''
+
+
 def _money(value):
     if value in (None, ''):
-        return '—'
+        return ''
     return f'{Decimal(value):,.0f}'
 
 
@@ -46,9 +46,38 @@ def ensure_profiles(period):
     return period_profile, lot_profiles
 
 
+def _beneficiary_payload(profile):
+    beneficiary=profile.beneficiary
+    if not beneficiary:
+        return {}
+    return {
+        'id':beneficiary.pk,'kind':beneficiary.kind,'name':beneficiary.name,
+        'first_name':beneficiary.first_name,'last_name':beneficiary.last_name,
+        'father_name':beneficiary.father_name,'birth_certificate_number':beneficiary.birth_certificate_number,
+        'birth_date':beneficiary.birth_date,'identity_number':beneficiary.identity_number,
+        'legal_name':beneficiary.legal_name,'registration_number':beneficiary.registration_number,
+        'economic_code':beneficiary.economic_code,'representative_name':beneficiary.representative_name,
+        'mobile':beneficiary.mobile,'phone':beneficiary.phone,'address':beneficiary.address,'postal_code':beneficiary.postal_code,
+    }
+
+
+def _contract_payload(profile):
+    contract=profile.official_contract
+    if not contract:
+        return {}
+    return {
+        'id':contract.pk,'number':contract.number,'subject':contract.subject,'signed_date':contract.signed_date,
+        'start_date':contract.start_date,'end_date':contract.end_date,
+        'amount_rial':_raw(contract.amount_rial),'monthly_amount':_money(contract.amount_rial),
+        'investment_commitment_rial':_raw(contract.investment_commitment_rial),
+        'status':contract.status,'signed_state':contract.signed_state,
+    }
+
+
 def build_lot_snapshot(lot):
     period_profile, _ = AuctionPeriodProfile.objects.get_or_create(period=lot.period)
     profile, _ = AuctionLotProfile.objects.get_or_create(lot=lot)
+    organization=AuctionOrganizationProfile.objects.first()
     space = lot.space
     proposals = []
     for proposal in lot.proposals.select_related('participant').order_by('pk'):
@@ -61,50 +90,124 @@ def build_lot_snapshot(lot):
             'envelope_a': proposal.envelope_a_received,
             'envelope_b': proposal.envelope_b_received,
             'envelope_c': proposal.envelope_c_received,
-            'offered_amount_rial': str(proposal.offered_amount_rial) if proposal.offered_amount_rial is not None else None,
+            'offered_amount_rial': _raw(proposal.offered_amount_rial),
             'status': proposal.status,
         })
     current_appraisal = space.appraisals.filter(is_current=True).order_by('-pk').first()
+    active_members=list(CommissionMember.objects.filter(status=CommissionMember.Status.ACTIVE).order_by('sign_order','pk').values('name','position','role','sign_order'))
     return {
-        'organization': ORG_HEADERS,
+        'organization': {
+            'organization_name': organization.organization_name if organization else '',
+            'unit_title': organization.unit_title if organization else '',
+            'official_address': organization.official_address if organization else '',
+            'secretariat_address': organization.secretariat_address if organization else '',
+            'phone': organization.phone if organization else '',
+            'bank_name': organization.bank_name if organization else '',
+            'bank_branch': organization.bank_branch if organization else '',
+            'account_number': organization.account_number if organization else '',
+            'iban': organization.iban if organization else '',
+            'office_hours': organization.office_hours if organization else '',
+            'submission_location': organization.submission_location if organization else '',
+            'representative_name': organization.representative_name if organization else '',
+            'representative_title': organization.representative_title if organization else '',
+            'economic_code': organization.economic_code if organization else '',
+            'national_id': organization.national_id if organization else '',
+            'postal_code': organization.postal_code if organization else '',
+        },
         'period': {
             'id': lot.period_id, 'identity': lot.period.identity, 'title': lot.period.title,
             'planned_date': lot.period.planned_date, 'state': lot.period.state,
-            'permit_reference': period_profile.permit_reference,
+            'permit_reference': period_profile.permit_reference, 'permit_date':period_profile.permit_date,
             'ad_day_name': period_profile.ad_day_name, 'ad_date': period_profile.ad_date,
-            'newspaper': period_profile.newspaper, 'invitation_number': period_profile.invitation_number,
-            'opening_session_date': period_profile.opening_session_date,
+            'newspaper': period_profile.newspaper, 'newspaper_page':period_profile.newspaper_page,
+            'publication_media':period_profile.publication_media,
+            'document_sales_start':period_profile.document_sales_start,'document_sales_end':period_profile.document_sales_end,
+            'proposal_deadline':period_profile.proposal_deadline,'submission_day_name':period_profile.submission_day_name,
+            'invitation_number': period_profile.invitation_number,'invitation_date':period_profile.invitation_date,
+            'opening_session_date': period_profile.opening_session_date,'opening_day_name':period_profile.opening_day_name,
             'opening_session_time': period_profile.opening_session_time,
             'opening_session_location': period_profile.opening_session_location,
-            'duration_years': period_profile.duration_years,
+            'duration_years': period_profile.duration_years,'template_version':period_profile.template_version,
         },
         'lot': {
             'id': lot.pk, 'space_code': space.code, 'space_name': space.name,
-            'area': str(space.area) if space.area is not None else None,
-            'address': space.address, 'usage': space.current_usage,
+            'region': space.region.name if getattr(space,'region_id',None) else '',
+            'area': _raw(space.area), 'address': space.address, 'usage': space.current_usage,
             'proposed_activity': space.proposed_activity, 'activity_group': space.activity_group,
             'entry_method': lot.entry_method, 'readiness': lot.readiness,
             'template_family': profile.template_family,
-            'base_monthly_rent_rial': str(profile.base_monthly_rent_rial) if profile.base_monthly_rent_rial is not None else None,
-            'guarantee_amount_rial': str(profile.guarantee_amount_rial) if profile.guarantee_amount_rial is not None else None,
-            'investment_amount_rial': str(profile.investment_amount_rial) if profile.investment_amount_rial is not None else None,
-            'proposed_job': profile.proposed_job,
+            'base_monthly_rent_rial': _raw(profile.base_monthly_rent_rial),
+            'base_monthly_rent_words':profile.base_monthly_rent_words,
+            'guarantee_amount_rial': _raw(profile.guarantee_amount_rial),
+            'guarantee_type':profile.guarantee_type,'grace_period':profile.grace_period,
+            'investment_amount_rial': _raw(profile.investment_amount_rial),
+            'investment_description':profile.investment_description,'proposed_job': profile.proposed_job,
+            'transaction_level':profile.transaction_level,'location_description':profile.location_description,
+            'coordination_phone':profile.coordination_phone,'coordination_person':profile.coordination_person,
             'decision_reference': profile.decision_reference, 'decision_date': profile.decision_date,
             'result_state': profile.result_state,
         },
         'current_appraisal': {
             'id': current_appraisal.pk if current_appraisal else None,
-            'amount_rial': str(current_appraisal.amount_rial) if current_appraisal and current_appraisal.amount_rial is not None else None,
-            'date': current_appraisal.appraisal_date if current_appraisal else None,
-            'reference': current_appraisal.reference if current_appraisal else None,
+            'amount_rial': _raw(current_appraisal.amount_rial) if current_appraisal else '',
+            'date': current_appraisal.appraisal_date if current_appraisal else '',
+            'reference': current_appraisal.reference if current_appraisal else '',
+            'response_date':current_appraisal.response_date if current_appraisal else '',
+            'response_number':current_appraisal.response_number if current_appraisal else '',
         },
+        'session_members':active_members,
         'proposals': proposals,
         'winner_proposal_id': profile.winner_proposal_id,
         'runner_up_proposal_id': profile.runner_up_proposal_id,
-        'beneficiary_id': profile.beneficiary_id,
+        'beneficiary': _beneficiary_payload(profile),
         'contract_circulation_id': profile.contract_circulation_id,
-        'official_contract_id': profile.official_contract_id,
+        'official_contract': _contract_payload(profile),
     }
+
+
+def build_field_registry(snapshot):
+    org=snapshot['organization']; period=snapshot['period']; lot=snapshot['lot']; appraisal=snapshot['current_appraisal']
+    members=snapshot.get('session_members') or []
+    fields={
+        'ORG-001':org.get('organization_name',''),'ORG-002':org.get('unit_title',''),'ORG-003':org.get('official_address',''),
+        'ORG-004':org.get('secretariat_address',''),'ORG-005':org.get('phone',''),'ORG-006':org.get('bank_name',''),
+        'ORG-007':org.get('bank_branch',''),'ORG-008':org.get('account_number',''),'ORG-009':org.get('iban',''),
+        'ORG-011':org.get('office_hours',''),'ORG-012':org.get('submission_location',''),
+        'ORG-REP-NAME':org.get('representative_name',''),'ORG-REP-TITLE':org.get('representative_title',''),
+        'AUC-001':period.get('identity',''),'AUC-002':period.get('title',''),'AUC-003':(period.get('planned_date') or '')[:4],
+        'AUC-004':period.get('permit_reference',''),'AUC-005':period.get('permit_date',''),'AUC-006':period.get('ad_date',''),
+        'AUC-007':period.get('newspaper',''),'AUC-008':period.get('newspaper_page',''),'AUC-009':period.get('publication_media',''),
+        'AUC-010':period.get('document_sales_start',''),'AUC-011':period.get('document_sales_end',''),'AUC-012':period.get('proposal_deadline',''),
+        'AUC-013':period.get('submission_day_name',''),'AUC-014':period.get('opening_session_date',''),'AUC-015':period.get('opening_day_name',''),
+        'AUC-016':period.get('opening_session_time',''),'AUC-017':period.get('opening_session_location',''),
+        'AUC-018':period.get('invitation_number',''),'AUC-019':period.get('invitation_date',''),
+        'SPACE-001':lot.get('space_code',''),'SPACE-002':lot.get('space_name',''),'SPACE-003':lot.get('region',''),
+        'SPACE-004':lot.get('usage') or lot.get('proposed_activity',''),'SPACE-005':lot.get('address',''),'SPACE-006':lot.get('area',''),
+        'SPACE-007':lot.get('location_description',''),'SPACE-008':lot.get('coordination_phone',''),'SPACE-009':lot.get('coordination_person',''),
+        'LOT-001':_money(lot.get('base_monthly_rent_rial')),'LOT-002':lot.get('base_monthly_rent_words',''),
+        'LOT-003':_money(lot.get('guarantee_amount_rial')),'LOT-004':lot.get('guarantee_type',''),
+        'LOT-005':str(period.get('duration_years') or ''),'LOT-006':lot.get('grace_period',''),
+        'LOT-007':_money(lot.get('investment_amount_rial')),'LOT-008':lot.get('investment_description',''),
+        'LOT-009':appraisal.get('date',''),'LOT-010':appraisal.get('reference',''),'LOT-011':appraisal.get('response_date',''),
+        'LOT-012':appraisal.get('response_number',''),'LOT-013':lot.get('transaction_level',''),
+        'SESSION-001':period.get('opening_session_date',''),'SESSION-002':period.get('opening_session_time',''),
+        'SESSION-003':period.get('opening_session_location',''),
+        'SESSION-004':'؛ '.join(f"{m['name']} — {m['position']}" for m in members),
+        'PART-017':lot.get('proposed_job',''),
+    }
+    proposals=[]
+    for item in snapshot.get('proposals') or []:
+        proposals.append({
+            'name':item.get('participant_name',''),'identity_number':item.get('identity_number',''),'contact':item.get('contact',''),
+            'postal_code':'','birth_date':'','receipt_number':'','guarantee_amount':fields['LOT-003'],
+            'offered_amount':_money(item.get('offered_amount_rial')),
+        })
+    fields['_SESSION_PROPOSALS']=proposals
+    winner=next((p for p in snapshot.get('proposals',[]) if p.get('proposal_id')==snapshot.get('winner_proposal_id')),None)
+    fields['_WINNER']={'name':winner.get('participant_name',''),'amount':_money(winner.get('offered_amount_rial'))} if winner else {}
+    fields['_BENEFICIARY']=snapshot.get('beneficiary') or {}
+    fields['_CONTRACT']=snapshot.get('official_contract') or {}
+    return fields
 
 
 def validate_winner_proposal(lot, proposal):
@@ -148,8 +251,7 @@ def select_winner(*, lot, winner_proposal, runner_up_proposal=None, decision_ref
         actor=actor, action='AUCTION_WINNER_SELECTED', entity_type='AuctionLot', entity_id=str(lot.pk),
         after={'winner_proposal_id': winner_proposal.pk, 'runner_up_proposal_id': runner_up_proposal.pk if runner_up_proposal else None,
                'winner': winner_proposal.participant.name, 'amount_rial': str(winner_proposal.offered_amount_rial),
-               'decision_reference': profile.decision_reference, 'decision_date': profile.decision_date},
-        ip_address=ip_address,
+               'decision_reference': profile.decision_reference, 'decision_date': profile.decision_date}, ip_address=ip_address,
     )
     return profile
 
@@ -174,12 +276,8 @@ def start_contract_from_award(*, lot, actor, beneficiary_kind, operational_start
         beneficiary = Beneficiary.objects.filter(identity_number=participant.identity_number, archived_at__isnull=True).first()
     if not beneficiary:
         beneficiary = Beneficiary.objects.create(
-            name=participant.name,
-            identity_number=participant.identity_number,
-            kind=beneficiary_kind,
-            mobile=_split_contact(participant.contact),
-            contact=participant.contact,
-            created_by=actor,
+            name=participant.name, identity_number=participant.identity_number, kind=beneficiary_kind,
+            mobile=_split_contact(participant.contact), contact=participant.contact, created_by=actor,
         )
     circulation = create_circulation(
         space=lot.space, beneficiary=beneficiary,
@@ -193,10 +291,7 @@ def start_contract_from_award(*, lot, actor, beneficiary_kind, operational_start
     profile.result_state = AuctionLotProfile.ResultState.CONTRACTING
     profile.snapshot = build_lot_snapshot(lot)
     profile.save(update_fields=['beneficiary','contract_circulation','result_state','snapshot','updated_at'])
-    AuditEvent.objects.create(
-        actor=actor, action='AUCTION_CONTRACT_FLOW_STARTED', entity_type='AuctionLot', entity_id=str(lot.pk),
-        after={'beneficiary_id': beneficiary.pk, 'contract_circulation_id': circulation.pk}, ip_address=ip_address,
-    )
+    AuditEvent.objects.create(actor=actor, action='AUCTION_CONTRACT_FLOW_STARTED', entity_type='AuctionLot', entity_id=str(lot.pk), after={'beneficiary_id': beneficiary.pk, 'contract_circulation_id': circulation.pk}, ip_address=ip_address)
     return circulation
 
 
@@ -218,103 +313,40 @@ def sync_official_contract(*, circulation, actor=None, ip_address=None):
     return profile
 
 
-def _rtl(paragraph, bold=False):
-    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    ppr = paragraph._p.get_or_add_pPr()
-    bidi = OxmlElement('w:bidi'); bidi.set(qn('w:val'), '1'); ppr.append(bidi)
-    for run in paragraph.runs:
-        run.font.name = 'Vazirmatn'; run.bold = bold
-        if run._element.rPr is not None:
-            run._element.rPr.rFonts.set(qn('w:cs'), 'Vazirmatn')
-
-
-def _add_field(doc, label, value):
-    p = doc.add_paragraph()
-    r = p.add_run(f'{label}: '); r.bold = True
-    p.add_run(str(value if value not in (None, '') else '—'))
-    _rtl(p)
-
-
-def _docx_from_snapshot(document_type, snapshot):
-    doc = DocxDocument()
-    for header in ORG_HEADERS:
-        p=doc.add_paragraph(header); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; _rtl(p, True)
-    p=doc.add_paragraph('پیش‌نویس کنترل‌شده UAT — مبتنی بر نمونه‌های مرجع مالک؛ تا تأیید چاپ Golden Master سند رسمی نهایی نیست.')
-    p.alignment=WD_ALIGN_PARAGRAPH.CENTER; _rtl(p, True)
-    lot=snapshot['lot']; period=snapshot['period']; appraisal=snapshot['current_appraisal']
-    titles={
-        'CONDITIONS':'شرایط عمومی و اختصاصی مزایده',
-        'PRICE_FORM':'فرم پیشنهاد قیمت / روکش پاکات',
-        'OPENING_MINUTES':'صورتجلسه بازگشایی پاکات',
-        'EXPERT_NOTICE':'ابلاغ ارزیابی کارشناس رسمی',
-        'SAMPLE_CONTRACT':'نمونه قرارداد برنده مزایده',
-    }
-    h=doc.add_heading(titles.get(document_type, document_type), level=1); h.alignment=WD_ALIGN_PARAGRAPH.CENTER; _rtl(h, True)
-    _add_field(doc,'شناسه دوره',period['identity']); _add_field(doc,'عنوان دوره',period['title'])
-    _add_field(doc,'کد فضا',lot['space_code']); _add_field(doc,'نام فضا',lot['space_name'])
-    _add_field(doc,'کاربری',lot['usage']); _add_field(doc,'مساحت',lot['area']); _add_field(doc,'نشانی',lot['address'])
-    if document_type in {'CONDITIONS','PRICE_FORM','OPENING_MINUTES','SAMPLE_CONTRACT'}:
-        _add_field(doc,'اجاره پایه ماهانه (ریال)',_money(lot['base_monthly_rent_rial']))
-        _add_field(doc,'تضمین شرکت در مزایده (ریال)',_money(lot['guarantee_amount_rial']))
-        _add_field(doc,'سرمایه‌گذاری (ریال)',_money(lot['investment_amount_rial']))
-    if document_type=='CONDITIONS':
-        _add_field(doc,'روز درج آگهی',period['ad_day_name']); _add_field(doc,'تاریخ درج آگهی',period['ad_date']); _add_field(doc,'روزنامه',period['newspaper'])
-        p=doc.add_paragraph('متن ثابت شرایط عمومی و اختصاصی باید عیناً از فایل مرجع همان خانواده منتقل شود. این نسخه UAT فقط Field Map و داده‌های تکمیل‌شونده را تثبیت می‌کند و جایگزین Golden Master تأییدشده نیست.'); _rtl(p)
-    elif document_type=='PRICE_FORM':
-        p=doc.add_paragraph('نام پیشنهاددهنده: ........................................     مبلغ پیشنهادی ماهانه: ........................................ ریال'); _rtl(p)
-        p=doc.add_paragraph('مدارک پاکت‌ها مطابق نمونه مرجع توسط پیشنهاددهنده تکمیل و امضا می‌شود.'); _rtl(p)
-    elif document_type=='OPENING_MINUTES':
-        _add_field(doc,'مجوز برگزاری مزایده',period['permit_reference']); _add_field(doc,'مدت واگذاری',f"{period['duration_years']} سال شمسی")
-        _add_field(doc,'شماره دعوتنامه',period['invitation_number']); _add_field(doc,'تاریخ جلسه',period['opening_session_date']); _add_field(doc,'ساعت',period['opening_session_time']); _add_field(doc,'محل جلسه',period['opening_session_location'])
-        table=doc.add_table(rows=1, cols=6); table.style='Table Grid'
-        headers=['نام شرکت‌کننده','پاکت الف','پاکت ب','پاکت ج','مبلغ پیشنهادی','وضعیت']
-        for i,x in enumerate(headers): table.rows[0].cells[i].text=x
-        for proposal in snapshot['proposals']:
-            cells=table.add_row().cells
-            vals=[proposal['participant_name'],'بله' if proposal['envelope_a'] else 'خیر','بله' if proposal['envelope_b'] else 'خیر','بله' if proposal['envelope_c'] else 'خیر',_money(proposal['offered_amount_rial']),proposal['status'] or '—']
-            for i,v in enumerate(vals): cells[i].text=str(v)
-        if snapshot.get('winner_proposal_id'):
-            winner=next((x for x in snapshot['proposals'] if x['proposal_id']==snapshot['winner_proposal_id']),None)
-            if winner:
-                _add_field(doc,'برنده ثبت‌شده بر اساس تصمیم کمیسیون',winner['participant_name']); _add_field(doc,'مبلغ برنده',_money(winner['offered_amount_rial']))
-                _add_field(doc,'مرجع تصمیم',lot['decision_reference']); _add_field(doc,'تاریخ تصمیم',lot['decision_date'])
-    elif document_type=='EXPERT_NOTICE':
-        p=doc.add_paragraph('احتراماً، خواهشمند است ضمن بازدید و ارزیابی فضای زیر نسبت به تعیین پایه اجاره‌بهای ماهانه اقدام و نتیجه را به این مدیریت گزارش فرمایید.'); _rtl(p)
-        _add_field(doc,'عنوان مرکز و کاربری',f"{lot['space_name']} — {lot['usage'] or lot['proposed_activity']}")
-        _add_field(doc,'رقم کارشناسی جاری',_money(appraisal['amount_rial'])); _add_field(doc,'مرجع کارشناسی جاری',appraisal['reference'])
-    elif document_type=='SAMPLE_CONTRACT':
-        winner=next((x for x in snapshot['proposals'] if x['proposal_id']==snapshot.get('winner_proposal_id')),None)
-        _add_field(doc,'طرف منتخب مزایده',winner['participant_name'] if winner else 'پس از تعیین برنده تکمیل می‌شود')
-        _add_field(doc,'شناسه هویتی',winner['identity_number'] if winner else '')
-        _add_field(doc,'مبلغ اجاره ماهانه برنده',_money(winner['offered_amount_rial']) if winner else '—')
-        _add_field(doc,'مدت',f"{period['duration_years']} سال شمسی")
-        p=doc.add_paragraph('متن حقوقی ثابت قرارداد باید از نمونه PDF خانواده تجاری/کافه/ورزشی بدون دخل و تصرف به Golden Master منتقل شود. این خروجی صرفاً پیش‌نویس داده‌ای UAT برای کنترل Field Mapping است.'); _rtl(p)
-    out=io.BytesIO(); doc.save(out); return out.getvalue()
-
-
 @transaction.atomic
 def generate_controlled_document(*, lot, document_type, actor, ip_address=None):
     profile, _ = AuctionLotProfile.objects.get_or_create(lot=lot)
-    period_profile, _ = AuctionPeriodProfile.objects.get_or_create(period=lot.period)
     if document_type == 'SAMPLE_CONTRACT' and not profile.winner_proposal_id:
         raise ValidationError('نمونه قرارداد تکمیل‌شده فقط پس از ثبت برنده قابل تولید است.')
     snapshot=build_lot_snapshot(lot)
+    fields=build_field_registry(snapshot)
+    source=source_for(document_type=document_type,family=profile.template_family)
+    raw_source=source_bytes(source)
+    if document_type == 'SAMPLE_CONTRACT':
+        payload,extension=render_contract_pdf(source_bytes=raw_source,family=profile.template_family,fields=fields)
+        mime='application/pdf'
+    else:
+        payload,extension=render_docx_from_source(source=source,document_type=document_type,fields=fields)
+        mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     snap_hash=snapshot_hash(snapshot)
-    payload=_docx_from_snapshot(document_type, snapshot)
-    source_identity=f'OWNER_REFERENCE_BUNDLE::{profile.template_family}::{document_type}::{period_profile.template_version}'
-    source_sha=hashlib.sha256(source_identity.encode('utf-8')).hexdigest()
-    filename=f"auction-{lot.period.identity}-{lot.space.code}-{document_type.lower()}.docx"
-    uploaded=SimpleUploadedFile(filename,payload,content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    output_sha=hashlib.sha256(payload).hexdigest()
+    filename=f"auction-{lot.period.identity}-{lot.space.code}-{document_type.lower()}.{extension}"
     stored=store_document(
-        uploaded=uploaded, title=f'{AuctionDocumentInstance.DocumentType(document_type).label} — فضای {lot.space.code}',
+        uploaded=SimpleUploadedFile(filename,payload,content_type=mime),
+        title=f'{AuctionDocumentInstance.DocumentType(document_type).label} — فضای {lot.space.code}',
         document_type=f'AUCTION_GENERATED_{document_type}', entity_type='AuctionLot', entity_id=lot.pk,
         user=actor, reference=lot.period.identity, document_date=lot.period.planned_date,
-        notes=f'پیش‌نویس کنترل‌شده UAT؛ template={period_profile.template_version}; snapshot={snap_hash}', ip_address=ip_address,
+        notes=f'UAT_DRAFT; template={source.version}; source_sha={source.source_sha256}; snapshot={snap_hash}; output={output_sha}', ip_address=ip_address,
     )
     instance=AuctionDocumentInstance.objects.create(
         period=lot.period, lot=lot, document_type=document_type, template_family=profile.template_family,
-        template_version=period_profile.template_version, source_sha256=source_sha,
-        snapshot=snapshot, snapshot_sha256=snap_hash, document=stored, generated_by=actor,
+        template_version=source.version, template_source=source, source_sha256=source.source_sha256,
+        snapshot=snapshot, snapshot_sha256=snap_hash, document=stored, output_sha256=output_sha, generated_by=actor,
     )
-    AuditEvent.objects.create(actor=actor,action='AUCTION_DOCUMENT_GENERATED',entity_type='AuctionLot',entity_id=str(lot.pk),after={'instance_id':instance.pk,'document_type':document_type,'template_version':instance.template_version,'snapshot_sha256':snap_hash},ip_address=ip_address)
+    AuditEvent.objects.create(
+        actor=actor,action='AUCTION_DOCUMENT_GENERATED',entity_type='AuctionLot',entity_id=str(lot.pk),
+        after={'instance_id':instance.pk,'document_instance_id':instance.instance_id,'document_type':document_type,
+               'template_source_id':source.pk,'template_version':instance.template_version,'source_sha256':instance.source_sha256,
+               'snapshot_sha256':snap_hash,'output_sha256':output_sha,'status':instance.status},ip_address=ip_address,
+    )
     return instance
