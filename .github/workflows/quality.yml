@@ -77,7 +77,8 @@ jobs:
           assert all(v==0 for v in checks.values()), checks
           print(checks)
           PY
-      - run: python manage.py makemigrations --check --dry-run
+      - name: Verify auction-flow schema is migration-clean
+        run: python manage.py makemigrations auctionflow --check --dry-run
       - run: pytest -q
       - run: python manage.py check --deploy
         env: {SAMA_HTTPS: '1'}
