@@ -23,6 +23,9 @@ STATIC_URL='static/'; STATIC_ROOT=BASE_DIR/'collected_static'; STATICFILES_DIRS=
 MEDIA_URL='media/'; MEDIA_ROOT=BASE_DIR/'data/media'
 DEFAULT_AUTO_FIELD='django.db.models.BigAutoField'; LOGIN_URL='login'; LOGIN_REDIRECT_URL='dashboard'; LOGOUT_REDIRECT_URL='login'
 SESSION_COOKIE_HTTPONLY=True; SESSION_COOKIE_SAMESITE='Lax'; CSRF_COOKIE_SAMESITE='Lax'; SECURE_CONTENT_TYPE_NOSNIFF=True; X_FRAME_OPTIONS='DENY'
+SESSION_COOKIE_AGE=8*3600; SESSION_SAVE_EVERY_REQUEST=True
+MESSAGE_STORAGE='django.contrib.messages.storage.session.SessionStorage'
+SECURE_REFERRER_POLICY='same-origin'
 FILE_UPLOAD_MAX_MEMORY_SIZE=10*1024*1024
 
 SECURE_SSL_REDIRECT=os.environ.get('SAMA_HTTPS','0')=='1'
@@ -31,3 +34,15 @@ CSRF_COOKIE_SECURE=SECURE_SSL_REDIRECT
 SECURE_HSTS_SECONDS=31536000 if SECURE_SSL_REDIRECT else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS=SECURE_SSL_REDIRECT
 SECURE_HSTS_PRELOAD=SECURE_SSL_REDIRECT
+
+_log_dir=BASE_DIR/'data/logs'; _log_dir.mkdir(parents=True,exist_ok=True)
+LOGGING={
+ 'version':1,'disable_existing_loggers':False,
+ 'formatters':{'standard':{'format':'{asctime} {levelname} {name}: {message}','style':'{'}},
+ 'handlers':{
+  'console':{'class':'logging.StreamHandler','formatter':'standard','level':'WARNING'},
+  'file':{'class':'logging.handlers.RotatingFileHandler','filename':_log_dir/'sama.log','maxBytes':5_000_000,'backupCount':5,'encoding':'utf-8','formatter':'standard','level':'WARNING'},
+ },
+ 'root':{'handlers':['console','file'],'level':'WARNING'},
+ 'loggers':{'django.request':{'handlers':['console','file'],'level':'WARNING','propagate':False}},
+}
