@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('operations', '0017_alert_workflow_constraints'),
-        ('contracts', '0009_contract_circulation'),
+        ('contracts', '0006_contract_circulation_zero_data'),
         ('documents', '0001_initial'),
     ]
     operations = [
