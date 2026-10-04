@@ -5,3 +5,6 @@ class AuctionFlowConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'domains.auctionflow'
     verbose_name = 'گردش کامل مزایده'
+
+    def ready(self):
+        from . import signals  # noqa: F401
