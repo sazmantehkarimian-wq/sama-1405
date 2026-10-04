@@ -93,4 +93,4 @@ class AuctionDocumentInstance(models.Model):
 
     class Meta:
         ordering = ['-generated_at', '-pk']
-        indexes = [models.Index(fields=['period', 'lot', 'document_type', 'status'])]
+        indexes = [models.Index(fields=['period', 'lot', 'document_type', 'status'], name='auctionflow_period_doc_idx')]
