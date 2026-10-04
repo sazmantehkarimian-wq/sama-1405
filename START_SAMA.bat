@@ -19,7 +19,7 @@ if errorlevel 1 (
 
 echo [2/2] Starting server on http://127.0.0.1:%SAMA_PORT%/
 echo Keep this window open while SAMA is running.
-start "SAMA browser" /b cmd /c "timeout /t 3 /nobreak ^>nul ^& start \"\" http://127.0.0.1:%SAMA_PORT%/"
+start "SAMA browser" /b powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 3; Start-Process 'http://127.0.0.1:%SAMA_PORT%/'"
 "%PYTHON%" scripts\run_server.py
 
 if errorlevel 1 (
