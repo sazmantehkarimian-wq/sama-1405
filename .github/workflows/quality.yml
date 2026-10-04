@@ -37,6 +37,7 @@ jobs:
             ElectricityCalculationSnapshot, FileMovement, TimelineEvent,
           )
           from domains.auctionflow.models import AuctionPeriodProfile, AuctionLotProfile, AuctionDocumentInstance
+          from domains.auctionflow.intake_models import AuctionParticipantProfile, AuctionProposalIntake, AuctionOpeningSession, AuctionContractDraft
           checks={
             'mother_properties':MotherProperty.objects.count(),
             'mother_property_ownership':MotherPropertyOwnership.objects.count(),
@@ -63,6 +64,10 @@ jobs:
             'auction_period_profiles':AuctionPeriodProfile.objects.count(),
             'auction_lot_profiles':AuctionLotProfile.objects.count(),
             'auction_generated_documents':AuctionDocumentInstance.objects.count(),
+            'auction_participant_profiles':AuctionParticipantProfile.objects.count(),
+            'auction_proposal_intakes':AuctionProposalIntake.objects.count(),
+            'auction_opening_sessions':AuctionOpeningSession.objects.count(),
+            'auction_contract_drafts':AuctionContractDraft.objects.count(),
             'utilities':UtilityRecord.objects.count(),
             'utility_connections':UtilityConnection.objects.count(),
             'utility_bills':UtilityBill.objects.count(),
