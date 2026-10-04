@@ -23,7 +23,9 @@ STATIC_URL='static/'; STATIC_ROOT=BASE_DIR/'collected_static'; STATICFILES_DIRS=
 MEDIA_URL='media/'; MEDIA_ROOT=BASE_DIR/'data/media'
 DEFAULT_AUTO_FIELD='django.db.models.BigAutoField'; LOGIN_URL='login'; LOGIN_REDIRECT_URL='dashboard'; LOGOUT_REDIRECT_URL='login'
 SESSION_COOKIE_HTTPONLY=True; SESSION_COOKIE_SAMESITE='Lax'; CSRF_COOKIE_SAMESITE='Lax'; SECURE_CONTENT_TYPE_NOSNIFF=True; X_FRAME_OPTIONS='DENY'
-SESSION_COOKIE_AGE=8*3600; SESSION_SAVE_EVERY_REQUEST=True
+SESSION_COOKIE_AGE=8*3600; SESSION_SAVE_EVERY_REQUEST=False
+_session_dir=BASE_DIR/'data/sessions'; _session_dir.mkdir(parents=True,exist_ok=True)
+SESSION_ENGINE='django.contrib.sessions.backends.file'; SESSION_FILE_PATH=str(_session_dir)
 MESSAGE_STORAGE='django.contrib.messages.storage.session.SessionStorage'
 SECURE_REFERRER_POLICY='same-origin'
 FILE_UPLOAD_MAX_MEMORY_SIZE=10*1024*1024
