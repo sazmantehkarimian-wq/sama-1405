@@ -1,8 +1,7 @@
 import pytest
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 
-from domains.auctionflow.intake_models import AuctionContractDraft, AuctionParticipantProfile, AuctionProposalIntake
+from domains.auctionflow.intake_models import AuctionContractDraft
 from domains.auctionflow.models import AuctionLotProfile, AuctionPeriodProfile
 from domains.contracts.models import ContractCirculation
 from domains.operations.models import AuctionLot, AuctionParticipant, AuctionPeriod, AuctionProposal
@@ -14,7 +13,7 @@ from services.contract_circulation import add_signature_step, convert_to_contrac
 def test_complete_manual_auction_award_to_signed_contract(client):
     user=get_user_model().objects.create_user('auction-complete',password='A-very-safe-password')
     client.force_login(user)
-    space=CommercialSpace.objects.create(code='A-173',name='فضای مزایده کامل',status='ACTIVE',current_usage='تجاری',area=35,address='تهران')
+    space=CommercialSpace.objects.create(code='9173',name='فضای مزایده کامل',status='ACTIVE',current_usage='تجاری',area=35,address='تهران')
     period=AuctionPeriod.objects.create(identity='AUC-COMPLETE-01',title='مزایده کامل',planned_date='1405/08/01',created_by=user)
     AuctionPeriodProfile.objects.create(period=period,duration_years=1)
     lot=AuctionLot.objects.create(period=period,space=space,entry_method='MANUAL',manual_reason='دستور رسمی آزمون',manual_reference='REF-01',added_by=user,readiness='READY')
@@ -65,7 +64,7 @@ def test_complete_manual_auction_award_to_signed_contract(client):
     transition_signature_step(step=step,actor=user,new_status='SIGNED')
     final_approve(circulation=case,actor=user)
     contract=convert_to_contract(circulation=case,actor=user,values={
-        'number':'AUC-CON-173','subject':draft.subject,'signed_date':'1405/08/03','start_date':draft.start_date,
+        'number':'AUC-CON-9173','subject':draft.subject,'signed_date':'1405/08/03','start_date':draft.start_date,
         'end_date':'1406/08/02','amount_rial':str(draft.amount_rial),'investment_commitment_rial':'',
         'status':'معتبر','signed_state':'تأیید نهایی‌شده','notes':'منشأ: مزایده '+period.identity,
     })
