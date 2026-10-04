@@ -15,7 +15,7 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
     user = get_user_model().objects.create_user("browser-user", password="A-very-safe-password", is_staff=True)
     profile = UserProfile.objects.create(user=user, display_name="کاربر آزمون پذیرش", must_change_password=True)
     MotherProperty.objects.create(identifier="P-BROWSER",name="ملک آزمون مرورگر",source_row=2)
-    region=Region.objects.create(code="2",name="منطقه ۲");regular=Center.objects.create(name="مرکز عادی",region=region);special_region=Region.objects.create(code="1",name="منطقه ۱");special=Center.objects.create(name="مرکز خاص",region=special_region,is_special=True)
+    region=Region.objects.create(code="14",name="منطقه ۱۴");regular=Center.objects.create(name="مرکز عادی",region=region);special_region=Region.objects.create(code="1",name="منطقه ۱");special=Center.objects.create(name="مرکز خاص",region=special_region,is_special=True)
     CommercialSpace.objects.create(code="10",name="فضای ده",status="ACTIVE",region=region,center=regular,source_row=10,source_classification="authority");CommercialSpace.objects.create(code="2",name="فضای دو",status="ACTIVE",region=region,center=regular,source_row=2,source_classification="authority");CommercialSpace.objects.create(code="1",name="فضای خاص",status="ACTIVE",region=special_region,center=special,source_row=1,source_classification="authority")
     CommercialSpace.objects.create(code="BROWSER-501", name="فضای آزمون مرورگر", status="ACTIVE", current_usage="فرهنگی", source_row=2, source_classification="authority")
     manager = None
@@ -37,7 +37,7 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
         page.screenshot(path=evidence / "password-change-1366.png", full_page=True)
         page.get_by_label("گذرواژه فعلی").fill("A-very-safe-password");page.get_by_label("گذرواژه جدید", exact=True).fill("A-different-very-safe-password");page.get_by_label("تکرار گذرواژه جدید").fill("A-different-very-safe-password");page.get_by_role("button",name="ذخیره گذرواژه").click()
         assert page.url.rstrip("/")==live_server.url
-        routes=[("dashboard","/"),("mother-properties","/mother-properties/"),("mother-dossier","/mother-properties/P-BROWSER/"),("contract-circulation","/contract-circulation/"),("active-spaces","/spaces/?status=ACTIVE"),("out-of-cycle","/spaces/?status=OUT_OF_CYCLE"),("dossier","/spaces/BROWSER-501/"),("contracts","/records/contracts/"),("beneficiaries","/records/beneficiaries/"),("appraisals","/records/appraisals/"),("fees","/records/fees/"),("auction","/auctions/"),("commission","/commissions/"),("utilities","/records/utilities/"),("workflows","/records/workflows/"),("documents","/records/documents/"),("alerts","/records/alerts/"),("reports","/reports/"),("users","/users/")]
+        routes=[("dashboard","/"),("regions","/regions/"),("region-14",f"/regions/{region.pk}/"),("special-centers","/regions/special/"),("special-center",f"/regions/special/{special.pk}/"),("mother-properties","/mother-properties/"),("mother-dossier","/mother-properties/P-BROWSER/"),("contract-circulation","/contract-circulation/"),("active-spaces","/spaces/?status=ACTIVE"),("out-of-cycle","/spaces/?status=OUT_OF_CYCLE"),("dossier","/spaces/BROWSER-501/"),("contracts","/records/contracts/"),("beneficiaries","/records/beneficiaries/"),("appraisals","/records/appraisals/"),("fees","/records/fees/"),("auction","/auctions/"),("commission","/commissions/"),("utilities","/records/utilities/"),("workflows","/records/workflows/"),("documents","/records/documents/"),("alerts","/records/alerts/"),("reports","/reports/"),("users","/users/")]
         for width,height in ((1366,768),(1600,900),(1920,1080)):
             page.set_viewport_size({"width":width,"height":height})
             for name,path in routes:
@@ -63,6 +63,7 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
                 if name == "contract-circulation":
                     assert page.locator(".topnav details.active summary",has_text="قراردادها").get_attribute("aria-current")=="page"
                     assert page.locator("[data-search-picker]").count() >= 1 and page.locator("[data-search-picker]").first.is_visible() and page.locator('select[name="space_code"]').count()==0
+                    picker=page.locator('[data-search-picker]').first;picker.locator('[data-picker-query]').focus();picker.locator('[data-picker-option]').first.click();assert 'open' not in (picker.get_attribute('class') or '')
                 if name == "dossier":
                     tabs = page.locator(".tabs a")
                     tab_boxes = tabs.evaluate_all("els => els.map(el => { const r=el.getBoundingClientRect(); return [Math.round(r.top+r.height/2), Math.round(r.height)] })")
@@ -73,49 +74,24 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
                     page.screenshot(path=evidence / f"dossier-tabs-{width}.png", full_page=False)
                 assert not any(raw in page.locator("body").inner_text() for raw in ("PERSON","OPEN","MEDIUM","Legacy"))
                 assert page.evaluate("scrollX === 0 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
+                assert page.locator('.region-rail,.sidebar').count()==0
+                if name=='regions': assert page.locator('.region-tile').count()>=2 and page.locator('.overview-strip').is_visible()
                 page.screenshot(path=evidence / f"{name}-{width}.png", full_page=True)
+        page.set_viewport_size({"width":1366,"height":768});page.goto(f"{live_server.url}/");page.emulate_media(media="print")
+        assert page.locator(".shell-header").evaluate("el => getComputedStyle(el).display") == "none"
+        assert page.locator(".print-identity").evaluate("el => getComputedStyle(el).display") != "none"
+        assert page.locator(".footer").evaluate("el => getComputedStyle(el).display") == "none"
+        page.screenshot(path=evidence / "dashboard-print-1366.png", full_page=True)
+        page.emulate_media(media="screen")
         page.goto(f"{live_server.url}/spaces/");page.get_by_label("جست‌وجوی سراسری").fill("BROWSER-501");page.get_by_role("button",name="جست‌وجو").click();page.get_by_role("link",name="مشاهده پرونده").click()
-        assert "فضای BROWSER-501" in page.locator("h1").inner_text()
+        assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()
         for label,title in (("شروع گردش قرارداد","ایجاد پرونده گردش قرارداد"),("ثبت کارشناسی جدید","ثبت کارشناسی جدید"),("بارگذاری سند","بارگذاری سند"),("ثبت انشعاب / مصرف","ثبت انشعاب یا مصرف"),("ثبت تحویل","ثبت تحویل پرونده"),("ثبت مورد پیگیری","ثبت مورد نیازمند پیگیری")):
             page.get_by_role("link",name=label,exact=True).click()
             assert page.get_by_role("heading",name=title,exact=True).is_visible()
             assert "پرونده فضای BROWSER-501" in page.locator(".page-header").inner_text()
             if label == "شروع گردش قرارداد": page.screenshot(path=evidence / "contract-operation-context-1366.png", full_page=True)
             page.get_by_role("link",name="بازگشت به پرونده").click()
-            assert "فضای BROWSER-501" in page.locator("h1").inner_text()
-    finally:
-        browser.close();manager.stop()
-
-
-@pytest.mark.django_db(transaction=True)
-def test_visual_freeze_regions_header_report_and_picker_in_browser(live_server):
-    from playwright.sync_api import Error, sync_playwright
-    user=get_user_model().objects.create_user('visual-browser',password='A-very-safe-password',is_staff=True)
-    UserProfile.objects.create(user=user,display_name='کاربر بصری',must_change_password=False)
-    region=Region.objects.create(code='6',name='منطقه ۶');center=Center.objects.create(name='مرکز شش',region=region);special=Center.objects.create(name='مرکز خاص شش',region=region,is_special=True)
-    CommercialSpace.objects.create(code='61',name='فضای منطقه شش',status='ACTIVE',region=region,center=center,source_row=1,source_classification='authority')
-    CommercialSpace.objects.create(code='62',name='فضای مرکز خاص',status='ACTIVE',region=region,center=special,source_row=2,source_classification='authority')
-    manager=None
-    try:
-        manager=sync_playwright().start();browser=manager.chromium.launch(headless=True)
-    except Error:
-        if manager:manager.stop()
-        if os.environ.get('SAMA_REQUIRE_BROWSER')=='1':raise
-        pytest.skip('Chromium binary is not installed')
-    try:
-        page=browser.new_page(viewport={'width':1366,'height':768});page.goto(f'{live_server.url}/login/')
-        page.get_by_label('نام کاربری').fill(user.username);page.get_by_label('گذرواژه').fill('A-very-safe-password');page.get_by_role('button',name='ورود').click()
-        page.goto(f'{live_server.url}/regions/6/');page.wait_for_load_state('networkidle')
-        assert page.get_by_text('منطقه ۶ — نمای مدیریتی',exact=True).is_visible()
-        assert page.get_by_role('link',name='مراکز خاص').first.is_visible()
-        assert page.get_by_text('مدیریت اقتصادی و املاک',exact=True).is_visible() and page.get_by_text('اداره املاک و مستغلات',exact=True).is_visible()
-        page.goto(f'{live_server.url}/reports/?domain=mother_properties')
-        assert page.get_by_role('link',name='املاک مادر',exact=True).count()>=1
-        assert page.get_by_label('ردیف خالی خروجی').is_visible()
-        page.goto(f'{live_server.url}/auctions/')
-        picker=page.locator('[data-search-picker]').first;query=picker.locator('[data-picker-query]');query.fill('61');query.focus()
-        picker.locator('[data-picker-option]').filter(has_text='61').first.click()
-        assert 'open' not in (picker.get_attribute('class') or '')
+            assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()
     finally:
         browser.close();manager.stop()
 

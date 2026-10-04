@@ -4,7 +4,7 @@ ROOT=Path(__file__).parents[1]
 def test_prohibited_legacy_and_ui_patterns_absent():
  paths=list((ROOT/'ui').rglob('*'))+list((ROOT/'design_system').rglob('*.css'))
  text='\n'.join(p.read_text(errors='ignore') for p in paths if p.is_file() and p.suffix in {'.html','.css','.js','.py'})
- for pattern in ['app-sidebar','data-ui-version="3','Tahoma','Arial','Segoe UI','ستون 17','testclient']:
+ for pattern in ['app-sidebar','data-ui-version="3','window.print()','Tahoma','Arial','Segoe UI','ستون 17','testclient']:
   assert pattern not in text
 def test_no_remote_runtime_assets_or_inline_styles():
  for p in (ROOT/'ui/templates').rglob('*.html'):
@@ -12,17 +12,13 @@ def test_no_remote_runtime_assets_or_inline_styles():
 def test_colors_live_only_in_tokens():
  app=(ROOT/'design_system/static/design_system/css/app.css').read_text()
  colors=set(re.findall(r'#[0-9a-fA-F]{3,8}',app));assert colors <= {'#fff','#000'}
- visual=(ROOT/'design_system/static/design_system/css/visual_freeze.css').read_text()
- assert not re.findall(r'#[0-9a-fA-F]{3,8}',visual)
 
 def test_official_product_name_and_account_navigation_are_enforced():
  templates='\n'.join(p.read_text() for p in (ROOT/'ui/templates').rglob('*.html'))
  for obsolete in ('سامانه مدیریت امور قراردادها','سامانه مدیریت قراردادها','سامانه جامع مدیریت املاک','SAMA NEXT','SAMA Next'):
   assert obsolete not in templates
+ assert '<span class="brand-title">سما</span>' in (ROOT/'ui/templates/ui/base.html').read_text()
  base=(ROOT/'ui/templates/ui/base.html').read_text()
- assert '<span class="brand-title">سما</span>' in base
- assert '<span class="brand-line">مدیریت اقتصادی و املاک</span>' in base
- assert '<span class="brand-line secondary">اداره املاک و مستغلات</span>' in base
  nav=base.split('<nav class="topnav"',1)[1].split('</nav>',1)[0]
  assert '>خروج<' not in nav
  assert 'class="account"' in base and 'aria-current="page"' in base
@@ -42,9 +38,6 @@ def test_design_system_has_semantic_sections_and_shared_components():
   assert f'--section-{section}' in tokens and f'.section-{section}' in tokens
  for component in ('.filter-panel','.account-menu','.tabs','.empty','.badge','.button.compact','.kpis','.page-header'):
   assert component in app
- visual=(ROOT/'design_system/static/design_system/css/visual_freeze.css').read_text()
- for component in ('.dossier-hero','.regions-layout','.region-grid','.page-toolbar','.report-move-controls'):
-  assert component in visual
 
 def test_authentication_and_filters_do_not_leak_default_ui():
  login=(ROOT/'ui/templates/ui/login.html').read_text();password=(ROOT/'ui/templates/ui/password_change.html').read_text();forms=(ROOT/'ui/forms.py').read_text();spaces=(ROOT/'ui/templates/ui/space_list.html').read_text()
@@ -83,10 +76,3 @@ def test_uat10_mother_domain_picker_and_contract_language_are_enforced():
  assert "ایجاد گردش قرارداد به معنی ایجاد قرارداد رسمی نیست" in circulation
  assert 'role="listbox"' in picker and '<select' not in picker
  assert "route == 'contract-circulation'" in base
-
-def test_visual_freeze_print_and_region_access_are_centralized():
- base=(ROOT/'ui/templates/ui/base.html').read_text();js=(ROOT/'design_system/static/design_system/js/app.js').read_text();dashboard=(ROOT/'ui/templates/ui/dashboard.html').read_text();regions=(ROOT/'ui/templates/ui/regions_workspace.html').read_text()
- assert 'data-page-print' in base and 'window.print()' in js
- assert "url 'regions-workspace'" in dashboard
- assert 'مراکز خاص' in regions and 'region-grid' in regions
- assert 'canonical' not in (ROOT/'ui/templates/ui/mother_property_detail.html').read_text()

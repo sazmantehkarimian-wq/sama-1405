@@ -6,7 +6,8 @@ from django.core.paginator import Paginator
 from django.http import HttpResponse, FileResponse
 from django.shortcuts import render,get_object_or_404,redirect
 from django.urls import reverse
-from django.db.models import Count,Q
+from django.db.models import Count,Q,IntegerField
+from django.db.models.functions import Cast
 from domains.properties.models import CommercialSpace,Region,Center,MotherProperty
 from domains.registry.models import Discrepancy
 from domains.identity.models import UserProfile, SavedFilter, SavedReport, ArchivedReportSnapshot
@@ -14,6 +15,7 @@ from domains.contracts.models import Contract, Beneficiary
 from domains.operations.models import Appraisal, AppraisalFee, Auction, AuctionEvaluation, AuctionPeriod, AuctionRule, CommissionDecision, UtilityRecord, UtilityObligation, FileMovement, WorkflowInstance, Alert, DecisionOrder
 from domains.documents.models import Document
 from queries.spaces import filter_spaces
+from queries.kpis import dashboard_kpis, scoped_counts
 from services.file_movement import current_holder
 from reporting.engine import excel,docx,pdf,tabular_excel,output_table,MOTHER_FIELD_MAP
 from ui.forms import PersianPasswordChangeForm
@@ -21,11 +23,35 @@ from core.uat import is_fixed_uat_admin
 from services.money import format_rial
 @login_required
 def dashboard(request):
- spaces=CommercialSpace.objects.all();active=spaces.filter(status='ACTIVE')
+ kpis=dashboard_kpis();spaces=CommercialSpace.objects.all();active=spaces.filter(status='ACTIVE')
  region_rows=list(active.exclude(region=None).values('region__name').annotate(total=Count('id')).order_by('-total')[:5]);maximum=max((row['total'] for row in region_rows),default=1)
  for row in region_rows:row['percent']=round(row['total']*100/maximum)
- context={'space_count':spaces.count(),'active_count':active.count(),'inactive_count':spaces.filter(status='OUT_OF_CYCLE').count(),'property_count':MotherProperty.objects.count(),'discrepancy_count':Discrepancy.objects.exclude(status='RESOLVED').count(),'contract_count':Contract.objects.count(),'appraisal_count':Appraisal.objects.count(),'alert_count':Alert.objects.exclude(status='RESOLVED').count(),'without_contract_count':active.filter(contracts__isnull=True).count(),'without_appraisal_count':active.filter(appraisals__isnull=True).count(),'open_workflow_count':WorkflowInstance.objects.filter(state='OPEN').count(),'region_rows':region_rows}
+ values={item.key:item.count for item in kpis}
+ context={'kpis':kpis,'property_count':values['properties'],'active_count':values['active'],'inactive_count':values['inactive'],'contract_count':values['contracts'],'without_contract_count':values['without_contract'],'without_appraisal_count':values['without_appraisal'],'alert_count':values['alerts'],'open_workflow_count':values['workflows'],'discrepancy_count':Discrepancy.objects.exclude(status='RESOLVED').count(),'region_rows':region_rows}
  return render(request,'ui/dashboard.html',context)
+
+@login_required
+def regions_workspace(request):
+ regions=Region.objects.annotate(region_numeric=Cast('code',IntegerField()),space_count=Count('commercialspace',filter=Q(commercialspace__center__is_special=False),distinct=True),property_count=Count('motherproperty',distinct=True)).order_by('region_numeric','name')
+ overall=scoped_counts(CommercialSpace.objects.all())
+ return render(request,'ui/regions_workspace.html',{'regions':regions,'special_count':Center.objects.filter(is_special=True).count(),**overall})
+
+@login_required
+def region_workspace(request,region_id):
+ region=get_object_or_404(Region,pk=region_id);spaces=CommercialSpace.objects.filter(region=region).exclude(center__is_special=True)
+ return render(request,'ui/region_workspace.html',{'scope':region,'scope_kind':'region','scope_param':f'region_id={region.pk}','spaces':filter_spaces({'region_id':[str(region.pk)]}).exclude(center__is_special=True)[:20],**scoped_counts(spaces)})
+
+@login_required
+def special_centers_workspace(request):
+ q=request.GET.get('q','').strip();centers=Center.objects.filter(is_special=True).select_related('region').annotate(region_numeric=Cast('region__code',IntegerField()),space_count=Count('commercialspace')).order_by('region_numeric','name')
+ if q:centers=centers.filter(Q(name__icontains=q)|Q(region__name__icontains=q))
+ return render(request,'ui/special_centers_workspace.html',{'centers':Paginator(centers,24).get_page(request.GET.get('page')),'q':q})
+
+@login_required
+def special_center_workspace(request,center_id):
+ center=get_object_or_404(Center.objects.select_related('region'),pk=center_id,is_special=True);spaces=CommercialSpace.objects.filter(center=center)
+ return render(request,'ui/region_workspace.html',{'scope':center,'scope_kind':'center','scope_param':f'center_id={center.pk}','spaces':filter_spaces({'center_id':[str(center.pk)]})[:20],**scoped_counts(spaces)})
+
 @login_required
 def mother_property_list(request):
  from queries.mother_properties import filter_mother_properties
@@ -49,14 +75,14 @@ def mother_report(request):
  return render(request,'ui/mother_property_report.html',{'fields':fields,'query':request.GET.urlencode()})
 @login_required
 def mother_report_preview(request):
- labels,rows=output_table(_mother_query(request)[:100],request.GET.getlist('layout'),request.GET.getlist('field'),request.GET.getlist('blank'),MOTHER_FIELD_MAP)
+ labels,rows=output_table(_mother_query(request)[:100],request.GET.getlist('layout'),request.GET.getlist('field'),request.GET.getlist('blank'),MOTHER_FIELD_MAP,request.GET.get('blank_rows',0))
  return render(request,'ui/report_preview.html',{'labels':labels,'rows':rows,'query':request.GET.urlencode(),'export_prefix':'mother-properties'})
 @login_required
-def mother_excel(request):return HttpResponse(excel(_mother_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP,'املاک مادر'),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="mother-properties.xlsx"'})
+def mother_excel(request):return HttpResponse(excel(_mother_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP,'املاک مادر',request.GET.get('blank_rows',0)),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="mother-properties.xlsx"'})
 @login_required
-def mother_docx(request):return HttpResponse(docx(_mother_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP),content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':'attachment; filename="mother-properties.docx"'})
+def mother_docx(request):return HttpResponse(docx(_mother_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP,request.GET.get('blank_rows',0)),content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':'attachment; filename="mother-properties.docx"'})
 @login_required
-def mother_pdf(request):return HttpResponse(pdf(_mother_query(request),request.GET.getlist('field'),request.GET.getlist('blank'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP),content_type='application/pdf',headers={'Content-Disposition':'attachment; filename="mother-properties.pdf"'})
+def mother_pdf(request):return HttpResponse(pdf(_mother_query(request),request.GET.getlist('field'),request.GET.getlist('blank'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP,request.GET.get('blank_rows',0)),content_type='application/pdf',headers={'Content-Disposition':'attachment; filename="mother-properties.pdf"'})
 @login_required
 def space_list(request):
  qs=filter_spaces(request.GET);page=Paginator(qs,25).get_page(request.GET.get('page'))
@@ -178,6 +204,16 @@ def domain_list(request,domain):
  dataset_count=qs.count()
  q=request.GET.get('q','').strip()
  qs=_search_domain(qs,domain,q)
+ region_id=request.GET.get('region_id');center_id=request.GET.get('center_id')
+ if domain in {'contracts','appraisals','auctions','utilities','workflows','alerts'}:
+  if region_id:qs=qs.filter(space__region_id=region_id,space__center__is_special=False)
+  if center_id:qs=qs.filter(space__center_id=center_id)
+ elif domain=='fees':
+  if region_id:qs=qs.filter(appraisal__space__region_id=region_id,appraisal__space__center__is_special=False)
+  if center_id:qs=qs.filter(appraisal__space__center_id=center_id)
+ elif domain=='beneficiaries':
+  if region_id:qs=qs.filter(beneficiaryassignment__space__region_id=region_id,beneficiaryassignment__space__center__is_special=False).distinct()
+  if center_id:qs=qs.filter(beneficiaryassignment__space__center_id=center_id).distinct()
  if domain=='alerts' and request.GET.get('state')=='OPEN':qs=qs.exclude(status='RESOLVED')
  if domain=='workflows' and request.GET.get('state')=='OPEN':qs=qs.filter(state='OPEN')
  if domain=='contracts':
@@ -217,6 +253,16 @@ def domain_excel(request,domain):
  title,qs,columns=DOMAIN_LISTS[domain]
  q=request.GET.get('q','').strip()
  qs=_search_domain(qs,domain,q)
+ region_id=request.GET.get('region_id');center_id=request.GET.get('center_id')
+ if domain in {'contracts','appraisals','auctions','utilities','workflows','alerts'}:
+  if region_id:qs=qs.filter(space__region_id=region_id,space__center__is_special=False)
+  if center_id:qs=qs.filter(space__center_id=center_id)
+ elif domain=='fees':
+  if region_id:qs=qs.filter(appraisal__space__region_id=region_id,appraisal__space__center__is_special=False)
+  if center_id:qs=qs.filter(appraisal__space__center_id=center_id)
+ elif domain=='beneficiaries':
+  if region_id:qs=qs.filter(beneficiaryassignment__space__region_id=region_id,beneficiaryassignment__space__center__is_special=False).distinct()
+  if center_id:qs=qs.filter(beneficiaryassignment__space__center_id=center_id).distinct()
  labels=[label for _,label in columns]
  data=([_value(item,key) for key,_ in columns] for item in qs.order_by('pk')[:10000])
  return HttpResponse(tabular_excel(title,labels,data),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':f'attachment; filename="{domain}.xlsx"'})
@@ -309,7 +355,7 @@ def report_builder(request):
  return render(request,'ui/report_builder.html',{'fields':fields,'saved':SavedReport.objects.filter(owner=request.user),'report_domains':[(key,DOMAIN_LISTS[key][0]) for key in ('contracts','beneficiaries','appraisals','fees','auctions','utilities','workflows','documents','alerts')]})
 @login_required
 def report_preview(request):
- labels,rows=output_table(_query(request)[:100],request.GET.getlist('layout'),request.GET.getlist('field'),request.GET.getlist('blank'))
+ labels,rows=output_table(_query(request)[:100],request.GET.getlist('layout'),request.GET.getlist('field'),request.GET.getlist('blank'),blank_rows=request.GET.get('blank_rows',0))
  return render(request,'ui/report_preview.html',{'labels':labels,'rows':rows,'query':request.GET.urlencode()})
 @login_required
 @require_POST
@@ -334,11 +380,11 @@ def report_archive(request,report_id):
  return redirect('report-builder')
 def _query(request): return filter_spaces(request.GET)[:5000]
 @login_required
-def spaces_excel(request):return HttpResponse(excel(_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape')),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="spaces.xlsx"'})
+def spaces_excel(request):return HttpResponse(excel(_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),blank_rows=request.GET.get('blank_rows',0)),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="spaces.xlsx"'})
 @login_required
-def spaces_docx(request):return HttpResponse(docx(_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape')),content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':'attachment; filename="spaces.docx"'})
+def spaces_docx(request):return HttpResponse(docx(_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),blank_rows=request.GET.get('blank_rows',0)),content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':'attachment; filename="spaces.docx"'})
 @login_required
-def spaces_pdf(request):return HttpResponse(pdf(_query(request),request.GET.getlist('field'),request.GET.getlist('blank'),request.GET.getlist('layout'),request.GET.get('orientation','landscape')),content_type='application/pdf',headers={'Content-Disposition':'attachment; filename="spaces.pdf"'})
+def spaces_pdf(request):return HttpResponse(pdf(_query(request),request.GET.getlist('field'),request.GET.getlist('blank'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),blank_rows=request.GET.get('blank_rows',0)),content_type='application/pdf',headers={'Content-Disposition':'attachment; filename="spaces.pdf"'})
 @login_required
 @user_passes_test(lambda u:u.is_staff)
 def user_list(request):
