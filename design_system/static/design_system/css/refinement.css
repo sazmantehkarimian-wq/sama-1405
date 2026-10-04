@@ -116,6 +116,11 @@ td.num,th.num{font-variant-numeric:tabular-nums;text-align:start}
 .kpi-grid+.card{margin-top:0}
 .table-wrap .empty,.empty{padding:1.25rem}
 
+/* Shared Persian error states. */
+.error-card{max-width:48rem;margin:2rem auto;text-align:center;padding:1.5rem}
+.error-card h1{margin-bottom:.75rem}
+.error-actions{justify-content:center;margin-top:1rem}
+
 /* Keyboard access. */
 .skip-link{position:fixed;inset-inline-start:1rem;top:-4rem;z-index:100;background:var(--color-brand);color:#fff;padding:.55rem .85rem;border-radius:var(--radius-md)}
 .skip-link:focus{top:1rem}
