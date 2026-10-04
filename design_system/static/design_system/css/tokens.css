@@ -1,12 +1,12 @@
 :root {
-  --font-family: "Vazirmatn";
-  --font-size-helper: .75rem;
-  --font-size-label: .8125rem;
-  --font-size-body: .875rem;
+  --font-family: "Vazirmatn", "Tahoma", "Segoe UI", system-ui, sans-serif;
+  --font-size-helper: .8125rem;
+  --font-size-label: .875rem;
+  --font-size-body: .9375rem;
   --font-size-card-title: 1rem;
   --font-size-section-title: 1.125rem;
   --font-size-page-title: 1.5rem;
-  --font-size-kpi: 1.75rem;
+  --font-size-kpi: 1.65rem;
   --weight-normal: 400;
   --weight-semibold: 600;
   --line-tight: 1.45;
@@ -21,10 +21,10 @@
   --space-10: 2.5rem;
   --content-max: 1440px;
   --shell-height: 4rem;
-  --nav-height: 2.875rem;
+  --nav-height: 2.625rem;
   --control-compact: 2rem;
-  --control-standard: 2.5rem;
-  --control-emphasized: 2.75rem;
+  --control-standard: 2.35rem;
+  --control-emphasized: 2.6rem;
   --table-header-height: 2.25rem;
   --table-row-height: 2.5rem;
   --radius-sm: .25rem;
@@ -52,7 +52,7 @@
   --color-accent-soft: #f1eaf2;
   --color-success: #34745a;
   --color-success-soft: #e9f3ee;
-  --color-warning: #9b651f;
+  --color-warning: #85540f;
   --color-warning-soft: #f8efe1;
   --color-danger: #a23d46;
   --color-danger-soft: #f8e9eb;
@@ -69,7 +69,7 @@
   --section-contracts-soft: #f5ece7;
   --section-appraisals: #765078;
   --section-appraisals-soft: #f1eaf2;
-  --section-auctions: #9b651f;
+  --section-auctions: #85540f;
   --section-auctions-soft: #f8efe1;
   --section-utilities: #397377;
   --section-utilities-soft: #e7f2f2;
