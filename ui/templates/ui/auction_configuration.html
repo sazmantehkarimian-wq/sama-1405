@@ -1,0 +1,21 @@
+{% extends 'ui/base.html' %}{% block title %}تنظیمات اسناد مزایده{% endblock %}{% block section_class %}section-auctions{% endblock %}{% block content %}
+<div class="page-header"><div><h1>تنظیمات اسناد رسمی مزایده</h1><p>اطلاعات ثابت سازمان و بسته Master Source فقط یک‌بار ثبت می‌شوند و همه دوره‌ها از همین منبع واحد استفاده می‌کنند.</p></div><div class="button-row"><a class="button tertiary compact" href="{% url 'auction-workspace' %}">بازگشت به مدیریت مزایده</a></div></div>
+<section class="card card-accent"><h2>۱. مشخصات ثابت سازمان (ORG-*)</h2><p class="helper">هر فیلد فقط یک منبع دارد. نشانی ستاد، نشانی دبیرخانه و محل تحویل اسناد مستقل از هم نگهداری می‌شوند.</p><form method="post" action="{% url 'auction-organization-profile-save' %}" class="entity-form">{% csrf_token %}<div class="form-grid">
+<label>نام رسمی سازمان<input name="organization_name" value="{{ organization.organization_name|default:'سازمان فرهنگی هنری شهرداری تهران' }}"></label>
+<label>عنوان مدیریت / واحد<input name="unit_title" value="{{ organization.unit_title|default:'مدیریت اقتصادی و املاک — اداره املاک و مستغلات' }}"></label>
+<label>شناسه ملی<input name="national_id" value="{{ organization.national_id|default:'' }}" dir="ltr"></label>
+<label>کد اقتصادی<input name="economic_code" value="{{ organization.economic_code|default:'' }}" dir="ltr"></label>
+<label>نماینده سازمان<input name="representative_name" value="{{ organization.representative_name|default:'' }}"></label>
+<label>سمت نماینده<input name="representative_title" value="{{ organization.representative_title|default:'' }}"></label>
+<label>تلفن<input name="phone" value="{{ organization.phone|default:'' }}" dir="ltr"></label>
+<label>کدپستی<input name="postal_code" value="{{ organization.postal_code|default:'' }}" dir="ltr"></label>
+<label>بانک<input name="bank_name" value="{{ organization.bank_name|default:'' }}"></label>
+<label>شعبه<input name="bank_branch" value="{{ organization.bank_branch|default:'' }}"></label>
+<label>شماره حساب<input name="account_number" value="{{ organization.account_number|default:'' }}" dir="ltr"></label>
+<label>شماره شبا<input name="iban" value="{{ organization.iban|default:'' }}" dir="ltr"></label>
+<label>ساعات اداری<input name="office_hours" value="{{ organization.office_hours|default:'' }}"></label>
+</div><div class="form-grid"><label>نشانی رسمی ستاد<textarea name="official_address">{{ organization.official_address|default:'' }}</textarea></label><label>نشانی دبیرخانه<textarea name="secretariat_address">{{ organization.secretariat_address|default:'' }}</textarea></label><label>محل تحویل اسناد / پاکات<textarea name="submission_location">{{ organization.submission_location|default:'' }}</textarea></label></div><div class="button-row"><button>ذخیره مشخصات سازمان</button></div></form></section>
+<section class="card card-accent"><h2>۲. بسته قالب‌های مرجع مالک</h2><p>نسخه مرجع: <strong>{{ reference_version }}</strong></p><p class="helper">همان فایل ZIP تحویلی مالک را انتخاب کنید. سامانه همه فایل‌ها را استخراج و SHA-256 هر فایل را با Manifest مصوب کنترل می‌کند. فایل تغییرکرده یا ناقص پذیرفته نمی‌شود. این مرحله Import دیتای عملیاتی نیست.</p><form method="post" enctype="multipart/form-data" action="{% url 'auction-template-pack-import' %}" class="inline-form">{% csrf_token %}<label>بسته ZIP مرجع<input type="file" name="template_pack" accept=".zip,application/zip" required></label><button>ثبت و کنترل بسته قالب‌ها</button></form>
+<div class="table-wrap"><table><thead><tr><th>فایل مرجع</th><th>خانواده</th><th>نوع</th><th>SHA-256</th><th>وضعیت</th></tr></thead><tbody>{% for item in expected_templates %}<tr><td>{{ item.filename }}</td><td>{{ item.family }}</td><td>{{ item.kind }}</td><td dir="ltr"><small>{{ item.sha256|slice:':16' }}…</small></td><td>{% if item.registered %}<span class="badge success">ثبت‌شده / قفل هش</span>{% if item.registered.is_golden_master %}<span class="badge success">Golden Master</span>{% else %}<span class="badge warning">UAT Reference</span>{% endif %}{% else %}<span class="badge danger">ثبت نشده</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="notice"><strong>Gate رسمی:</strong> حتی پس از ثبت صحیح بسته، خروجی‌ها تا انجام آزمون چاپی صفحه‌به‌صفحه و تأیید انسانی مالک با وضعیت «پیش‌نویس کنترل‌شده UAT» تولید می‌شوند.</section>
+{% endblock %}
