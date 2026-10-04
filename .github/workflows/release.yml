@@ -43,7 +43,8 @@ jobs:
           import django; django.setup()
           from domains.properties.models import MotherProperty, MotherPropertyOwnership, MotherPropertyOwnershipDocument, MotherPropertyUsageHistory, MotherPropertyCorrespondence, MotherPropertyNote, CommercialSpace
           from domains.contracts.models import Contract, Beneficiary, ContractCirculation, ContractCustodyTransfer, ContractFinalApproval, ContractSignatureStep
-          from domains.operations.models import Appraisal, AppraisalFee, ExpertFeePaymentBatch, ExpertFeeBatchItem, Auction, UtilityRecord, UtilityConnection, UtilityBill, UtilityMeasurement, UtilityUnit, ElectricityBill, ElectricityAllocation, ElectricityCalculationSnapshot, FileMovement, TimelineEvent
+          from domains.operations.models import Appraisal, AppraisalFee, ExpertFeePaymentBatch, ExpertFeeBatchItem, Auction, AuctionPeriod, AuctionLot, AuctionParticipant, AuctionProposal, UtilityRecord, UtilityConnection, UtilityBill, UtilityMeasurement, UtilityUnit, ElectricityBill, ElectricityAllocation, ElectricityCalculationSnapshot, FileMovement, TimelineEvent
+          from domains.auctionflow.models import AuctionPeriodProfile, AuctionLotProfile, AuctionDocumentInstance
           checks = {
             'mother_properties': MotherProperty.objects.count(),
             'mother_property_ownership': MotherPropertyOwnership.objects.count(),
@@ -63,6 +64,13 @@ jobs:
             'fee_batches': ExpertFeePaymentBatch.objects.count(),
             'fee_batch_items': ExpertFeeBatchItem.objects.count(),
             'auctions': Auction.objects.count(),
+            'auction_periods': AuctionPeriod.objects.count(),
+            'auction_lots': AuctionLot.objects.count(),
+            'auction_participants': AuctionParticipant.objects.count(),
+            'auction_proposals': AuctionProposal.objects.count(),
+            'auction_period_profiles': AuctionPeriodProfile.objects.count(),
+            'auction_lot_profiles': AuctionLotProfile.objects.count(),
+            'auction_generated_documents': AuctionDocumentInstance.objects.count(),
             'utilities': UtilityRecord.objects.count(),
             'utility_connections': UtilityConnection.objects.count(),
             'utility_bills': UtilityBill.objects.count(),
@@ -119,15 +127,24 @@ jobs:
           os.environ.setdefault('DJANGO_SETTINGS_MODULE','sama.settings')
           import django; django.setup()
           from domains.properties.models import MotherProperty, CommercialSpace
-          from domains.contracts.models import Contract, Beneficiary
-          from domains.operations.models import Appraisal, Auction, FileMovement, TimelineEvent
+          from domains.contracts.models import Contract, Beneficiary, ContractCirculation
+          from domains.operations.models import Appraisal, Auction, AuctionPeriod, AuctionLot, AuctionParticipant, AuctionProposal, FileMovement, TimelineEvent
+          from domains.auctionflow.models import AuctionPeriodProfile, AuctionLotProfile, AuctionDocumentInstance
           checks = {
             'mother_properties': MotherProperty.objects.count(),
             'commercial_spaces': CommercialSpace.objects.count(),
             'contracts': Contract.objects.count(),
             'beneficiaries': Beneficiary.objects.count(),
+            'contract_circulations': ContractCirculation.objects.count(),
             'appraisals': Appraisal.objects.count(),
             'auctions': Auction.objects.count(),
+            'auction_periods': AuctionPeriod.objects.count(),
+            'auction_lots': AuctionLot.objects.count(),
+            'auction_participants': AuctionParticipant.objects.count(),
+            'auction_proposals': AuctionProposal.objects.count(),
+            'auction_period_profiles': AuctionPeriodProfile.objects.count(),
+            'auction_lot_profiles': AuctionLotProfile.objects.count(),
+            'auction_generated_documents': AuctionDocumentInstance.objects.count(),
             'movements': FileMovement.objects.count(),
             'timeline': TimelineEvent.objects.count(),
           }
@@ -163,7 +180,7 @@ jobs:
           $asset = "SAMA_$env:SAMA_VERSION-zero-data.zip"
           gh release view $env:SAMA_TAG *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $env:SAMA_TAG --prerelease --target "${{ github.sha }}" --title "سما — $env:SAMA_VERSION — Zero Data" --notes "نسخه UAT خام: صفر داده عملیاتی، بدون Import Excel/CSV، ورود اطلاعات فقط دستی. بسته Windows پس از Extract، first-start، کنترل صفر داده و HTTP smoke test بررسی شده است. مصنوعات QA و داده‌های آزمایشی داخل بسته نیستند. Production-ready نیست تا پذیرش Owner انجام شود."
+            gh release create $env:SAMA_TAG --prerelease --target "${{ github.sha }}" --title "سما — $env:SAMA_VERSION — Zero Data" --notes "نسخه UAT خام: صفر داده عملیاتی، بدون Import Excel/CSV، ورود اطلاعات فقط دستی. فرایند مزایده از انتخاب فضا تا اسناد، پاکات، ثبت برنده و آغاز گردش قرارداد پوشش داده شده است. خروجی‌های حقوقی خودکار تا تأیید چاپی مالک Controlled UAT Draft هستند. بسته Windows پس از Extract، first-start، کنترل صفر داده و HTTP smoke test بررسی شده است. Production-ready نیست تا پذیرش Owner انجام شود."
           }
           gh release upload $env:SAMA_TAG "release/$asset" release/SHA256SUMS.txt --clobber
           gh release download $env:SAMA_TAG --pattern "$asset" --dir downloaded --clobber
