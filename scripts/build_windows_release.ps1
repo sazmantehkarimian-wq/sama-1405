@@ -10,9 +10,12 @@ if (Test-Path $package) { Remove-Item $package -Recurse -Force }
 New-Item $package -ItemType Directory | Out-Null
 
 # Zero-Data package boundary: application/runtime only. Authority source workbooks,
-# import tooling, fixtures and sample data must never enter the LAN package.
+# import tooling, fixtures, sample data and historical QA screenshots must never
+# enter the Owner UAT package.
 $directories = @("core", "design_system", "domains", "queries", "reporting", "sama", "scripts", "services", "ui", "docs")
 foreach ($directory in $directories) { Copy-Item $directory $package -Recurse }
+$qaPath = Join-Path $package "docs\qa"
+if (Test-Path $qaPath) { Remove-Item $qaPath -Recurse -Force }
 $files = @("manage.py", "pyproject.toml", "README.md", "LEGACY_BOUNDARY.md", "VERSION", "START_SAMA.bat", "STOP_SAMA.bat")
 foreach ($file in $files) { Copy-Item $file $package }
 "Owner UAT build - ZERO DATA - manual entry only" | Set-Content (Join-Path $package "UAT_BUILD") -Encoding utf8NoBOM
@@ -21,8 +24,8 @@ New-Item (Join-Path $package "data") -ItemType Directory | Out-Null
 Copy-Item "data/sama.sqlite3" (Join-Path $package "data/sama.sqlite3")
 if (Test-Path "collected_static") { Copy-Item "collected_static" $package -Recurse }
 
-# Fail closed if forbidden source/import artifacts accidentally enter the package.
-$forbiddenDirectories = @("authority", "import_pipeline", "fixtures")
+# Fail closed if forbidden source/import/test artifacts accidentally enter the package.
+$forbiddenDirectories = @("authority", "import_pipeline", "fixtures", "docs\qa")
 foreach ($name in $forbiddenDirectories) {
   if (Test-Path (Join-Path $package $name)) { throw "Forbidden Zero-Data package directory: $name" }
 }
