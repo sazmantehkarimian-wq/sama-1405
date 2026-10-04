@@ -1,7 +1,6 @@
 from pathlib import Path
 from django.conf import settings
-from django.http import JsonResponse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -28,7 +27,7 @@ class LoginThrottleMiddleware:
    key=f"login-fail:{address}:{username}"
    failures=cache.get(key,0)
    if failures>=self.limit:
-    return JsonResponse({'detail':'تلاش‌های ناموفق بیش از حد مجاز است؛ پنج دقیقه بعد دوباره تلاش کنید.'},status=429)
+    return render(request,'ui/error_status.html',{'status_code':429,'title':'تلاش بیش از حد','message':'تلاش‌های ناموفق بیش از حد مجاز است؛ پنج دقیقه بعد دوباره تلاش کنید.'},status=429)
    response=self.get_response(request)
    if response.status_code==200:
     cache.set(key,failures+1,self.window)
@@ -45,7 +44,7 @@ class MaintenanceWriteLockMiddleware:
   self.lock_file=Path(settings.DATABASES['default']['NAME']).parent/'.maintenance-lock'
  def __call__(self,request):
   if request.method not in {'GET','HEAD','OPTIONS'} and self.lock_file.exists():
-   return JsonResponse({'detail':'سامانه برای بازیابی پشتیبان موقتاً در حالت فقط خواندنی است.'},status=503)
+   return render(request,'ui/error_status.html',{'status_code':503,'title':'سامانه موقتاً فقط‌خواندنی است','message':'سامانه برای بازیابی پشتیبان موقتاً در حالت فقط‌خواندنی است. چند دقیقه بعد دوباره تلاش کنید.'},status=503)
   return self.get_response(request)
 
 
@@ -64,6 +63,6 @@ class DocumentIntegrityMiddleware:
   try:
    handle=open_verified_document(document)
   except ValidationError as exc:
-   return JsonResponse({'detail':' '.join(exc.messages)},status=409)
+   return render(request,'ui/error_status.html',{'status_code':409,'title':'سند قابل ارائه نیست','message':' '.join(exc.messages)},status=409)
   handle.close()
   return None
