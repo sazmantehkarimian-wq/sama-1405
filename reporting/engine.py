@@ -105,6 +105,39 @@ def tabular_excel(title,labels,data):
  for values in data:ws.append(list(values))
  _style_xlsx(ws,header,total)
  out=BytesIO();wb.save(out);return out.getvalue()
+
+def tabular_docx(title,labels,data,orientation='landscape'):
+ """Official RTL Word output for any already-filtered tabular dataset."""
+ data=list(data);doc=Document();sec=doc.sections[0]
+ if orientation=='landscape':sec.orientation=WD_ORIENT.LANDSCAPE;sec.page_width,sec.page_height=sec.page_height,sec.page_width
+ sec.top_margin=Mm(35);sec.header_distance=Mm(5)
+ header=sec.header.paragraphs[0]
+ if LOGO.exists():header.add_run().add_picture(str(LOGO),width=Mm(18))
+ header.add_run('\n'+'\n'.join(HEADERS));_rtl(header)
+ heading=doc.add_paragraph(str(title));_rtl(heading)
+ table=doc.add_table(rows=1,cols=max(1,len(labels)));table.style='Table Grid';_rtl_table(table)
+ for index,label in enumerate(labels):table.rows[0].cells[index].text=str(label);_rtl(table.rows[0].cells[index].paragraphs[0])
+ table.rows[0]._tr.get_or_add_trPr().append(OxmlElement('w:tblHeader'))
+ for values in data:
+  cells=table.add_row().cells
+  for index,value in enumerate(values):cells[index].text='' if value is None else str(value);_rtl(cells[index].paragraphs[0])
+ footer=sec.footer.paragraphs[0];footer.alignment=WD_ALIGN_PARAGRAPH.CENTER;footer.add_run('صفحه ');field=OxmlElement('w:fldSimple');field.set(qn('w:instr'),'PAGE');footer._p.append(field)
+ out=BytesIO();doc.save(out);return out.getvalue()
+
+def tabular_pdf(title,labels,data,orientation='landscape'):
+ """Official shaped Persian PDF for any already-filtered tabular dataset."""
+ data=list(data);out=BytesIO();pdfmetrics.registerFont(TTFont('Vazirmatn',str(FONT)));page_size=landscape(A4) if orientation=='landscape' else A4
+ doc=SimpleDocTemplate(out,pagesize=page_size,rightMargin=12*mm,leftMargin=12*mm,topMargin=10*mm,bottomMargin=12*mm,title=str(title))
+ style=ParagraphStyle('fa-tabular',fontName='Vazirmatn',fontSize=8,leading=12,alignment=TA_CENTER);story=[]
+ if LOGO.exists():story.append(Image(str(LOGO),width=18*mm,height=18*mm))
+ for line in HEADERS:story.append(Paragraph(_fa(line),style))
+ story.extend((Spacer(1,3*mm),Paragraph(_fa(title),style),Spacer(1,3*mm)))
+ table_data=[[Paragraph(_fa(value),style) for value in labels]]+[[Paragraph(_fa(value),style) if value not in ('',None) else '' for value in row] for row in data]
+ table_data=[list(reversed(row)) for row in table_data];available=page_size[0]-24*mm
+ table=Table(table_data,repeatRows=1,hAlign='CENTER',splitByRow=1,colWidths=[available/max(1,len(labels))]*max(1,len(labels)))
+ table.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Vazirmatn'),('FONTSIZE',(0,0),(-1,-1),8),('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('GRID',(0,0),(-1,-1),.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#F6F5F4')),('LEADING',(0,0),(-1,-1),11)]));story.append(table)
+ def page_number(canvas,document):canvas.saveState();canvas.setFont('Vazirmatn',8);canvas.drawCentredString(page_size[0]/2,6*mm,_fa(f'صفحه {document.page}'));canvas.restoreState()
+ doc.build(story,onFirstPage=page_number,onLaterPages=page_number);return out.getvalue()
 def _rtl(paragraph):
  paragraph.alignment=WD_ALIGN_PARAGRAPH.CENTER
  pPr=paragraph._p.get_or_add_pPr();bidi=OxmlElement('w:bidi');bidi.set(qn('w:val'),'1');pPr.append(bidi)

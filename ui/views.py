@@ -17,7 +17,7 @@ from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from queries.kpis import dashboard_kpis, scoped_counts
 from services.file_movement import current_holder
-from reporting.engine import excel,docx,pdf,tabular_excel,output_table,MOTHER_FIELD_MAP
+from reporting.engine import excel,docx,pdf,tabular_excel,tabular_pdf,tabular_docx,output_table,MOTHER_FIELD_MAP
 from ui.forms import PersianPasswordChangeForm
 from core.uat import is_fixed_uat_admin
 from services.money import format_rial
@@ -33,8 +33,8 @@ def dashboard(request):
 @login_required
 def regions_workspace(request):
  regions=Region.objects.annotate(region_numeric=Cast('code',IntegerField()),space_count=Count('commercialspace',filter=Q(commercialspace__center__is_special=False),distinct=True),property_count=Count('motherproperty',distinct=True)).order_by('region_numeric','name')
- overall=scoped_counts(CommercialSpace.objects.all())
- return render(request,'ui/regions_workspace.html',{'regions':regions,'special_count':Center.objects.filter(is_special=True).count(),**overall})
+ overall=scoped_counts(CommercialSpace.objects.all());total_properties=MotherProperty.objects.count();mapped_properties=MotherProperty.objects.filter(region__isnull=False).count()
+ return render(request,'ui/regions_workspace.html',{'regions':regions,'special_count':Center.objects.filter(is_special=True).count(),'total_property_count':total_properties,'mapped_property_count':mapped_properties,'unmapped_property_count':total_properties-mapped_properties,**overall})
 
 @login_required
 def region_workspace(request,region_id):
@@ -189,22 +189,29 @@ def _value(obj,path):
  if obj in ('',None):return '—'
  if path.endswith(('amount_rial','investment_commitment_rial','bill_amount_rial')):return format_rial(obj)
  return obj
+def _export_value(obj,path):
+ parts=path.split('.')
+ for index,part in enumerate(parts):
+  display=getattr(obj,f'get_{part}_display',None) if index==len(parts)-1 else None
+  if display:return display()
+  obj=getattr(obj,part,None)
+  if obj is None:return ''
+ return obj
+
 def _search_domain(qs,domain,q):
  if not q:return qs
  if domain=='contracts':return qs.filter(Q(number__icontains=q)|Q(space__code__iexact=q))
  if domain in {'appraisals','fees','auctions','utilities','workflows','alerts'}:
-  field='appraisal__space__code__iexact' if domain=='fees' else 'space__code__iexact'
-  return qs.filter(**{field:q})
+  field='appraisal__space__code__iexact' if domain=='fees' else 'space__code__iexact';return qs.filter(**{field:q})
  if domain=='beneficiaries':return qs.filter(Q(name__icontains=q)|Q(beneficiaryassignment__space__code__iexact=q)).distinct()
+ if domain=='commissions':return qs.filter(Q(identity__icontains=q)|Q(subject__icontains=q)|Q(spaces__code__iexact=q)).distinct()
  if domain=='documents':return qs.filter(Q(title__icontains=q)|Q(entity_type='CommercialSpace',entity_id__iexact=q))
  return qs
-@login_required
-def domain_list(request,domain):
- title,qs,columns=DOMAIN_LISTS[domain]
- dataset_count=qs.count()
- q=request.GET.get('q','').strip()
- qs=_search_domain(qs,domain,q)
- region_id=request.GET.get('region_id');center_id=request.GET.get('center_id')
+
+def _domain_queryset(params,domain):
+ if domain not in DOMAIN_LISTS:return None
+ qs=DOMAIN_LISTS[domain][1];q=(params.get('q','') or '').strip();qs=_search_domain(qs,domain,q)
+ region_id=params.get('region_id');center_id=params.get('center_id')
  if domain in {'contracts','appraisals','auctions','utilities','workflows','alerts'}:
   if region_id:qs=qs.filter(space__region_id=region_id,space__center__is_special=False)
   if center_id:qs=qs.filter(space__center_id=center_id)
@@ -214,30 +221,49 @@ def domain_list(request,domain):
  elif domain=='beneficiaries':
   if region_id:qs=qs.filter(beneficiaryassignment__space__region_id=region_id,beneficiaryassignment__space__center__is_special=False).distinct()
   if center_id:qs=qs.filter(beneficiaryassignment__space__center_id=center_id).distinct()
- if domain=='alerts' and request.GET.get('state')=='OPEN':qs=qs.exclude(status='RESOLVED')
- if domain=='workflows' and request.GET.get('state')=='OPEN':qs=qs.filter(state='OPEN')
+ if domain=='alerts' and params.get('state')=='OPEN':qs=qs.exclude(status='RESOLVED')
+ if domain=='workflows' and params.get('state')=='OPEN':qs=qs.filter(state='OPEN')
  if domain=='contracts':
-  if request.GET.get('space_code'):qs=qs.filter(space__code__iexact=request.GET['space_code'])
-  if request.GET.get('number'):qs=qs.filter(number__icontains=request.GET['number'])
-  if request.GET.get('beneficiary'):qs=qs.filter(beneficiary__name__icontains=request.GET['beneficiary'])
-  if request.GET.get('status'):qs=qs.filter(status__icontains=request.GET['status'])
-  if request.GET.get('origin')=='historical':qs=qs.filter(is_historical=True)
-  elif request.GET.get('origin')=='operational':qs=qs.filter(is_historical=False)
-  if request.GET.get('number_presence')=='missing':qs=qs.filter(number='')
-  elif request.GET.get('number_presence')=='present':qs=qs.exclude(number='')
+  if params.get('space_code'):qs=qs.filter(space__code__iexact=params['space_code'])
+  if params.get('number'):qs=qs.filter(number__icontains=params['number'])
+  if params.get('beneficiary'):qs=qs.filter(beneficiary__name__icontains=params['beneficiary'])
+  if params.get('status'):qs=qs.filter(status__icontains=params['status'])
+  if params.get('origin')=='historical':qs=qs.filter(is_historical=True)
+  elif params.get('origin')=='operational':qs=qs.filter(is_historical=False)
+  if params.get('number_presence')=='missing':qs=qs.filter(number='')
+  elif params.get('number_presence')=='present':qs=qs.exclude(number='')
  if domain=='beneficiaries':
-  if request.GET.get('identifier'):qs=qs.filter(identity_number__icontains=request.GET['identifier'])
-  if request.GET.get('kind'):qs=qs.filter(kind=request.GET['kind'])
-  if request.GET.get('space_code'):qs=qs.filter(beneficiaryassignment__space__code__iexact=request.GET['space_code']).distinct()
+  if params.get('identifier'):qs=qs.filter(identity_number__icontains=params['identifier'])
+  if params.get('kind'):qs=qs.filter(kind=params['kind'])
+  if params.get('space_code'):qs=qs.filter(beneficiaryassignment__space__code__iexact=params['space_code']).distinct()
  if domain=='appraisals':
-  if request.GET.get('space_code'):qs=qs.filter(space__code__iexact=request.GET['space_code'])
-  if request.GET.get('appraiser'):qs=qs.filter(appraiser__icontains=request.GET['appraiser'])
-  if request.GET.get('status'):qs=qs.filter(status__icontains=request.GET['status'])
-  if request.GET.get('missing')=='date':qs=qs.filter(appraisal_date='')
-  elif request.GET.get('missing')=='appraiser':qs=qs.filter(appraiser='')
-  elif request.GET.get('missing')=='zero':qs=qs.filter(amount_rial=0)
- page=Paginator(qs.order_by('-pk'),30).get_page(request.GET.get('page'))
- rows=[]
+  if params.get('space_code'):qs=qs.filter(space__code__iexact=params['space_code'])
+  if params.get('appraiser'):qs=qs.filter(appraiser__icontains=params['appraiser'])
+  if params.get('status'):qs=qs.filter(status__icontains=params['status'])
+  if params.get('date_from'):qs=qs.filter(appraisal_date__gte=params['date_from'])
+  if params.get('date_to'):qs=qs.filter(appraisal_date__lte=params['date_to'])
+  if params.get('amount_min'):qs=qs.filter(amount_rial__gte=params['amount_min'])
+  if params.get('amount_max'):qs=qs.filter(amount_rial__lte=params['amount_max'])
+  quality=params.get('quality')
+  if quality=='zero':qs=qs.filter(amount_rial=0)
+  elif quality=='positive':qs=qs.filter(amount_rial__gt=0)
+  elif quality=='unknown':qs=qs.filter(amount_rial__isnull=True)
+  elif quality=='missing_date':qs=qs.filter(appraisal_date='')
+  elif quality=='missing_appraiser':qs=qs.filter(appraiser='')
+  elif quality=='complete':qs=qs.exclude(appraisal_date='').exclude(appraiser='').filter(amount_rial__isnull=False)
+  elif quality=='incomplete':qs=qs.filter(Q(appraisal_date='')|Q(appraiser='')|Q(amount_rial__isnull=True))
+  elif quality=='usable_incomplete':qs=qs.filter(status__icontains='قابل استفاده با نقص اطلاعات')
+  if params.get('source')=='historical':qs=qs.filter(source_file__isnull=False)
+  elif params.get('source')=='operational':qs=qs.filter(source_file__isnull=True)
+ sort=(params.get('sort') or '').lstrip();descending=sort.startswith('-');sort=sort.lstrip('-');prefix='-' if descending else ''
+ sort_maps={'contracts':{'space':'space__code','date':'start_date','number':'number','status':'status'},'beneficiaries':{'name':'name','identifier':'identity_number','kind':'kind'},'appraisals':{'space':'space__code','date':'appraisal_date','amount':'amount_rial','appraiser':'appraiser','status':'status'},'fees':{'space':'appraisal__space__code','amount':'amount_rial','date':'payment_date'},'auctions':{'space':'space__code','year':'year'},'utilities':{'space':'space__code','amount':'bill_amount_rial'},'workflows':{'space':'space__code','due':'due_date','state':'state'},'alerts':{'space':'space__code','due':'due_date','priority':'priority'},'documents':{'date':'uploaded_at','title':'title'}}
+ ordering=prefix+sort_maps.get(domain,{}).get(sort,'') if sort else ''
+ return qs.order_by(ordering,'pk') if ordering else qs.order_by('-pk')
+
+@login_required
+def domain_list(request,domain):
+ if domain not in DOMAIN_LISTS:return HttpResponse(status=404)
+ title,base,all_columns=DOMAIN_LISTS[domain];dataset_count=base.count();requested=request.GET.getlist('column');allowed={key for key,_ in all_columns};columns=tuple(item for item in all_columns if not requested or item[0] in allowed and item[0] in requested);qs=_domain_queryset(request.GET,domain);page=Paginator(qs,30).get_page(request.GET.get('page'));rows=[]
  for obj in page:
   space=getattr(obj,'space',None)
   if domain=='fees':space=obj.appraisal.space
@@ -245,27 +271,41 @@ def domain_list(request,domain):
   elif domain=='beneficiaries':space=CommercialSpace.objects.filter(beneficiary_assignments__beneficiary=obj).order_by('code').first()
   rows.append({'object':obj,'values':[_value(obj,key) for key,_ in columns],'space_code':space.code if space else ''})
  actions={'contracts':('contract','ثبت قرارداد'),'beneficiaries':('beneficiary','ثبت بهره‌بردار'),'appraisals':('appraisal','ثبت کارشناسی'),'utilities':('utility','ثبت انشعاب / مصرف'),'workflows':('movement','ثبت تحویل پرونده'),'documents':('document','بارگذاری سند'),'alerts':('alert','ثبت مورد پیگیری')}
- return render(request,'ui/domain_list.html',{'title':title,'headers':[label for _,label in columns],'rows':rows,'page':page,'domain':domain,'dataset_count':dataset_count,'has_filter':bool(q) or bool(request.GET.get('state')),'create_action':actions.get(domain)})
+ scope='محدوده کل سازمان'
+ if request.GET.get('region_id'):scope=f"منطقه انتخابی #{request.GET['region_id']}"
+ elif request.GET.get('center_id'):scope=f"مرکز انتخابی #{request.GET['center_id']}"
+ return render(request,'ui/domain_list.html',{'title':title,'headers':[label for _,label in columns],'rows':rows,'page':page,'domain':domain,'dataset_count':dataset_count,'has_filter':bool(request.GET),'create_action':actions.get(domain),'regions':Region.objects.order_by('name'),'centers':Center.objects.order_by('name'),'report_scope':scope,'report_definition':f'{title} مطابق فیلترها و مرتب‌سازی فعال','available_columns':all_columns,'selected_columns':{key for key,_ in columns}})
 
 @login_required
-def domain_excel(request,domain):
+def domain_export(request,domain,format):
  if domain not in DOMAIN_LISTS:return HttpResponse(status=404)
- title,qs,columns=DOMAIN_LISTS[domain]
- q=request.GET.get('q','').strip()
- qs=_search_domain(qs,domain,q)
- region_id=request.GET.get('region_id');center_id=request.GET.get('center_id')
- if domain in {'contracts','appraisals','auctions','utilities','workflows','alerts'}:
-  if region_id:qs=qs.filter(space__region_id=region_id,space__center__is_special=False)
-  if center_id:qs=qs.filter(space__center_id=center_id)
- elif domain=='fees':
-  if region_id:qs=qs.filter(appraisal__space__region_id=region_id,appraisal__space__center__is_special=False)
-  if center_id:qs=qs.filter(appraisal__space__center_id=center_id)
- elif domain=='beneficiaries':
-  if region_id:qs=qs.filter(beneficiaryassignment__space__region_id=region_id,beneficiaryassignment__space__center__is_special=False).distinct()
-  if center_id:qs=qs.filter(beneficiaryassignment__space__center_id=center_id).distinct()
- labels=[label for _,label in columns]
- data=([_value(item,key) for key,_ in columns] for item in qs.order_by('pk')[:10000])
- return HttpResponse(tabular_excel(title,labels,data),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':f'attachment; filename="{domain}.xlsx"'})
+ title,_,all_columns=DOMAIN_LISTS[domain];requested=request.GET.getlist('column');allowed={key for key,_ in all_columns};columns=tuple(item for item in all_columns if not requested or item[0] in allowed and item[0] in requested);qs=_domain_queryset(request.GET,domain)[:10000];labels=[label for _,label in columns];data=[[_export_value(item,key) for key,_ in columns] for item in qs]
+ try:blank_rows=max(0,min(int(request.GET.get('blank_rows',0) or 0),50))
+ except ValueError:blank_rows=0
+ data += [['']*len(labels) for _ in range(blank_rows)]
+ if format=='xlsx':payload=tabular_excel(title,labels,data);content='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+ elif format=='pdf':payload=tabular_pdf(title,labels,data,request.GET.get('orientation','landscape'));content='application/pdf'
+ elif format=='docx':payload=tabular_docx(title,labels,data,request.GET.get('orientation','landscape'));content='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+ else:return HttpResponse(status=404)
+ return HttpResponse(payload,content_type=content,headers={'Content-Disposition':f'attachment; filename="{domain}.{format}"'})
+
+def domain_excel(request,domain):return domain_export(request,domain,'xlsx')
+
+@login_required
+def dossier_section_export(request,code,section,format):
+ from reporting.dossier_sections import section_report
+ space=get_object_or_404(CommercialSpace.objects.select_related('region','center'),code=code)
+ try:report=section_report(space,section)
+ except KeyError:return HttpResponse(status=404)
+ try:blank_rows=max(0,min(int(request.GET.get('blank_rows',0) or 0),50))
+ except ValueError:blank_rows=0
+ rows=list(report.rows)+[['']*len(report.labels) for _ in range(blank_rows)]
+ if format=='xlsx':payload=tabular_excel(report.title,report.labels,rows);content='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+ elif format=='docx':payload=tabular_docx(report.title,report.labels,rows,request.GET.get('orientation','landscape'));content='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+ elif format=='pdf':payload=tabular_pdf(report.title,report.labels,rows,request.GET.get('orientation','landscape'));content='application/pdf'
+ elif format=='print':return render(request,'ui/official_table_report.html',{'report':report,'rows':rows,'space':space})
+ else:return HttpResponse(status=404)
+ return HttpResponse(payload,content_type=content,headers={'Content-Disposition':f'attachment; filename="space-{space.code}-{section}.{format}"'})
 
 @login_required
 def document_download(request,document_id):

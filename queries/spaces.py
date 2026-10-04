@@ -49,7 +49,7 @@ def _text_q(field, value, operator):
 
 
 def filter_spaces(params):
-    qs = _ordered(CommercialSpace.objects.select_related("region", "center").all())
+    qs = _ordered(CommercialSpace.objects.select_related("region", "center").prefetch_related("beneficiary_assignments__beneficiary").all())
     q = params.get("q", "").strip()
     if q:
         qs = qs.filter(

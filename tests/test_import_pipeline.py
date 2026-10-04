@@ -63,6 +63,11 @@ def test_complete_authority_import_is_lossless_and_typed(tmp_path):
  assert Contract.objects.filter(end_date__lt='1405/07/01').exclude(end_date='').exists()
  assert Contract.objects.count()==332
  assert CommercialSpace.objects.filter(status='ACTIVE',contracts__isnull=True).count()==70
+ # Owner-known dossier/specialist reconciliation examples.
+ assert CommercialSpace.objects.get(code='347').contracts.count()==1
+ assert CommercialSpace.objects.get(code='347').appraisals.count()==3
+ assert CommercialSpace.objects.get(code='497').contracts.count()==1
+ assert CommercialSpace.objects.get(code='497').appraisals.count()==2
  # Appraisal zero remains a known numeric zero; it is not normalized to an unknown/null value.
  assert Appraisal.objects.filter(space__code='92',year='1402',amount_rial=0,appraisal_date='',appraiser='',status='قابل استفاده با نقص اطلاعات').exists()
  assert Appraisal.objects.filter(amount_rial__isnull=True).exists()

@@ -18,6 +18,7 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
     region=Region.objects.create(code="14",name="منطقه ۱۴");regular=Center.objects.create(name="مرکز عادی",region=region);special_region=Region.objects.create(code="1",name="منطقه ۱");special=Center.objects.create(name="مرکز خاص",region=special_region,is_special=True)
     CommercialSpace.objects.create(code="10",name="فضای ده",status="ACTIVE",region=region,center=regular,source_row=10,source_classification="authority");CommercialSpace.objects.create(code="2",name="فضای دو",status="ACTIVE",region=region,center=regular,source_row=2,source_classification="authority");CommercialSpace.objects.create(code="1",name="فضای خاص",status="ACTIVE",region=special_region,center=special,source_row=1,source_classification="authority")
     CommercialSpace.objects.create(code="BROWSER-501", name="فضای آزمون مرورگر", status="ACTIVE", current_usage="فرهنگی", source_row=2, source_classification="authority")
+    for code in ("37","173","497"): CommercialSpace.objects.create(code=code,name=f"فضای {code}",status="ACTIVE",region=region,center=regular,source_row=int(code),source_classification="authority")
     manager = None
     try:
         manager = sync_playwright().start();browser = manager.chromium.launch(headless=True)
@@ -83,6 +84,12 @@ def test_real_chromium_uat_shell_auth_navigation_and_core_pages(live_server, tmp
         assert page.locator(".footer").evaluate("el => getComputedStyle(el).display") == "none"
         page.screenshot(path=evidence / "dashboard-print-1366.png", full_page=True)
         page.emulate_media(media="screen")
+        page.goto(f"{live_server.url}/operations/appraisal/");picker=page.locator('[data-search-picker]').first;search=picker.locator('[data-picker-query]')
+        for query,expected in (("37","37"),("۳۷","37"),("173","173"),("497","497")):
+            search.fill(query);assert picker.locator('[data-picker-option]:visible').first.get_attribute('data-value')==expected
+        search.fill("۳۷");search.press("Enter");assert picker.locator('[data-picker-value]').input_value()=="37" and 'open' not in (picker.get_attribute('class') or '')
+        for path in ('/operations/appraisal/','/auctions/','/contract-circulation/','/operations/utility/','/operations/movement/','/operations/document/','/operations/alert/'):
+            page.goto(f"{live_server.url}{path}");assert page.locator('[data-search-picker]').count()>=1
         page.goto(f"{live_server.url}/spaces/");page.get_by_label("جست‌وجوی سراسری").fill("BROWSER-501");page.get_by_role("button",name="جست‌وجو").click();page.get_by_role("link",name="مشاهده پرونده").click()
         assert "پرونده فضای BROWSER-501" in page.locator("h1").inner_text()
         for label,title in (("شروع گردش قرارداد","ایجاد پرونده گردش قرارداد"),("ثبت کارشناسی جدید","ثبت کارشناسی جدید"),("بارگذاری سند","بارگذاری سند"),("ثبت انشعاب / مصرف","ثبت انشعاب یا مصرف"),("ثبت تحویل","ثبت تحویل پرونده"),("ثبت مورد پیگیری","ثبت مورد نیازمند پیگیری")):
