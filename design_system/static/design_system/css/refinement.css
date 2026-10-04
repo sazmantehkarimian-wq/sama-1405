@@ -59,6 +59,8 @@ button:hover,.button:hover{background:var(--color-brand-hover);border-color:var(
 }
 .button-row{align-items:center;gap:.45rem;row-gap:.45rem}
 .button-row>.button,.button-row>button{flex:0 0 auto}
+.section-gap{margin-top:1rem}
+.action-gap{margin-block:1rem}
 
 /* Contextual sizing instead of a global forced width. */
 .filter-primary button,.filters button{
