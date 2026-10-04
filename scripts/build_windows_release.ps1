@@ -11,7 +11,8 @@ New-Item $package -ItemType Directory | Out-Null
 
 # Zero-Data package boundary: application/runtime only. Authority source workbooks,
 # import tooling, fixtures, sample data and historical QA screenshots must never
-# enter the Owner UAT package.
+# enter the Owner UAT package. The Owner reference auction ZIP is registered later
+# through the controlled template settings page and is not bundled as operational data.
 $directories = @("core", "design_system", "domains", "queries", "reporting", "sama", "scripts", "services", "ui", "docs")
 foreach ($directory in $directories) { Copy-Item $directory $package -Recurse }
 $qaPath = Join-Path $package "docs\qa"
@@ -45,7 +46,7 @@ Invoke-WebRequest "https://bootstrap.pypa.io/get-pip.py" -OutFile $getPip
 & (Join-Path $runtime "python.exe") $getPip --no-warn-script-location
 if ($LASTEXITCODE -ne 0) { throw "Portable Python bootstrap failed" }
 & (Join-Path $runtime "python.exe") -m pip install --no-warn-script-location --no-cache-dir --target (Join-Path $runtime "Lib/site-packages") `
-  Django==5.2.7 openpyxl==3.1.5 python-docx==1.2.0 reportlab==4.4.4 jdatetime==5.2.0 waitress==3.0.2 Pillow==11.3.0 whitenoise==6.11.0 arabic-reshaper==3.0.0 python-bidi==0.4.2
+  Django==5.2.7 openpyxl==3.1.5 python-docx==1.2.0 reportlab==4.4.4 pypdf==6.1.1 jdatetime==5.2.0 waitress==3.0.2 Pillow==11.3.0 whitenoise==6.11.0 arabic-reshaper==3.0.0 python-bidi==0.4.2
 if ($LASTEXITCODE -ne 0) { throw "Portable runtime dependency installation failed" }
 
 Get-ChildItem $package -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
