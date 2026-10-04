@@ -90,3 +90,23 @@ class AuctionOpeningSession(models.Model):
 
     class Meta:
         ordering = ["-session_date", "-pk"]
+
+
+class AuctionContractDraft(models.Model):
+    """Deterministic contract terms captured from an awarded lot before official conversion."""
+
+    lot = models.OneToOneField(
+        "operations.AuctionLot", on_delete=models.PROTECT,
+        related_name="contract_draft",
+    )
+    subject = models.CharField(max_length=255)
+    start_date = models.CharField(max_length=10)
+    end_date = models.CharField(max_length=10)
+    amount_rial = models.DecimalField(max_digits=24, decimal_places=0)
+    investment_commitment_rial = models.DecimalField(max_digits=24, decimal_places=0, null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="created_auction_contract_drafts",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
