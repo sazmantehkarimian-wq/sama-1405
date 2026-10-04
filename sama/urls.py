@@ -1,6 +1,6 @@
 from django.urls import include,path
 from django.contrib.auth import views as auth_views
-from ui import views, action_center_views, dashboard_auction_views, auction_flow_views, auction_flow_detail_views
+from ui import views, action_center_views, dashboard_auction_views, auction_flow_views, auction_flow_detail_views, auction_config_views
 from ui.forms import PersianAuthenticationForm
 urlpatterns=[
  path('login/',auth_views.LoginView.as_view(template_name='ui/login.html',redirect_authenticated_user=True,authentication_form=PersianAuthenticationForm),name='login'),
@@ -8,6 +8,7 @@ urlpatterns=[
  path('actions/',action_center_views.action_center,name='action-center'),
  path('dashboard/auctions/',dashboard_auction_views.auction_drilldown,name='dashboard-auction-drilldown'),
  # End-to-end auction routes are declared before legacy ui.urls so reverse/resolve use the complete flow.
+ path('auctions/config/',auction_config_views.auction_configuration,name='auction-configuration'),
  path('auctions/config/organization/',auction_flow_views.organization_profile_save,name='auction-organization-profile-save'),
  path('auctions/config/templates/import/',auction_flow_views.template_pack_import,name='auction-template-pack-import'),
  path('auctions/periods/<int:period_id>/',auction_flow_detail_views.auction_period_detail,name='auction-period-detail'),
