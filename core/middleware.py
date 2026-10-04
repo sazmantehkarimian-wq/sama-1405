@@ -1,5 +1,6 @@
 from pathlib import Path
 from django.conf import settings
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.core.cache import cache
@@ -63,6 +64,6 @@ class DocumentIntegrityMiddleware:
   try:
    handle=open_verified_document(document)
   except ValidationError as exc:
-   return render(request,'ui/error_status.html',{'status_code':409,'title':'سند قابل ارائه نیست','message':' '.join(exc.messages)},status=409)
+   return JsonResponse({'detail':' '.join(exc.messages)},status=409)
   handle.close()
   return None
