@@ -1,5 +1,6 @@
 @echo off
 setlocal
+cd /d "%~dp0"
 if not defined SAMA_PORT set SAMA_PORT=8765
 set "PYTHON=python"
 if exist "runtime\python.exe" set "PYTHON=runtime\python.exe"
@@ -8,7 +9,7 @@ echo ============================================================
 echo SAMA Zero-Data UAT
 echo ============================================================
 echo [1/2] Preparing application...
-%PYTHON% scripts\first_start.py
+"%PYTHON%" scripts\first_start.py
 if errorlevel 1 (
   echo.
   echo [ERROR] SAMA startup preparation failed.
@@ -18,8 +19,8 @@ if errorlevel 1 (
 
 echo [2/2] Starting server on http://127.0.0.1:%SAMA_PORT%/
 echo Keep this window open while SAMA is running.
-start "SAMA" http://127.0.0.1:%SAMA_PORT%/
-%PYTHON% scripts\run_server.py
+start "SAMA browser" /b cmd /c "timeout /t 3 /nobreak ^>nul ^& start \"\" http://127.0.0.1:%SAMA_PORT%/"
+"%PYTHON%" scripts\run_server.py
 
 if errorlevel 1 (
   echo.
