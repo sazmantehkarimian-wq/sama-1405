@@ -41,6 +41,9 @@ def test_auction_period_participant_envelope_and_document_workflow(client):
         "envelope_b_received": "on",
         "offered_amount_rial": "1500000000",
         "status": "دریافت اولیه",
+        "receipt_number": "REC-01",
+        "envelope_b_decision": "PENDING",
+        "c_opening_allowed": "",
     })
     assert response.status_code == 302
     proposal = AuctionProposal.objects.get(lot=lot, participant=participant)
@@ -48,6 +51,7 @@ def test_auction_period_participant_envelope_and_document_workflow(client):
     assert proposal.envelope_b_received is True
     assert proposal.envelope_c_received is False
     assert proposal.offered_amount_rial == Decimal("1500000000")
+    assert proposal.intake.receipt_number == "REC-01"
 
     response = client.post(reverse("auction-proposal-edit", args=[proposal.pk]), {
         "participant": participant.pk,
@@ -57,12 +61,17 @@ def test_auction_period_participant_envelope_and_document_workflow(client):
         "envelope_c_received": "on",
         "offered_amount_rial": "1500000000",
         "status": "تکمیل پاکات",
-        "change_reason": "ثبت دریافت پاکت C",
+        "receipt_number": "REC-01",
+        "envelope_b_decision": "ACCEPTED",
+        "c_opening_allowed": "1",
+        "decision_note": "اجازه جلسه برای بازگشایی پاکت ج",
+        "change_reason": "ثبت دریافت پاکت C پس از تصمیم جلسه",
     })
     assert response.status_code == 302
     proposal.refresh_from_db()
     assert proposal.envelope_c_received is True
     assert proposal.status == "تکمیل پاکات"
+    assert proposal.intake.c_opening_allowed is True
 
     uploaded = SimpleUploadedFile("auction.pdf", b"%PDF-1.4\n%test\n", content_type="application/pdf")
     response = client.post(reverse("auction-period-document-upload", args=[period.pk]), {
@@ -99,6 +108,7 @@ def test_duplicate_proposal_for_same_participant_and_lot_is_blocked(client):
         "participant": participant.pk,
         "received_at": "2026-10-03T11:00",
         "status": "تکراری",
+        "envelope_b_decision": "PENDING",
     })
     assert response.status_code == 200
     assert AuctionProposal.objects.filter(lot=lot, participant=participant).count() == 1
