@@ -1,8 +1,10 @@
 param(
-  [string]$Version = "5.0.0-uat.4",
+  [string]$Version = "",
   [string]$OutputRoot = "build"
 )
 $ErrorActionPreference = "Stop"
+if (-not $Version) { $Version = (Get-Content "VERSION" -Raw -Encoding utf8).Trim() }
+if ($Version -notmatch '^5\.0\.0-uat\.\d+$') { throw "Unexpected UAT VERSION: $Version" }
 $package = Join-Path $OutputRoot "SAMA_$Version"
 if (Test-Path $package) { Remove-Item $package -Recurse -Force }
 New-Item $package -ItemType Directory | Out-Null
@@ -11,6 +13,7 @@ $directories = @("core", "design_system", "domains", "import_pipeline", "queries
 foreach ($directory in $directories) { Copy-Item $directory $package -Recurse }
 $files = @("manage.py", "pyproject.toml", "README.md", "LEGACY_BOUNDARY.md", "VERSION", "START_SAMA.bat", "STOP_SAMA.bat")
 foreach ($file in $files) { Copy-Item $file $package }
+"Owner UAT build - fixed test credential policy enabled" | Set-Content (Join-Path $package "UAT_BUILD") -Encoding utf8NoBOM
 
 New-Item (Join-Path $package "data") -ItemType Directory | Out-Null
 Copy-Item "data/sama.sqlite3" (Join-Path $package "data/sama.sqlite3")

@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from domains.identity.models import AuditEvent
-from domains.operations.models import Appraisal, AuctionEvaluation, AuctionLot, AuctionPeriod, AuctionRule
+from domains.operations.models import Appraisal, AuctionEvaluation, AuctionLot, AuctionPeriod, AuctionRule, TimelineEvent
 from services.database import retry_locked
 
 
@@ -37,7 +37,7 @@ def evaluate_space(*, space, on_date: str, actor, rule: AuctionRule | None = Non
                    auction_date: str = "", ip_address=None) -> AuctionEvaluation:
     rule = rule or AuctionRule.objects.filter(active=True).order_by("-effective_year", "-id").first()
     if not rule:
-        raise ValidationError("Rule فعال و مصوب مزایده ثبت نشده است.")
+        raise ValidationError("قاعده فعال و مصوب مزایده ثبت نشده است.")
     today = _date(on_date)
     contracts = []
     for contract in space.contracts.exclude(status__in=["باطل", "فسخ‌شده"]):
@@ -100,6 +100,7 @@ def evaluate_space(*, space, on_date: str, actor, rule: AuctionRule | None = Non
     AuditEvent.objects.create(actor=actor, action="AUCTION_EVALUATE", entity_type="AuctionEvaluation",
         entity_id=str(evaluation.pk), after={"decision": decision, "reasons": reasons, "space": space.code},
         ip_address=ip_address)
+    TimelineEvent.objects.create(space=space,event_type="AUCTION_EVALUATE",jalali_date=on_date,source_entity="AuctionEvaluation",source_entity_id=str(evaluation.pk),title="ارزیابی شرایط ورود به مزایده",new_state=evaluation.get_decision_display(),responsible_person=actor.get_full_name() or actor.username,provenance="ارزیابی نسخه‌دار بر اساس قاعده مصوب",target_url=f"/spaces/{space.code}/")
     return evaluation
 
 
@@ -145,4 +146,5 @@ def add_evaluated_lot(*, period: AuctionPeriod, evaluation: AuctionEvaluation, a
         after={"period": period.identity, "space": evaluation.space.code,
                "evaluation": evaluation.pk}, ip_address=ip_address,
     )
+    TimelineEvent.objects.create(space=evaluation.space,event_type="AUCTION_LOT_ADD",jalali_date=period.planned_date,source_entity="AuctionLot",source_entity_id=str(lot.pk),title=f"افزودن به دوره مزایده {period.title}",new_state=lot.readiness,responsible_person=actor.get_full_name() or actor.username,provenance="ثبت عملیاتی دوره مزایده",target_url=f"/spaces/{evaluation.space.code}/")
     return lot

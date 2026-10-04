@@ -1,1 +1,112 @@
-:root{--font-family:'Vazirmatn';--font-xs:.75rem;--font-sm:.875rem;--font-md:1rem;--font-lg:1.25rem;--font-xl:1.625rem;--weight-normal:400;--weight-semibold:600;--line-normal:1.75;--space-1:.25rem;--space-2:.5rem;--space-3:.75rem;--space-4:1rem;--space-5:1.5rem;--space-6:2rem;--content-max:1440px;--control-height:2.625rem;--table-row:3rem;--radius-sm:.25rem;--radius-md:.5rem;--border-width:1px;--color-bg:#f7f6f4;--color-surface:#fff;--color-text:#2d292f;--color-muted:#6c656e;--color-border:#ded9df;--color-brand:#765078;--color-brand-hover:#624064;--color-focus:#98769a;--color-success:#34745a;--color-warning:#9b651f;--color-danger:#a23d46;--color-on-brand:#fff;--color-print:#000;--shadow:0 1px 3px rgba(45,41,47,.1)}
+:root {
+  --font-family: "Vazirmatn";
+  --font-size-helper: .75rem;
+  --font-size-label: .8125rem;
+  --font-size-body: .875rem;
+  --font-size-card-title: 1rem;
+  --font-size-section-title: 1.125rem;
+  --font-size-page-title: 1.5rem;
+  --font-size-kpi: 1.75rem;
+  --weight-normal: 400;
+  --weight-semibold: 600;
+  --line-tight: 1.45;
+  --line-normal: 1.7;
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --content-max: 1440px;
+  --shell-height: 4.75rem;
+  --nav-height: 2.625rem;
+  --nav-font-size: .75rem;
+  --nav-item-padding: .45rem;
+  --shell-side-width: 11.25rem;
+  --control-compact: 1.8rem;
+  --control-standard: 2.25rem;
+  --control-emphasized: 2.5rem;
+  --table-header-height: 2.25rem;
+  --table-row-height: 2.25rem;
+  --radius-sm: .25rem;
+  --radius-md: .5rem;
+  --radius-lg: .75rem;
+  --border-width: 1px;
+  --neutral-0: #ffffff;
+  --neutral-25: #fbfaf9;
+  --neutral-50: #f6f4f2;
+  --neutral-100: #eeeae7;
+  --neutral-200: #ddd8d4;
+  --neutral-500: #726b68;
+  --neutral-700: #423d3b;
+  --neutral-900: #252221;
+  --color-bg: var(--neutral-50);
+  --color-surface: var(--neutral-0);
+  --color-surface-subtle: var(--neutral-25);
+  --color-text: var(--neutral-900);
+  --color-muted: var(--neutral-500);
+  --color-border: var(--neutral-200);
+  --color-brand: #765078;
+  --color-brand-hover: #624064;
+  --color-focus: #8a668d;
+  --color-accent: var(--color-brand);
+  --color-accent-soft: #f1eaf2;
+  --color-success: #34745a;
+  --color-success-soft: #e9f3ee;
+  --color-warning: #9b651f;
+  --color-warning-soft: #f8efe1;
+  --color-danger: #a23d46;
+  --color-danger-soft: #f8e9eb;
+  --color-info: #376f83;
+  --color-info-soft: #e7f1f4;
+  --color-on-accent: #ffffff;
+  --color-print: #000000;
+  --shadow-float: 0 .25rem .75rem rgba(37, 34, 33, .12);
+  --section-dashboard: #376f83;
+  --section-dashboard-soft: #e7f1f4;
+  --section-spaces: #4f6f58;
+  --section-spaces-soft: #eaf1ec;
+  --section-contracts: #8a5b42;
+  --section-contracts-soft: #f5ece7;
+  --section-appraisals: #765078;
+  --section-appraisals-soft: #f1eaf2;
+  --section-auctions: #9b651f;
+  --section-auctions-soft: #f8efe1;
+  --section-utilities: #397377;
+  --section-utilities-soft: #e7f2f2;
+  --section-workflows: #735f55;
+  --section-workflows-soft: #f2edeb;
+  --section-documents: #596b85;
+  --section-documents-soft: #ebeff4;
+  --section-alerts: #a23d46;
+  --section-alerts-soft: #f8e9eb;
+  --section-reports: #67558a;
+  --section-reports-soft: #efecf5;
+  --section-users: #526873;
+  --section-users-soft: #eaf0f2;
+}
+
+.section-dashboard { --color-accent: var(--section-dashboard); --color-accent-soft: var(--section-dashboard-soft); }
+.section-spaces { --color-accent: var(--section-spaces); --color-accent-soft: var(--section-spaces-soft); }
+.section-contracts { --color-accent: var(--section-contracts); --color-accent-soft: var(--section-contracts-soft); }
+.section-appraisals { --color-accent: var(--section-appraisals); --color-accent-soft: var(--section-appraisals-soft); }
+.section-auctions { --color-accent: var(--section-auctions); --color-accent-soft: var(--section-auctions-soft); }
+.section-utilities { --color-accent: var(--section-utilities); --color-accent-soft: var(--section-utilities-soft); }
+.section-workflows { --color-accent: var(--section-workflows); --color-accent-soft: var(--section-workflows-soft); }
+.section-documents { --color-accent: var(--section-documents); --color-accent-soft: var(--section-documents-soft); }
+.section-alerts { --color-accent: var(--section-alerts); --color-accent-soft: var(--section-alerts-soft); }
+.section-reports { --color-accent: var(--section-reports); --color-accent-soft: var(--section-reports-soft); }
+.section-users { --color-accent: var(--section-users); --color-accent-soft: var(--section-users-soft); }
+
+/* UAT.12 frozen semantic aliases: all values derive from the approved palette. */
+:root {
+  --surface-page: var(--neutral-50); --surface-card: var(--neutral-0); --surface-muted: var(--neutral-25);
+  --text-primary: var(--neutral-900); --text-secondary: var(--neutral-500);
+  --border-default: var(--neutral-200); --border-strong: var(--neutral-500);
+  --control-xs: 1.875rem; --control-sm: 2rem; --control-md: 2.25rem;
+  --toolbar-gap: var(--space-2); --card-padding: var(--space-3); --modal-padding: var(--space-4);
+  --section-regions: var(--section-dashboard); --section-regions-soft: var(--section-dashboard-soft);
+}
+.section-regions { --color-accent: var(--section-regions); --color-accent-soft: var(--section-regions-soft); }

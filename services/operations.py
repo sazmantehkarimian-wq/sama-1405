@@ -35,6 +35,10 @@ def _money(value: str, label: str, *, allow_zero: bool = False) -> Decimal:
     return amount
 
 
+def _timeline(*, space, actor, event_type, source, source_id, title, date="", description="", previous="", new="", document=None):
+    TimelineEvent.objects.create(space=space,event_type=event_type,jalali_date=date,occurred_at=timezone.now(),source_entity=source,source_entity_id=str(source_id),title=title,description=description,previous_state=previous,new_state=new,responsible_person=actor.get_full_name() or actor.username,document=document,provenance="رویداد عملیاتی ثبت‌شده در سامانه",target_url=f"/spaces/{space.code}/")
+
+
 @retry_locked
 @transaction.atomic
 def record_appraisal_fee(*, appraisal: Appraisal, actor, amount: str, payment_status: str,
@@ -56,6 +60,7 @@ def record_appraisal_fee(*, appraisal: Appraisal, actor, amount: str, payment_st
     OperationalHistory.objects.create(entity_type="AppraisalFee", entity_id=str(fee.pk),
         action="CREATED", previous_state=None, new_state={"payment_status": fee.payment_status},
         responsible=actor)
+    _timeline(space=appraisal.space,actor=actor,event_type="APPRAISAL_FEE_CREATE",source="AppraisalFee",source_id=fee.pk,title="ثبت حق‌الزحمه کارشناسی",date=fee.payment_date or fee.follow_up_date,new=fee.payment_status,document=document)
     return fee
 
 
@@ -90,6 +95,7 @@ def record_utility(*, space, actor, values: dict, document: Document | None = No
     OperationalHistory.objects.create(entity_type="UtilityRecord", entity_id=str(record.pk),
         action="CREATED", previous_state=None, new_state={"payment_status": record.payment_status,
         "bill_amount_rial": str(bill)}, reason=reason, responsible=actor)
+    _timeline(space=space,actor=actor,event_type="UTILITY_RECORD_CREATE",source="UtilityRecord",source_id=record.pk,title="ثبت صورتحساب انشعاب",date=record.period_end,new=record.payment_status,description=record.get_utility_type_display(),document=document)
     return record
 
 
@@ -116,6 +122,7 @@ def transition_workflow(*, workflow: WorkflowInstance, actor, new_state: str, ne
         action="TRANSITION", previous_state=before,
         new_state={"state": workflow.state, "next_action": workflow.next_action, "due_date": workflow.due_date},
         responsible=actor)
+    _timeline(space=workflow.space,actor=actor,event_type="WORKFLOW_TRANSITION",source="WorkflowInstance",source_id=workflow.pk,title=f"تغییر وضعیت فرایند {workflow.title}",date=workflow.due_date,previous=before["state"],new=workflow.state,description=workflow.next_action)
     return workflow
 
 
@@ -134,6 +141,7 @@ def create_workflow(*, space, actor, process_type: str, title: str, next_action:
     AuditEvent.objects.create(actor=actor, action="WORKFLOW_CREATE", entity_type="WorkflowInstance",
         entity_id=str(workflow.pk), after={"space": space.code, "process_type": process_type},
         ip_address=ip_address)
+    _timeline(space=space,actor=actor,event_type="WORKFLOW_CREATE",source="WorkflowInstance",source_id=workflow.pk,title=f"ایجاد فرایند {workflow.title}",date=workflow.due_date,new=workflow.state,description=workflow.next_action)
     return workflow
 
 
@@ -152,6 +160,7 @@ def transition_commission(*, decision: CommissionDecision, actor, new_state: str
         action="TRANSITION", previous_state=before, new_state=after, reason=reason.strip(), responsible=actor)
     AuditEvent.objects.create(actor=actor, action="COMMISSION_TRANSITION", entity_type="CommissionDecision",
         entity_id=str(decision.pk), reason=reason.strip(), before=before, after=after, ip_address=ip_address)
+    for space in decision.spaces.all():_timeline(space=space,actor=actor,event_type="COMMISSION_TRANSITION",source="CommissionDecision",source_id=decision.pk,title=f"تغییر وضعیت تصمیم کمیسیون {decision.identity}",date=decision.decision_date,previous=before["state"],new=decision.state,description=reason)
     return decision
 
 
@@ -162,12 +171,15 @@ def resolve_alert(*, alert: Alert, actor, reason: str, ip_address=None) -> Alert
         raise ValidationError("شرح اقدام انجام‌شده الزامی است.")
     before = {"status": alert.status}
     alert.status = "RESOLVED"
-    alert.save(update_fields=["status"])
+    alert.assigned_to = alert.assigned_to or actor
+    alert.acknowledged_at = alert.acknowledged_at or timezone.now()
+    alert.save(update_fields=["status","assigned_to","acknowledged_at"])
     OperationalHistory.objects.create(entity_type="Alert", entity_id=str(alert.pk), action="RESOLVED",
         previous_state=before, new_state={"status": alert.status}, reason=reason.strip(), responsible=actor)
     AuditEvent.objects.create(actor=actor, action="ALERT_RESOLVE", entity_type="Alert",
         entity_id=str(alert.pk), reason=reason.strip(), before=before, after={"status": alert.status},
         ip_address=ip_address)
+    _timeline(space=alert.space,actor=actor,event_type="ALERT_RESOLVE",source="Alert",source_id=alert.pk,title=f"مختومه‌سازی مورد پیگیری: {alert.subject}",previous=before["status"],new=alert.status,description=reason)
     return alert
 
 
@@ -199,6 +211,7 @@ def create_commission_decision(*, identity: str, decision_date: str, subject: st
         entity_type="CommissionDecision", entity_id=str(record.pk), action="CREATED",
         previous_state=None, new_state={"state": record.state, "spaces": codes}, responsible=actor,
     )
+    for space in spaces:_timeline(space=space,actor=actor,event_type="COMMISSION_CREATE",source="CommissionDecision",source_id=record.pk,title=f"ثبت تصمیم کمیسیون {identity}",date=record.decision_date,new=record.state,description=record.subject,document=document)
     return record
 
 
@@ -216,8 +229,10 @@ def create_appraisal(*, space, actor, values, document=None, ip_address=None):
 
 @retry_locked
 @transaction.atomic
-def create_alert(*,space,actor,subject,reason,due_date='',target_url='',ip_address=None):
+def create_alert(*,space,actor,subject,reason,due_date='',priority='MEDIUM',target_url='',ip_address=None):
     if not subject.strip() or not reason.strip():raise ValidationError('موضوع و علت هشدار الزامی است.')
-    alert=Alert.objects.create(space=space,subject=subject.strip(),reason=reason.strip(),due_date=_date(due_date),status='OPEN',target_url=target_url or f'/spaces/{space.code}/')
+    if priority not in Alert.Priority.values:raise ValidationError('اولویت مورد پیگیری معتبر نیست.')
+    alert=Alert.objects.create(space=space,subject=subject.strip(),reason=reason.strip(),due_date=_date(due_date),priority=priority,status='OPEN',assigned_to=actor,target_url=target_url or f'/spaces/{space.code}/')
     AuditEvent.objects.create(actor=actor,action='ALERT_CREATE',entity_type='Alert',entity_id=str(alert.pk),after={'space':space.code,'due_date':alert.due_date},ip_address=ip_address)
+    _timeline(space=space,actor=actor,event_type='ALERT_CREATE',source='Alert',source_id=alert.pk,title=f'ثبت مورد نیازمند پیگیری: {alert.subject}',date=alert.due_date,new=alert.status,description=alert.reason)
     return alert

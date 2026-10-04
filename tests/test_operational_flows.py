@@ -21,8 +21,12 @@ def test_document_and_file_movement_are_server_side_audited(client,tmp_path,sett
  response=client.post('/spaces/501/documents/',{'title':'مدرک','document_type':'نامه','file':upload})
  assert response.status_code==302
  document=Document.objects.get();assert document.sha256 and document.file.storage.exists(document.file.name)
+ assert b''.join(client.get(f'/documents/{document.pk}/download/').streaming_content)==b'%PDF-1.4\nproof'
+ anonymous=Client();assert anonymous.get(f'/documents/{document.pk}/download/').status_code==302
  assert AuditEvent.objects.filter(action='FILE_MOVEMENT_CREATE').exists()
  assert AuditEvent.objects.filter(action='DOCUMENT_UPLOAD').exists()
+ from domains.operations.models import TimelineEvent
+ assert TimelineEvent.objects.filter(space=space,event_type='DOCUMENT_UPLOAD',document=document).exists()
 
 @pytest.mark.django_db(transaction=True)
 def test_five_authenticated_users_can_read_search_and_generate_reports():
@@ -55,7 +59,7 @@ def test_five_authenticated_users_can_commit_independent_operational_writes():
 
 @pytest.mark.django_db
 def test_fee_utility_and_workflow_commands_validate_and_audit(client):
- from domains.operations.models import Appraisal,AppraisalFee,UtilityRecord,WorkflowInstance
+ from domains.operations.models import Appraisal,AppraisalFee,UtilityRecord,WorkflowInstance,TimelineEvent
  from domains.registry.models import ImportBatch,SourceFile
  user=get_user_model().objects.create_user('operator2',password='A-very-safe-password')
  client.force_login(user)
@@ -79,10 +83,11 @@ def test_fee_utility_and_workflow_commands_validate_and_audit(client):
  assert OperationalHistory.objects.filter(entity_type='AppraisalFee',action='CREATED').exists()
  assert OperationalHistory.objects.filter(entity_type='UtilityRecord',action='CREATED').exists()
  assert OperationalHistory.objects.filter(entity_type='WorkflowInstance',action='TRANSITION').exists()
+ assert set(TimelineEvent.objects.filter(space=space).values_list('event_type',flat=True)) >= {'APPRAISAL_FEE_CREATE','UTILITY_RECORD_CREATE','WORKFLOW_TRANSITION'}
 
 @pytest.mark.django_db
 def test_operational_workflow_commission_and_alert_lifecycles(client):
- from domains.operations.models import Alert, CommissionDecision, WorkflowInstance
+ from domains.operations.models import Alert, CommissionDecision, WorkflowInstance, TimelineEvent
  user=get_user_model().objects.create_user('operator3',password='A-very-safe-password')
  space=CommercialSpace.objects.create(code='503',name='فضا',status='ACTIVE',source_row=2,source_classification='authority')
  client.force_login(user)
@@ -96,6 +101,7 @@ def test_operational_workflow_commission_and_alert_lifecycles(client):
  response=client.post(f'/alerts/{alert.pk}/resolve/',{'reason':'اقدام و ثبت نامه'})
  alert.refresh_from_db();assert response.status_code==302 and alert.status=='RESOLVED'
  assert set(AuditEvent.objects.values_list('action',flat=True)) >= {'WORKFLOW_CREATE','COMMISSION_TRANSITION','ALERT_RESOLVE'}
+ assert set(TimelineEvent.objects.filter(space=space).values_list('event_type',flat=True)) >= {'WORKFLOW_CREATE','COMMISSION_TRANSITION','ALERT_RESOLVE'}
 
 @pytest.mark.django_db
 def test_commission_workspace_creates_linked_audited_decision(client):
@@ -111,7 +117,7 @@ def test_commission_workspace_creates_linked_audited_decision(client):
 
 @pytest.mark.django_db
 def test_auction_workspace_evaluates_and_adds_candidate_to_draft_period(client):
- from domains.operations.models import Appraisal,AuctionRule,AuctionPeriod,AuctionLot
+ from domains.operations.models import Appraisal,AuctionRule,AuctionPeriod,AuctionLot,TimelineEvent
  from domains.registry.models import ImportBatch,SourceFile
  user=get_user_model().objects.create_user('auction-operator',password='A-very-safe-password')
  client.force_login(user)
@@ -126,6 +132,7 @@ def test_auction_workspace_evaluates_and_adds_candidate_to_draft_period(client):
  period=AuctionPeriod.objects.get(identity='P-1')
  assert client.post(f'/auctions/periods/{period.pk}/lots/',{'evaluation_id':evaluation.pk}).status_code==302
  assert AuctionLot.objects.filter(period=period,space=space,evaluation=evaluation).exists()
+ assert set(TimelineEvent.objects.filter(space=space).values_list('event_type',flat=True)) >= {'AUCTION_EVALUATE','AUCTION_LOT_ADD'}
  assert set(AuditEvent.objects.values_list('action',flat=True)) >= {'AUCTION_EVALUATE','AUCTION_PERIOD_CREATE','AUCTION_LOT_ADD'}
 
 @pytest.mark.django_db
@@ -151,3 +158,18 @@ def test_post_go_live_contract_appraisal_amendment_and_alert_are_typed_and_audit
  space.refresh_from_db();assert space.status=='OUT_OF_CYCLE'
  history=space.status_history.latest('id');assert history.previous_state=='ACTIVE' and history.responsible_user==user
  assert TimelineEvent.objects.filter(space=space,event_type='SPACE_STATUS_TRANSITION',previous_state='ACTIVE',new_state='OUT_OF_CYCLE').exists()
+
+@pytest.mark.django_db
+def test_specialist_beneficiary_registration_is_audited_and_returns_to_dossier(client):
+ from domains.contracts.models import Beneficiary,BeneficiaryAssignment
+ from domains.identity.models import AuditEvent
+ from domains.operations.models import TimelineEvent
+ user=get_user_model().objects.create_user('beneficiary-operator',password='A-very-safe-password')
+ space=CommercialSpace.objects.create(code='BEN-OP',name='فضای بهره‌بردار',status='ACTIVE',source_row=1,source_classification='authority')
+ client.force_login(user)
+ response=client.post(f'/spaces/{space.code}/beneficiaries/',{'name':'شرکت نمونه مستند','kind':'LEGAL','identity_number':'101010','role':'بهره‌بردار','start_date':'1405/01/01'})
+ assert response.status_code==302 and response.url==f'/spaces/{space.code}/'
+ beneficiary=Beneficiary.objects.get(name='شرکت نمونه مستند');assert beneficiary.kind=='LEGAL'
+ assert BeneficiaryAssignment.objects.filter(space=space,beneficiary=beneficiary,start_date='1405/01/01').exists()
+ assert AuditEvent.objects.filter(action='BENEFICIARY_CREATE',entity_id=str(beneficiary.pk)).exists()
+ assert TimelineEvent.objects.filter(space=space,event_type='BENEFICIARY_CREATE').exists()

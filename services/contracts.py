@@ -33,7 +33,7 @@ def create_contract(*,space,actor,values,ip_address=None):
   start=normalize_jalali(values.get('start_date',''));end=normalize_jalali(values.get('end_date',''))
  except ValueError as exc:raise ValidationError('تاریخ قرارداد معتبر نیست.') from exc
  if not start or not end or start>end:raise ValidationError('بازه تاریخ قرارداد معتبر نیست.')
- beneficiary,_=Beneficiary.objects.get_or_create(name=beneficiary_name)
+ beneficiary,_=Beneficiary.objects.get_or_create(name=beneficiary_name,defaults={'kind':Beneficiary.Kind.UNSPECIFIED})
  record=Contract.objects.create(space=space,beneficiary=beneficiary,number=number,signed_date=signed,start_date=start,end_date=end,amount_rial=_money(values.get('amount_rial'),'مبلغ قرارداد'),investment_commitment_rial=_money(values.get('investment_commitment_rial'),'تعهد سرمایه‌گذاری'),status=values.get('status','').strip(),signed_state=values.get('signed_state','').strip(),is_historical=False,created_by=actor)
  BeneficiaryAssignment.objects.create(space=space,beneficiary=beneficiary,role='بهره‌بردار قرارداد',start_date=start,end_date=end,status='ACTIVE',created_by=actor)
  AuditEvent.objects.create(actor=actor,action='CONTRACT_CREATE',entity_type='Contract',entity_id=str(record.pk),after={'space':space.code,'number':number},ip_address=ip_address)

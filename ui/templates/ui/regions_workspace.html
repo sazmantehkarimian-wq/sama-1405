@@ -1,0 +1,5 @@
+{% extends 'ui/base.html' %}{% load presentation %}{% block title %}مناطق و مراکز{% endblock %}{% block section_class %}section-regions{% endblock %}{% block content %}
+<div class="page-header"><div><h1>مناطق و مراکز</h1><p>دسترسی مدیریتی زنده؛ بدون ایجاد نسخه دوم از اطلاعات</p></div><div class="page-toolbar no-print"><button type="button" class="button tertiary compact" data-print>چاپ</button></div></div>
+<section class="card card-accent"><h2>انتخاب منطقه</h2><div class="region-grid">{% for region in regions %}<a class="region-tile" href="{% url 'region-workspace' region.id %}"><strong>{{ region.code|fa_digits }}</strong><span>{{ region.name }}</span><small>{{ region.space_count|fa_digits }} فضای تجاری · {{ region.property_count|fa_digits }} ملک مادر</small></a>{% endfor %}</div></section>
+<section class="card"><a class="special-center-entry" href="{% url 'special-centers-workspace' %}"><span><strong>مراکز خاص</strong><small>محدوده مدیریتی مستقل با حفظ منطقه جغرافیایی</small></span><b>{{ special_count|fa_digits }}</b></a></section>
+{% endblock %}
