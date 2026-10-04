@@ -21,7 +21,8 @@ def test_mother_report_exact_layout_blank_columns_and_rtl(client):
  params=[('layout','field:identifier'),('layout','blank:توضیحات کارشناس'),('layout','field:name'),('layout','blank:امضاء'),('field','identifier'),('field','name'),('blank','توضیحات کارشناس'),('blank','امضاء'),('sort','region'),('sort','identifier')]
  response=client.get('/mother-properties/report.xlsx',params);assert response.status_code==200
  ws=load_workbook(io.BytesIO(response.content)).active
- assert ws.sheet_view.rightToLeft is True and [c.value for c in ws[4]]==['شناسه ملک','توضیحات کارشناس','نام ملک / مرکز','امضاء'] and ws.freeze_panes=='A5' and ws.auto_filter.ref
+ header=next(row for row in range(1,ws.max_row+1) if ws.cell(row,1).value=='شناسه ملک')
+ assert ws.sheet_view.rightToLeft is True and [c.value for c in ws[header]]==['شناسه ملک','توضیحات کارشناس','نام ملک / مرکز','امضاء'] and ws.freeze_panes==f'A{header+1}' and ws.auto_filter.ref
 
 def test_mother_filter_does_not_infer_identifier_equivalence(client):
  MotherProperty.objects.create(identifier='P-0001',name='الف',source_row=2);MotherProperty.objects.create(identifier='MP-000001',name='ب',source_row=3);user=get_user_model().objects.create_user('u');client.force_login(user)

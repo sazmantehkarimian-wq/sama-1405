@@ -17,7 +17,7 @@ from domains.documents.models import Document
 from queries.spaces import filter_spaces
 from queries.kpis import dashboard_kpis, scoped_counts
 from services.file_movement import current_holder
-from reporting.engine import excel,docx,pdf,tabular_excel,tabular_pdf,tabular_docx,output_table,MOTHER_FIELD_MAP
+from reporting.engine import excel,docx,pdf,tabular_excel,tabular_pdf,tabular_docx,output_table,MOTHER_FIELD_MAP,FIELD_MAP,ReportDataset
 from ui.forms import PersianPasswordChangeForm
 from core.uat import is_fixed_uat_admin
 from services.money import format_rial
@@ -39,7 +39,7 @@ def regions_workspace(request):
 @login_required
 def region_workspace(request,region_id):
  region=get_object_or_404(Region,pk=region_id);spaces=CommercialSpace.objects.filter(region=region).exclude(center__is_special=True)
- return render(request,'ui/region_workspace.html',{'scope':region,'scope_kind':'region','scope_param':f'region_id={region.pk}','spaces':filter_spaces({'region_id':[str(region.pk)]}).exclude(center__is_special=True)[:20],**scoped_counts(spaces)})
+ return render(request,'ui/region_workspace.html',{'scope':region,'scope_kind':'region','scope_param':f'region_id={region.pk}','spaces':filter_spaces({'region_id':[str(region.pk)]}).exclude(center__is_special=True),**scoped_counts(spaces)})
 
 @login_required
 def special_centers_workspace(request):
@@ -50,7 +50,26 @@ def special_centers_workspace(request):
 @login_required
 def special_center_workspace(request,center_id):
  center=get_object_or_404(Center.objects.select_related('region'),pk=center_id,is_special=True);spaces=CommercialSpace.objects.filter(center=center)
- return render(request,'ui/region_workspace.html',{'scope':center,'scope_kind':'center','scope_param':f'center_id={center.pk}','spaces':filter_spaces({'center_id':[str(center.pk)]})[:20],**scoped_counts(spaces)})
+ return render(request,'ui/region_workspace.html',{'scope':center,'scope_kind':'center','scope_param':f'center_id={center.pk}','spaces':filter_spaces({'center_id':[str(center.pk)]}),**scoped_counts(spaces)})
+
+@login_required
+def region_export(request,region_id,report_kind,format):
+ region=get_object_or_404(Region,pk=region_id);spaces=filter_spaces({'region_id':[str(region.pk)]}).exclude(center__is_special=True)
+ labels={'all':'فهرست کامل فضاهای تجاری','active':'فهرست فضاهای فعال','inactive':'فهرست فضاهای خارج از چرخه','without-contract':'فهرست فضاهای فاقد قرارداد','without-appraisal':'فهرست فضاهای فاقد کارشناسی'}
+ if report_kind not in labels:return HttpResponse(status=404)
+ if report_kind=='active':spaces=spaces.filter(status='ACTIVE')
+ elif report_kind=='inactive':spaces=spaces.filter(status='OUT_OF_CYCLE')
+ elif report_kind=='without-contract':spaces=spaces.filter(status='ACTIVE',contracts__isnull=True)
+ elif report_kind=='without-appraisal':spaces=spaces.filter(status='ACTIVE',appraisals__isnull=True)
+ columns=('کد فضا','نام فضا / مرکز','منطقه','وضعیت','کاربری','مساحت')
+ rows=tuple((s.code,s.name or 'ثبت نشده',s.region.name if s.region else 'ثبت نشده',s.get_status_display(),s.current_usage or 'ثبت نشده',s.area if s.area is not None else 'ثبت نشده') for s in spaces.distinct())
+ report=ReportDataset(f'{labels[report_kind]} {region.name}',region.name,(f'نوع گزارش: {labels[report_kind]}',),'ساختار مدیریتی، مرکز، کد عددی',columns,rows,'commercial-spaces')
+ if format=='xlsx':payload,content=tabular_excel(report),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+ elif format=='pdf':payload,content=tabular_pdf(report),'application/pdf'
+ elif format=='docx':payload,content=tabular_docx(report),'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+ elif format=='print':return render(request,'ui/official_table_report.html',{'report':report,'rows':report.rows,'disclosure':report.disclosure})
+ else:return HttpResponse(status=404)
+ return HttpResponse(payload,content_type=content,headers={'Content-Disposition':f'attachment; filename="region-{region.code}-{report_kind}.{format}"'})
 
 @login_required
 def mother_property_list(request):
@@ -58,7 +77,7 @@ def mother_property_list(request):
  qs=filter_mother_properties(request.GET);page=Paginator(qs,25).get_page(request.GET.get('page'))
  available=(('name','نام'),('region','منطقه'),('usage','کاربری'),('area','مساحت'),('space_count','فضاهای مرتبط'))
  requested=[value for value in request.GET.getlist('column') if value in dict(available)]
- return render(request,'ui/mother_property_list.html',{'page':page,'total':qs.count(),'dataset_total':MotherProperty.objects.count(),'regions':Region.objects.order_by('name'),'available_columns':available,'visible_columns':requested or [x[0] for x in available]})
+ return render(request,'ui/mother_property_list.html',{'page':page,'print_items':qs,'total':qs.count(),'dataset_total':MotherProperty.objects.count(),'regions':Region.objects.order_by('name'),'available_columns':available,'visible_columns':requested or [x[0] for x in available]})
 
 @login_required
 def mother_property_detail(request,identifier):
@@ -75,14 +94,27 @@ def mother_report(request):
  return render(request,'ui/mother_property_report.html',{'fields':fields,'query':request.GET.urlencode()})
 @login_required
 def mother_report_preview(request):
- labels,rows=output_table(_mother_query(request)[:100],request.GET.getlist('layout'),request.GET.getlist('field'),request.GET.getlist('blank'),MOTHER_FIELD_MAP,request.GET.get('blank_rows',0))
+ labels,rows=output_table(_mother_query(request),request.GET.getlist('layout'),request.GET.getlist('field'),request.GET.getlist('blank'),MOTHER_FIELD_MAP,request.GET.get('blank_rows',0))
  return render(request,'ui/report_preview.html',{'labels':labels,'rows':rows,'query':request.GET.urlencode(),'export_prefix':'mother-properties'})
+
+def _filter_disclosure(params,names):
+ values=[]
+ for key,label in names:
+  value=params.get(key)
+  if value:values.append(f'{label}: {value}')
+ return tuple(values)
+
+def _mother_dataset(request):
+ qs=_mother_query(request);labels,rows=output_table(qs,request.GET.getlist('layout'),request.GET.getlist('field'),request.GET.getlist('blank'),MOTHER_FIELD_MAP,request.GET.get('blank_rows',0))
+ filters=_filter_disclosure(request.GET,(('q','جست‌وجو'),('identifier','شناسه'),('property_name','نام ملک'),('region_id','منطقه'),('usage','کاربری')))
+ title='املاک مادر — کل رکوردهای مرجع' if not filters else 'فهرست فیلترشده املاک مادر'
+ return ReportDataset(title,'کل سازمان',filters,'منطقه، نام ملک، شناسه',tuple(labels),tuple(tuple(row) for row in rows),'mother-properties',request.GET.get('orientation','landscape'))
 @login_required
-def mother_excel(request):return HttpResponse(excel(_mother_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP,'املاک مادر',request.GET.get('blank_rows',0)),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="mother-properties.xlsx"'})
+def mother_excel(request):return HttpResponse(tabular_excel(_mother_dataset(request)),content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Content-Disposition':'attachment; filename="mother-properties.xlsx"'})
 @login_required
-def mother_docx(request):return HttpResponse(docx(_mother_query(request),request.GET.getlist('blank'),request.GET.getlist('field'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP,request.GET.get('blank_rows',0)),content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':'attachment; filename="mother-properties.docx"'})
+def mother_docx(request):return HttpResponse(tabular_docx(_mother_dataset(request)),content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',headers={'Content-Disposition':'attachment; filename="mother-properties.docx"'})
 @login_required
-def mother_pdf(request):return HttpResponse(pdf(_mother_query(request),request.GET.getlist('field'),request.GET.getlist('blank'),request.GET.getlist('layout'),request.GET.get('orientation','landscape'),MOTHER_FIELD_MAP,request.GET.get('blank_rows',0)),content_type='application/pdf',headers={'Content-Disposition':'attachment; filename="mother-properties.pdf"'})
+def mother_pdf(request):return HttpResponse(tabular_pdf(_mother_dataset(request)),content_type='application/pdf',headers={'Content-Disposition':'attachment; filename="mother-properties.pdf"'})
 @login_required
 def space_list(request):
  qs=filter_spaces(request.GET);page=Paginator(qs,25).get_page(request.GET.get('page'))
@@ -131,7 +163,9 @@ def space_detail(request,code):
  if event_type=='UNDATED':dated=timeline.none()
  elif event_type:dated=dated.filter(event_type=event_type)
  event_types=s.timeline.exclude(jalali_date='').order_by().values_list('event_type',flat=True).distinct()
- return render(request,'ui/space_detail.html',{'space':s,'holder':current_holder(s),'timeline_events':dated,'undated_events':undated,'event_types':event_types,'uploaded_documents':Document.objects.filter(entity_type='CommercialSpace',entity_id=s.code,archived_at__isnull=True),'history':__import__('domains.operations.models',fromlist=['OperationalHistory']).OperationalHistory.objects.filter(entity_type__in=['WorkflowInstance','AppraisalFee','UtilityRecord','CommissionDecision','Alert'])[:100]})
+ current_beneficiary=next((a for a in s.beneficiary_assignments.all() if a.status=='ACTIVE'),None)
+ valid_appraisal=next((a for a in s.appraisals.all() if a.appraisal_date and a.appraiser),None)
+ return render(request,'ui/space_detail.html',{'space':s,'holder':current_holder(s),'current_beneficiary':current_beneficiary,'valid_appraisal':valid_appraisal,'timeline_events':dated,'undated_events':undated,'event_types':event_types,'uploaded_documents':Document.objects.filter(entity_type='CommercialSpace',entity_id=s.code,archived_at__isnull=True),'history':__import__('domains.operations.models',fromlist=['OperationalHistory']).OperationalHistory.objects.filter(entity_type__in=['WorkflowInstance','AppraisalFee','UtilityRecord','CommissionDecision','Alert'])[:100]})
 
 @login_required
 @require_POST
@@ -283,9 +317,11 @@ def domain_export(request,domain,format):
  try:blank_rows=max(0,min(int(request.GET.get('blank_rows',0) or 0),50))
  except ValueError:blank_rows=0
  data += [['']*len(labels) for _ in range(blank_rows)]
- if format=='xlsx':payload=tabular_excel(title,labels,data);content='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
- elif format=='pdf':payload=tabular_pdf(title,labels,data,request.GET.get('orientation','landscape'));content='application/pdf'
- elif format=='docx':payload=tabular_docx(title,labels,data,request.GET.get('orientation','landscape'));content='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+ filters=_filter_disclosure(request.GET,(('q','جست‌وجو'),('region_id','منطقه'),('center_id','مرکز'),('space_code','کد فضا'),('status','وضعیت'),('quality','کیفیت'),('date_from','از تاریخ'),('date_to','تا تاریخ'),('amount_min','حداقل مبلغ'),('amount_max','حداکثر مبلغ')))
+ report=ReportDataset(title,'محدوده انتخاب‌شده' if request.GET.get('region_id') or request.GET.get('center_id') else 'کل سازمان',filters,request.GET.get('sort') or 'مرتب‌سازی پیش‌فرض',tuple(labels),tuple(tuple(row) for row in data),domain,request.GET.get('orientation','landscape'))
+ if format=='xlsx':payload=tabular_excel(report);content='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+ elif format=='pdf':payload=tabular_pdf(report);content='application/pdf'
+ elif format=='docx':payload=tabular_docx(report);content='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
  else:return HttpResponse(status=404)
  return HttpResponse(payload,content_type=content,headers={'Content-Disposition':f'attachment; filename="{domain}.{format}"'})
 
@@ -300,10 +336,11 @@ def dossier_section_export(request,code,section,format):
  try:blank_rows=max(0,min(int(request.GET.get('blank_rows',0) or 0),50))
  except ValueError:blank_rows=0
  rows=list(report.rows)+[['']*len(report.labels) for _ in range(blank_rows)]
- if format=='xlsx':payload=tabular_excel(report.title,report.labels,rows);content='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
- elif format=='docx':payload=tabular_docx(report.title,report.labels,rows,request.GET.get('orientation','landscape'));content='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
- elif format=='pdf':payload=tabular_pdf(report.title,report.labels,rows,request.GET.get('orientation','landscape'));content='application/pdf'
- elif format=='print':return render(request,'ui/official_table_report.html',{'report':report,'rows':rows,'space':space})
+ dataset=ReportDataset(report.title,f'فضای تجاری {space.code}',(), 'ترتیب ثبت‌شده',tuple(report.labels),tuple(tuple(row) for row in rows),f'dossier:{section}',request.GET.get('orientation','landscape'))
+ if format=='xlsx':payload=tabular_excel(dataset);content='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+ elif format=='docx':payload=tabular_docx(dataset);content='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+ elif format=='pdf':payload=tabular_pdf(dataset);content='application/pdf'
+ elif format=='print':return render(request,'ui/official_table_report.html',{'report':dataset,'rows':dataset.rows,'space':space,'disclosure':dataset.disclosure})
  else:return HttpResponse(status=404)
  return HttpResponse(payload,content_type=content,headers={'Content-Disposition':f'attachment; filename="space-{space.code}-{section}.{format}"'})
 

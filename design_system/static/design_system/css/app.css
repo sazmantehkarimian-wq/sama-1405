@@ -51,3 +51,5 @@ button,.button{min-height:var(--control-standard);border:var(--border-width) sol
 @media print{.section-standalone-toolbar{display:none}}
 @media print{.dossier-section .button-row,.dossier-section .section-export,.dossier-section form{display:none!important}}
 .section-standalone-toolbar{height:auto;position:relative;margin-bottom:var(--space-1)}.section-standalone-toolbar .section-export{transform:none}
+.print-only{display:none}
+@media print{.print-only{display:block!important}.section-heading{break-after:avoid-page}.section-card{break-inside:auto}.scope-kpis{break-inside:avoid-page}.table-wrap{overflow:visible}thead{display:table-header-group}tr,td,th{break-inside:avoid-page}.official-browser-report header{break-after:avoid-page}.official-browser-report table{break-before:avoid-page}}

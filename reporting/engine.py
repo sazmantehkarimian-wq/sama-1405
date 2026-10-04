@@ -1,5 +1,6 @@
 """Single official output engine for filtered canonical querysets."""
 from io import BytesIO
+from dataclasses import dataclass
 from pathlib import Path
 from decimal import Decimal
 from openpyxl import Workbook
@@ -40,6 +41,22 @@ DEFAULT_FIELDS=tuple(FIELD_MAP)
 BASE=Path(__file__).resolve().parents[1]
 LOGO=BASE/'design_system/static/design_system/img/organization-logo.png'
 FONT=BASE/'design_system/static/design_system/fonts/Vazirmatn-Regular.ttf'
+
+@dataclass(frozen=True)
+class ReportDataset:
+ """One immutable dataset consumed unchanged by every official format."""
+ title: str
+ scope: str
+ filters: tuple
+ sort: str
+ columns: tuple
+ rows: tuple
+ source_domain: str
+ orientation: str='landscape'
+ @property
+ def result_count(self):return len(self.rows)
+ @property
+ def disclosure(self):return (f'محدوده: {self.scope}',*(self.filters or ('بدون فیلتر محدودکننده',)),f'مرتب‌سازی: {self.sort}',f'تعداد نتایج: {self.result_count}')
 
 def _style_xlsx(ws,header,total):
  ws.freeze_panes=f'A{header+1}';ws.auto_filter.ref=f'A{header}:{ws.cell(max(header,ws.max_row),total).coordinate}'
@@ -92,11 +109,16 @@ def excel(spaces,blank_columns=(),selected=None,layout=None,orientation='landsca
  _style_xlsx(ws,header,total)
  out=BytesIO(); wb.save(out); return out.getvalue()
 
-def tabular_excel(title,labels,data):
+def tabular_excel(title,labels=None,data=None):
  """Official Excel 2019-compatible output for typed operational domain reports."""
+ disclosure=()
+ if isinstance(title,ReportDataset):report=title;title,labels,data,disclosure=report.title,report.columns,report.rows,report.disclosure
  wb=Workbook();ws=wb.active;ws.title=str(title)[:31];ws.sheet_view.rightToLeft=True
  total=max(1,len(labels))
  for line in HEADERS:
+  ws.append(['',line] if total>1 else [line])
+  if total>2:ws.merge_cells(start_row=ws.max_row,start_column=2,end_row=ws.max_row,end_column=total)
+ for line in disclosure:
   ws.append(['',line] if total>1 else [line])
   if total>2:ws.merge_cells(start_row=ws.max_row,start_column=2,end_row=ws.max_row,end_column=total)
  if LOGO.exists():
@@ -106,8 +128,10 @@ def tabular_excel(title,labels,data):
  _style_xlsx(ws,header,total)
  out=BytesIO();wb.save(out);return out.getvalue()
 
-def tabular_docx(title,labels,data,orientation='landscape'):
+def tabular_docx(title,labels=None,data=None,orientation='landscape'):
  """Official RTL Word output for any already-filtered tabular dataset."""
+ disclosure=()
+ if isinstance(title,ReportDataset):report=title;title,labels,data,orientation,disclosure=report.title,report.columns,report.rows,report.orientation,report.disclosure
  data=list(data);doc=Document();sec=doc.sections[0]
  if orientation=='landscape':sec.orientation=WD_ORIENT.LANDSCAPE;sec.page_width,sec.page_height=sec.page_height,sec.page_width
  sec.top_margin=Mm(35);sec.header_distance=Mm(5)
@@ -115,6 +139,7 @@ def tabular_docx(title,labels,data,orientation='landscape'):
  if LOGO.exists():header.add_run().add_picture(str(LOGO),width=Mm(18))
  header.add_run('\n'+'\n'.join(HEADERS));_rtl(header)
  heading=doc.add_paragraph(str(title));_rtl(heading)
+ for line in disclosure:_rtl(doc.add_paragraph(str(line)))
  table=doc.add_table(rows=1,cols=max(1,len(labels)));table.style='Table Grid';_rtl_table(table)
  for index,label in enumerate(labels):table.rows[0].cells[index].text=str(label);_rtl(table.rows[0].cells[index].paragraphs[0])
  table.rows[0]._tr.get_or_add_trPr().append(OxmlElement('w:tblHeader'))
@@ -124,14 +149,18 @@ def tabular_docx(title,labels,data,orientation='landscape'):
  footer=sec.footer.paragraphs[0];footer.alignment=WD_ALIGN_PARAGRAPH.CENTER;footer.add_run('صفحه ');field=OxmlElement('w:fldSimple');field.set(qn('w:instr'),'PAGE');footer._p.append(field)
  out=BytesIO();doc.save(out);return out.getvalue()
 
-def tabular_pdf(title,labels,data,orientation='landscape'):
+def tabular_pdf(title,labels=None,data=None,orientation='landscape'):
  """Official shaped Persian PDF for any already-filtered tabular dataset."""
+ disclosure=()
+ if isinstance(title,ReportDataset):report=title;title,labels,data,orientation,disclosure=report.title,report.columns,report.rows,report.orientation,report.disclosure
  data=list(data);out=BytesIO();pdfmetrics.registerFont(TTFont('Vazirmatn',str(FONT)));page_size=landscape(A4) if orientation=='landscape' else A4
  doc=SimpleDocTemplate(out,pagesize=page_size,rightMargin=12*mm,leftMargin=12*mm,topMargin=10*mm,bottomMargin=12*mm,title=str(title))
  style=ParagraphStyle('fa-tabular',fontName='Vazirmatn',fontSize=8,leading=12,alignment=TA_CENTER);story=[]
  if LOGO.exists():story.append(Image(str(LOGO),width=18*mm,height=18*mm))
  for line in HEADERS:story.append(Paragraph(_fa(line),style))
  story.extend((Spacer(1,3*mm),Paragraph(_fa(title),style),Spacer(1,3*mm)))
+ for line in disclosure:story.append(Paragraph(_fa(line),style))
+ if disclosure:story.append(Spacer(1,3*mm))
  table_data=[[Paragraph(_fa(value),style) for value in labels]]+[[Paragraph(_fa(value),style) if value not in ('',None) else '' for value in row] for row in data]
  table_data=[list(reversed(row)) for row in table_data];available=page_size[0]-24*mm
  table=Table(table_data,repeatRows=1,hAlign='CENTER',splitByRow=1,colWidths=[available/max(1,len(labels))]*max(1,len(labels)))

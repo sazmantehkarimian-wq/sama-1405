@@ -22,7 +22,7 @@ def test_dossier_section_dataset_and_four_formats_are_isolated(client,user):
   response=client.get(f'/spaces/347/sections/appraisals.{extension}')
   assert response.status_code==200
  xlsx=load_workbook(io.BytesIO(client.get('/spaces/347/sections/appraisals.xlsx?blank_rows=2').content)).active
- assert xlsx.sheet_view.rightToLeft and xlsx.max_row==9
+ assert xlsx.sheet_view.rightToLeft and xlsx.max_row==13
  pdf=client.get('/spaces/347/sections/appraisals.pdf').content
  assert PdfReader(io.BytesIO(pdf)).metadata.title=='سوابق کارشناسی فضای تجاری 347'
  with zipfile.ZipFile(io.BytesIO(client.get('/spaces/347/sections/appraisals.docx').content)) as archive:
@@ -56,7 +56,8 @@ def test_appraisal_zero_null_quality_and_filtered_exports_match(client,user):
  assert zero.context['page'].paginator.count==1 and unknown.context['page'].paginator.count==1
  response=client.get('/records/appraisals/export.xlsx',{'space_code':'37','quality':'positive','sort':'amount','column':['space.code','amount_rial']})
  sheet=load_workbook(io.BytesIO(response.content)).active
- assert sheet.max_row==5 and [sheet.cell(4,c).value for c in (1,2)]==['کد فضا','مبلغ (ریال)'] and sheet.cell(5,2).value==100
+ header=next(row for row in range(1,sheet.max_row+1) if sheet.cell(row,1).value=='کد فضا')
+ assert sheet.max_row==header+1 and [sheet.cell(header,c).value for c in (1,2)]==['کد فضا','مبلغ (ریال)'] and sheet.cell(header+1,2).value==100
 
 @pytest.mark.django_db
 def test_region_property_counts_are_explicit_and_reconcile(client,user):
