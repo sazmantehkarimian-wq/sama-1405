@@ -106,7 +106,7 @@ jobs:
           foreach ($required in @('runtime/python.exe','data/sama.sqlite3','UAT_BUILD','START_SAMA.bat')) {
             if (-not (Test-Path "$root/$required")) { throw "Missing package requirement: $required" }
           }
-          foreach ($forbidden in @('authority','import_pipeline','fixtures')) {
+          foreach ($forbidden in @('authority','import_pipeline','fixtures','docs/qa')) {
             if (Test-Path "$root/$forbidden") { throw "Forbidden Zero-Data package directory: $forbidden" }
           }
           $forbiddenFiles = Get-ChildItem $root -Recurse -File | Where-Object { $_.Extension -in @('.xlsx','.xls','.csv') }
@@ -163,7 +163,7 @@ jobs:
           $asset = "SAMA_$env:SAMA_VERSION-zero-data.zip"
           gh release view $env:SAMA_TAG *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $env:SAMA_TAG --prerelease --target "${{ github.sha }}" --title "سما — $env:SAMA_VERSION — Zero Data" --notes "نسخه UAT خام: صفر داده عملیاتی، بدون Import Excel/CSV، ورود اطلاعات فقط دستی. بسته Windows پس از Extract، first-start، کنترل صفر داده و HTTP smoke test بررسی شده است. Production-ready نیست تا پذیرش Owner انجام شود."
+            gh release create $env:SAMA_TAG --prerelease --target "${{ github.sha }}" --title "سما — $env:SAMA_VERSION — Zero Data" --notes "نسخه UAT خام: صفر داده عملیاتی، بدون Import Excel/CSV، ورود اطلاعات فقط دستی. بسته Windows پس از Extract، first-start، کنترل صفر داده و HTTP smoke test بررسی شده است. مصنوعات QA و داده‌های آزمایشی داخل بسته نیستند. Production-ready نیست تا پذیرش Owner انجام شود."
           }
           gh release upload $env:SAMA_TAG "release/$asset" release/SHA256SUMS.txt --clobber
           gh release download $env:SAMA_TAG --pattern "$asset" --dir downloaded --clobber
