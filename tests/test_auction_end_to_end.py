@@ -1,9 +1,14 @@
+import hashlib
+import io
+
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.utils import timezone
+from docx import Document as DocxDocument
 
-from domains.auctionflow.models import AuctionDocumentInstance, AuctionLotProfile
+from domains.auctionflow.models import AuctionDocumentInstance, AuctionLotProfile, AuctionTemplateSource
 from domains.contracts.models import Beneficiary, ContractCirculation
 from domains.operations.models import AuctionLot, AuctionParticipant, AuctionPeriod, AuctionProposal
 from domains.properties.models import CommercialSpace
@@ -11,6 +16,7 @@ from services.auction_flow import (
     build_lot_snapshot, generate_controlled_document, select_winner,
     snapshot_hash, start_contract_from_award,
 )
+from services.documents import store_document
 
 
 class AuctionEndToEndTests(TestCase):
@@ -23,6 +29,22 @@ class AuctionEndToEndTests(TestCase):
         self.p2=AuctionParticipant.objects.create(period=self.period,name='شرکت‌کننده دوم',identity_number='0012345679',contact='09121111111')
         self.q1=AuctionProposal.objects.create(lot=self.lot,participant=self.p1,received_at=timezone.now(),envelope_a_received=True,envelope_b_received=True,envelope_c_received=True,offered_amount_rial=1000000,status='VALID')
         self.q2=AuctionProposal.objects.create(lot=self.lot,participant=self.p2,received_at=timezone.now(),envelope_a_received=True,envelope_b_received=True,envelope_c_received=True,offered_amount_rial=2000000,status='VALID')
+
+    def _install_test_envelope_master(self):
+        doc=DocxDocument()
+        for text in ['عنوان','زیرعنوان','موضوع','نشانی','کاربری']:
+            doc.add_paragraph(text)
+        out=io.BytesIO();doc.save(out);payload=out.getvalue()
+        sha=hashlib.sha256(payload).hexdigest()
+        stored=store_document(
+            uploaded=SimpleUploadedFile('envelope-master.docx',payload,content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            title='Master test envelope',document_type='AUCTION_TEMPLATE_SOURCE',entity_type='AuctionTemplateSource',entity_id='GENERAL:ENVELOPE_COVER:test-v1',user=self.user,
+        )
+        return AuctionTemplateSource.objects.create(
+            family=AuctionTemplateSource.Family.GENERAL,kind=AuctionTemplateSource.Kind.ENVELOPE_COVER,
+            version='test-v1',source_filename='envelope-master.docx',source_sha256=sha,
+            source_document=stored,active=True,imported_by=self.user,
+        )
 
     def test_winner_is_explicit_not_highest_bid(self):
         profile=select_winner(lot=self.lot,winner_proposal=self.q1,runner_up_proposal=self.q2,decision_reference='مصوبه ۱۲۳',decision_date='1405/08/02',actor=self.user)
@@ -53,13 +75,22 @@ class AuctionEndToEndTests(TestCase):
         second=build_lot_snapshot(self.lot)
         self.assertEqual(snapshot_hash(first),snapshot_hash(second))
 
-    def test_controlled_docx_is_versioned_and_hashed(self):
+    def test_document_generation_is_blocked_without_master_source(self):
+        with self.assertRaises(ValidationError):
+            generate_controlled_document(lot=self.lot,document_type=AuctionDocumentInstance.DocumentType.PRICE_FORM,actor=self.user)
+        self.assertEqual(AuctionDocumentInstance.objects.count(),0)
+
+    def test_controlled_docx_is_source_versioned_and_fully_hashed(self):
+        source=self._install_test_envelope_master()
         profile,_=AuctionLotProfile.objects.get_or_create(lot=self.lot)
         profile.base_monthly_rent_rial=500000
         profile.guarantee_amount_rial=6000000
         profile.save()
         instance=generate_controlled_document(lot=self.lot,document_type=AuctionDocumentInstance.DocumentType.PRICE_FORM,actor=self.user)
         self.assertEqual(instance.status,AuctionDocumentInstance.Status.UAT_DRAFT)
+        self.assertEqual(instance.template_source_id,source.pk)
+        self.assertEqual(instance.source_sha256,source.source_sha256)
         self.assertEqual(len(instance.snapshot_sha256),64)
+        self.assertEqual(len(instance.output_sha256),64)
         self.assertTrue(instance.document.original_filename.endswith('.docx'))
         self.assertGreater(instance.document.byte_size,1000)
