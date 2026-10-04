@@ -1,5 +1,5 @@
 :root {
-  --font-family: "Vazirmatn", "Tahoma", "Segoe UI", system-ui, sans-serif;
+  --font-family: "Vazirmatn", system-ui, sans-serif;
   --font-size-helper: .8125rem;
   --font-size-label: .875rem;
   --font-size-body: .9375rem;
