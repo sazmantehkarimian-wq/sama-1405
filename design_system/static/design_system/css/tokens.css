@@ -64,32 +64,33 @@
   --color-on-accent: #ffffff;
   --color-print: #000000;
   --shadow-float: 0 .25rem .75rem rgba(37, 34, 33, .12);
-  --section-dashboard: #376f83;
-  --section-dashboard-soft: #e7f1f4;
-  --section-spaces: #4f6f58;
-  --section-spaces-soft: #eaf1ec;
-  --section-contracts: #8a5b42;
-  --section-contracts-soft: #f5ece7;
-  --section-appraisals: #765078;
-  --section-appraisals-soft: #f1eaf2;
-  --section-auctions: #9b651f;
-  --section-auctions-soft: #f8efe1;
-  --section-utilities: #397377;
-  --section-utilities-soft: #e7f2f2;
-  --section-workflows: #735f55;
-  --section-workflows-soft: #f2edeb;
-  --section-documents: #596b85;
-  --section-documents-soft: #ebeff4;
-  --section-alerts: #a23d46;
-  --section-alerts-soft: #f8e9eb;
-  --section-reports: #67558a;
-  --section-reports-soft: #efecf5;
-  --section-users: #526873;
-  --section-users-soft: #eaf0f2;
+  --section-dashboard: #9B3B4A;
+  --section-dashboard-soft: #FDF6F7;
+  --section-spaces: #2E5D31;
+  --section-spaces-soft: #F6F9F4;
+  --section-contracts: #C89400;
+  --section-contracts-soft: #FFFAEC;
+  --section-appraisals: #67406A;
+  --section-appraisals-soft: #F7F4F8;
+  --section-auctions: #F0731F;
+  --section-auctions-soft: #FFF8F1;
+  --section-utilities: #1F8A77;
+  --section-utilities-soft: #E2F3EE;
+  --section-workflows: #3E5A68;
+  --section-workflows-soft: #F4F7F9;
+  --section-documents: #5A6F9B;
+  --section-documents-soft: #F5F6FA;
+  --section-alerts: #9B3B4A;
+  --section-alerts-soft: #FDF6F7;
+  --section-reports: #5A6F9B;
+  --section-reports-soft: #F5F6FA;
+  --section-users: #6F7783;
+  --section-users-soft: #F7F7F7;
 }
 
 .section-dashboard { --color-accent: var(--section-dashboard); --color-accent-soft: var(--section-dashboard-soft); }
 .section-spaces { --color-accent: var(--section-spaces); --color-accent-soft: var(--section-spaces-soft); }
+.section-properties { --color-accent: #3E7FC4; --color-accent-soft: #F5FAFF; }
 .section-contracts { --color-accent: var(--section-contracts); --color-accent-soft: var(--section-contracts-soft); }
 .section-appraisals { --color-accent: var(--section-appraisals); --color-accent-soft: var(--section-appraisals-soft); }
 .section-auctions { --color-accent: var(--section-auctions); --color-accent-soft: var(--section-auctions-soft); }
@@ -99,3 +100,17 @@
 .section-alerts { --color-accent: var(--section-alerts); --color-accent-soft: var(--section-alerts-soft); }
 .section-reports { --color-accent: var(--section-reports); --color-accent-soft: var(--section-reports-soft); }
 .section-users { --color-accent: var(--section-users); --color-accent-soft: var(--section-users-soft); }
+
+/* UAT.13 clean visual system — approved palette families and semantic roles. */
+:root {
+  --plum-soft:#F7F4F8;--plum-border:#C5B4C7;--plum-accent:#67406A;--plum-hover:#3C2440;--plum-selected:#E4DDE8;--plum-strong:#3C2440;
+  --green-soft:#F6F9F4;--green-border:#A9CD89;--green-accent:#5B9852;--green-hover:#2E5D31;--green-selected:#DDEBD2;--green-strong:#2E5D31;
+  --terracotta-soft:#F9F6EF;--terracotta-border:#E0D0B8;--terracotta-accent:#A88B67;--terracotta-hover:#8B6F4F;--terracotta-selected:#EFE4D6;--terracotta-strong:#6B4F32;
+  --amber-soft:#FFFAEC;--amber-border:#FFE5B7;--amber-accent:#C89400;--amber-hover:#7A5A00;--amber-selected:#FFE5B7;--amber-strong:#7A5A00;
+  --teal-soft:#E2F3EE;--teal-border:#A8D9CC;--teal-accent:#1F8A77;--teal-hover:#0A5B4F;--teal-selected:#A8D9CC;--teal-strong:#0A5B4F;
+  --slate-soft:#F5F6FA;--slate-border:#D9DFEC;--slate-accent:#5A6F9B;--slate-hover:#27324A;--slate-selected:#D9DFEC;--slate-strong:#27324A;
+  --control-compact:1.75rem;--control-standard:2rem;--control-emphasized:2.25rem;
+  --table-header-height:2.25rem;--table-row-height:2.125rem;--card-padding:var(--space-3);
+  --section-regions:var(--color-brand);--section-regions-soft:var(--plum-soft);
+}
+.section-regions{--color-accent:var(--section-regions);--color-accent-soft:var(--section-regions-soft)}

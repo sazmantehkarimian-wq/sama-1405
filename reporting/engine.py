@@ -69,16 +69,17 @@ def layout_columns(layout=None,selected=None,blank_columns=(),field_map=None):
   elif separator and kind=='blank' and value.strip():result.append(('blank',value.strip()[:120]))
  if not result:result=[('field',key) for key in columns(selected,field_map)]+[('blank',str(label).strip()[:120]) for label in blank_columns if str(label).strip()]
  return result[:24]
-def output_table(spaces,layout=None,selected=None,blank_columns=(),field_map=None):
+def output_table(spaces,layout=None,selected=None,blank_columns=(),field_map=None,blank_rows=0):
  field_map=field_map or FIELD_MAP;configured=layout_columns(layout,selected,blank_columns,field_map)
  headers=[field_map[value][0] if kind=='field' else value for kind,value in configured]
  data=[[field_map[value][1](space) if kind=='field' else '' for kind,value in configured] for space in spaces]
+ data.extend([[''] * len(headers) for _ in range(max(0,min(int(blank_rows or 0),50)))])
  return headers,data
 def rows(spaces,selected=None):
  keys=columns(selected)
  for s in spaces: yield [FIELD_MAP[key][1](s) for key in keys]
-def excel(spaces,blank_columns=(),selected=None,layout=None,orientation='landscape',field_map=None,title='فضاها'):
- labels,data=output_table(spaces,layout,selected,blank_columns,field_map); wb=Workbook(); ws=wb.active; ws.title=title[:31]; ws.sheet_view.rightToLeft=True
+def excel(spaces,blank_columns=(),selected=None,layout=None,orientation='landscape',field_map=None,title='فضاها',blank_rows=0):
+ labels,data=output_table(spaces,layout,selected,blank_columns,field_map,blank_rows); wb=Workbook(); ws=wb.active; ws.title=title[:31]; ws.sheet_view.rightToLeft=True
  total=len(labels)
  for line in HEADERS:
   ws.append(['',line] if total>1 else [line])
@@ -111,8 +112,8 @@ def _rtl(paragraph):
   run.font.name='Vazirmatn';run.font.size=Pt(10);run._element.rPr.rFonts.set(qn('w:cs'),'Vazirmatn')
 def _rtl_table(table):
  tblPr=table._tbl.tblPr;bidi=OxmlElement('w:bidiVisual');bidi.set(qn('w:val'),'1');tblPr.append(bidi)
-def docx(spaces,blank_columns=(),selected=None,layout=None,orientation='landscape',field_map=None):
- labels,data=output_table(spaces,layout,selected,blank_columns,field_map); doc=Document();sec=doc.sections[0]
+def docx(spaces,blank_columns=(),selected=None,layout=None,orientation='landscape',field_map=None,blank_rows=0):
+ labels,data=output_table(spaces,layout,selected,blank_columns,field_map,blank_rows); doc=Document();sec=doc.sections[0]
  if orientation=='landscape':sec.orientation=WD_ORIENT.LANDSCAPE;sec.page_width,sec.page_height=sec.page_height,sec.page_width
  sec.top_margin=Mm(40);sec.header_distance=Mm(5)
  header=sec.header.paragraphs[0]
@@ -129,8 +130,8 @@ def docx(spaces,blank_columns=(),selected=None,layout=None,orientation='landscap
  footer.add_run('صفحه ');field=OxmlElement('w:fldSimple');field.set(qn('w:instr'),'PAGE');footer._p.append(field)
  out=BytesIO();doc.save(out);return out.getvalue()
 def _fa(value):return get_display(arabic_reshaper.reshape(str(value).translate(str.maketrans('0123456789','۰۱۲۳۴۵۶۷۸۹'))))
-def pdf(spaces,selected=None,blank_columns=(),layout=None,orientation='landscape',field_map=None):
- labels,body=output_table(spaces,layout,selected,blank_columns,field_map);out=BytesIO();pdfmetrics.registerFont(TTFont('Vazirmatn',str(FONT)));page_size=landscape(A4) if orientation=='landscape' else A4
+def pdf(spaces,selected=None,blank_columns=(),layout=None,orientation='landscape',field_map=None,blank_rows=0):
+ labels,body=output_table(spaces,layout,selected,blank_columns,field_map,blank_rows);out=BytesIO();pdfmetrics.registerFont(TTFont('Vazirmatn',str(FONT)));page_size=landscape(A4) if orientation=='landscape' else A4
  doc=SimpleDocTemplate(out,pagesize=page_size,rightMargin=12*mm,leftMargin=12*mm,topMargin=10*mm,bottomMargin=12*mm,title='گزارش رسمی املاک')
  style=ParagraphStyle('fa',fontName='Vazirmatn',fontSize=9,leading=14,alignment=TA_CENTER)
  story=[]
