@@ -45,6 +45,7 @@ jobs:
           from domains.contracts.models import Contract, Beneficiary, ContractCirculation, ContractCustodyTransfer, ContractFinalApproval, ContractSignatureStep
           from domains.operations.models import Appraisal, AppraisalFee, ExpertFeePaymentBatch, ExpertFeeBatchItem, Auction, AuctionPeriod, AuctionLot, AuctionParticipant, AuctionProposal, UtilityRecord, UtilityConnection, UtilityBill, UtilityMeasurement, UtilityUnit, ElectricityBill, ElectricityAllocation, ElectricityCalculationSnapshot, FileMovement, TimelineEvent
           from domains.auctionflow.models import AuctionPeriodProfile, AuctionLotProfile, AuctionDocumentInstance
+          from domains.auctionflow.intake_models import AuctionParticipantProfile, AuctionProposalIntake, AuctionOpeningSession, AuctionContractDraft
           checks = {
             'mother_properties': MotherProperty.objects.count(),
             'mother_property_ownership': MotherPropertyOwnership.objects.count(),
@@ -71,6 +72,10 @@ jobs:
             'auction_period_profiles': AuctionPeriodProfile.objects.count(),
             'auction_lot_profiles': AuctionLotProfile.objects.count(),
             'auction_generated_documents': AuctionDocumentInstance.objects.count(),
+            'auction_participant_profiles': AuctionParticipantProfile.objects.count(),
+            'auction_proposal_intakes': AuctionProposalIntake.objects.count(),
+            'auction_opening_sessions': AuctionOpeningSession.objects.count(),
+            'auction_contract_drafts': AuctionContractDraft.objects.count(),
             'utilities': UtilityRecord.objects.count(),
             'utility_connections': UtilityConnection.objects.count(),
             'utility_bills': UtilityBill.objects.count(),
@@ -91,6 +96,7 @@ jobs:
           pytest -q
           $env:SAMA_HTTPS = '1'
           python manage.py check --deploy
+          python manage.py makemigrations auctionflow --check --dry-run
           @'
           import sqlite3
           c=sqlite3.connect('data/sama.sqlite3')
@@ -130,6 +136,7 @@ jobs:
           from domains.contracts.models import Contract, Beneficiary, ContractCirculation
           from domains.operations.models import Appraisal, Auction, AuctionPeriod, AuctionLot, AuctionParticipant, AuctionProposal, FileMovement, TimelineEvent
           from domains.auctionflow.models import AuctionPeriodProfile, AuctionLotProfile, AuctionDocumentInstance
+          from domains.auctionflow.intake_models import AuctionParticipantProfile, AuctionProposalIntake, AuctionOpeningSession, AuctionContractDraft
           checks = {
             'mother_properties': MotherProperty.objects.count(),
             'commercial_spaces': CommercialSpace.objects.count(),
@@ -145,6 +152,10 @@ jobs:
             'auction_period_profiles': AuctionPeriodProfile.objects.count(),
             'auction_lot_profiles': AuctionLotProfile.objects.count(),
             'auction_generated_documents': AuctionDocumentInstance.objects.count(),
+            'auction_participant_profiles': AuctionParticipantProfile.objects.count(),
+            'auction_proposal_intakes': AuctionProposalIntake.objects.count(),
+            'auction_opening_sessions': AuctionOpeningSession.objects.count(),
+            'auction_contract_drafts': AuctionContractDraft.objects.count(),
             'movements': FileMovement.objects.count(),
             'timeline': TimelineEvent.objects.count(),
           }
@@ -180,7 +191,7 @@ jobs:
           $asset = "SAMA_$env:SAMA_VERSION-zero-data.zip"
           gh release view $env:SAMA_TAG *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $env:SAMA_TAG --prerelease --target "${{ github.sha }}" --title "سما — $env:SAMA_VERSION — Zero Data" --notes "نسخه UAT خام: صفر داده عملیاتی، بدون Import Excel/CSV، ورود اطلاعات فقط دستی. فرایند مزایده از انتخاب فضا تا اسناد، پاکات، ثبت برنده و آغاز گردش قرارداد پوشش داده شده است. خروجی‌های حقوقی خودکار تا تأیید چاپی مالک Controlled UAT Draft هستند. بسته Windows پس از Extract، first-start، کنترل صفر داده و HTTP smoke test بررسی شده است. Production-ready نیست تا پذیرش Owner انجام شود."
+            gh release create $env:SAMA_TAG --prerelease --target "${{ github.sha }}" --title "سما — $env:SAMA_VERSION — Zero Data" --notes "نسخه UAT خام: صفر داده عملیاتی، بدون Import Excel/CSV، ورود اطلاعات فقط دستی. فرایند مزایده از انتخاب فضا تا اسناد Master، متقاضیان، رسید و پاکات، جلسه بازگشایی، ثبت برنده توسط کاربر، تشکیل بهره‌بردار، گردش امضا و اتصال قرارداد رسمی پوشش داده شده است. خروجی‌های حقوقی خودکار تا تأیید چاپی مالک Controlled UAT Draft هستند. بسته Windows پس از Extract، first-start، کنترل صفر داده و HTTP smoke test بررسی شده است. Production-ready نیست تا پذیرش Owner انجام شود."
           }
           gh release upload $env:SAMA_TAG "release/$asset" release/SHA256SUMS.txt --clobber
           gh release download $env:SAMA_TAG --pattern "$asset" --dir downloaded --clobber
