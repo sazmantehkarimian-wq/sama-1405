@@ -1,0 +1,4 @@
+{% extends 'ui/base.html' %}{% block title %}{{ title }}{% endblock %}{% block section_class %}section-regions{% endblock %}{% block content %}
+<header class="page-header"><div><span class="eyebrow">اطلاعات پایه</span><h1>{{ title }}</h1><p>اطلاعات این بخش قابل ویرایش است و حذف سوابق تاریخی انجام نمی‌شود.</p></div></header>
+<section class="card"><form method="post" class="stacked-form">{% csrf_token %}{{ form.non_field_errors }}{% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{{ field.errors }}</div>{% endfor %}<div class="page-toolbar no-print"><button class="button primary" type="submit">ذخیره</button><a class="button tertiary" href="javascript:history.back()">انصراف</a></div></form></section>
+{% endblock %}
