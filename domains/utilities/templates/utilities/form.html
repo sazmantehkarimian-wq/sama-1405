@@ -1,0 +1,4 @@
+{% extends "ui/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block section_class %}section-utilities{% endblock %}
+{% block content %}<section class="page-head"><div><h1>{{ title }}</h1></div></section><form method="post" enctype="multipart/form-data" class="card form-grid">{% csrf_token %}{{ form.as_p }}<div class="actions"><button type="submit">ذخیره</button><a class="button secondary" href="javascript:history.back()">بازگشت</a></div></form>{% endblock %}
