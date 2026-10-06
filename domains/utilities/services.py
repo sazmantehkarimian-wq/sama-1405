@@ -74,6 +74,8 @@ def calculate_bill(bill: UtilityBill, persist=True) -> AllocationResult:
         ZERO,
     )
     beneficiary_percent, organization_percent = _effective_policy(policy, fixed_manual)
+    if beneficiary_percent == ZERO and organization_percent == ZERO:
+        raise ValueError("سهم سازمان و بهره‌بردار هنوز تعیین نشده است؛ وضعیت ۰/۰ قابل ثبت است اما قابل محاسبه نیست.")
     remaining_percent = max(ZERO, beneficiary_percent - fixed_manual)
 
     weighted = []
