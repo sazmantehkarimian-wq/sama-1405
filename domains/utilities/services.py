@@ -93,7 +93,9 @@ def calculate_bill(bill: UtilityBill, persist=True) -> AllocationResult:
 
     auto_weight_sum = sum((row[2] for row in weighted if not row[4]), ZERO)
     auto_rows = [row for row in weighted if not row[4]]
-    if remaining_percent > ZERO and auto_rows and auto_weight_sum <= ZERO:
+    if remaining_percent > ZERO and not auto_rows:
+        raise ValueError("بخشی از سهم بهره‌بردار بدون کدفضای خودکار باقی مانده است.")
+    if remaining_percent > ZERO and auto_weight_sum <= ZERO:
         raise ValueError("برای توزیع سهم باقی‌مانده، وزن مصرف معتبر وجود ندارد.")
 
     raw_lines = []
