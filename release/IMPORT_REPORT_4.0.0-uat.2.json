@@ -1,0 +1,56 @@
+{
+  "version": "4.0.0-uat.2",
+  "generated_at": "2026-09-29T15:47:47+00:00",
+  "workbook_count": 5,
+  "sheet_count": 39,
+  "physical_rows": 9720,
+  "preserved_data_rows": 8762,
+  "operational_records": 8762,
+  "explicitly_excluded_duplicates": 0,
+  "unique_space_codes": 501,
+  "canonical_fields": 217,
+  "field_coverage": {
+    "mapped": 217,
+    "unmapped": 0,
+    "percentage": 100.0
+  },
+  "unresolved_discrepancies": 1171,
+  "silent_drops": 0,
+  "files": [
+    {
+      "name": "(سما )املاک مادر .xlsx",
+      "sha256": "fee88b0596c33798ef59cfd168d7100a2898b295456b298232c83700e9eb3f68",
+      "sheets": 14,
+      "physical_rows": 3830,
+      "operational_records": 3478
+    },
+    {
+      "name": "(سما) کد فضاهای از دور خارج شده.xlsx",
+      "sha256": "ccef370977f16ddd4aa74da8475b2e67dba8de4afd6554409b8f5582c8a996bc",
+      "sheets": 11,
+      "physical_rows": 1623,
+      "operational_records": 1243
+    },
+    {
+      "name": "(سما) کد فضاهای تجاری فعال.xlsx",
+      "sha256": "0343b1ebeb0690dff5b12e09d595053b6263abc9127341ee80cb399464d99913",
+      "sheets": 11,
+      "physical_rows": 4141,
+      "operational_records": 3924
+    },
+    {
+      "name": "اصلی اسامی مدیران مناطق سازمان.xlsx",
+      "sha256": "6036e1401b6c9d725fc607645742e17237e92b1449bc837dabe5ffb7aa36b3df",
+      "sheets": 2,
+      "physical_rows": 83,
+      "operational_records": 79
+    },
+    {
+      "name": "نام مراکز (1).xlsx",
+      "sha256": "9c92e050577bb1a3074b6796a7c43f1bf0d0efb3ca45ec60aa68cf201f1b8a04",
+      "sheets": 1,
+      "physical_rows": 43,
+      "operational_records": 38
+    }
+  ]
+}
