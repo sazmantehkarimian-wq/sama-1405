@@ -82,7 +82,11 @@ def assignment_edit(request, pk=None):
     if request.method == "POST" and form.is_valid():
         assignment = form.save()
         if assignment.is_current:
-            PositionAssignment.objects.filter(person=assignment.person, is_current=True).exclude(pk=assignment.pk).update(is_current=False)
+            PositionAssignment.objects.filter(
+                unit=assignment.unit,
+                title=assignment.title,
+                is_current=True,
+            ).exclude(pk=assignment.pk).update(is_current=False)
         messages.success(request, "سمت و انتصاب سازمانی ذخیره شد.")
         return redirect("masterdata:organization")
     return render(request, "masterdata/edit.html", {"form": form, "title": "ویرایش سمت/انتصاب" if instance else "افزودن سمت/انتصاب"})
