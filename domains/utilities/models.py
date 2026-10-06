@@ -43,7 +43,7 @@ class UtilityAccount(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["utility_type", "region__code", "title", "id"]
+        ordering = ["utility_type", "title", "id"]
         constraints = [models.UniqueConstraint(fields=["utility_type", "account_number"], condition=~models.Q(account_number=""), name="uniq_utility_type_account_number")]
 
     def __str__(self):
@@ -208,7 +208,7 @@ class UtilityAllocation(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["bill", "profile"], name="uniq_bill_profile_allocation")]
-        ordering = ["-share_percent", "profile__space__code"]
+        ordering = ["-share_percent", "id"]
 
 
 class UtilityPayment(models.Model):
