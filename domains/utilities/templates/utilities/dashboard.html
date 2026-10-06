@@ -2,7 +2,7 @@
 {% block title %}انشعابات{% endblock %}
 {% block section_class %}section-utilities{% endblock %}
 {% block content %}
-<section class="page-head"><div><h1>سامانه انشعابات</h1><p>مدیریت برق، آب، گاز، تلفن، قبوض، سهم سازمان و بهره‌برداران با روش سوم</p></div><div class="actions no-print"><a class="button" href="{% url 'utilities:account-create' %}">تعریف انشعاب</a><button onclick="window.print()">چاپ</button></div></section>
+<section class="page-head"><div><h1>سامانه انشعابات</h1><p>مدیریت برق، آب، گاز، تلفن، قبوض، سهم سازمان و بهره‌برداران با روش سوم</p></div><div class="actions no-print"><a class="button" href="{% url 'utilities:account-create' %}">تعریف انشعاب</a><a class="button" href="{% url 'utilities:dashboard-xlsx' %}?{{ request.GET.urlencode }}">Excel گزارش</a><button onclick="window.print()">چاپ</button></div></section>
 <section class="kpi-grid">
   <article class="kpi"><span>انشعابات</span><strong>{{ kpis.accounts }}</strong></article>
   <article class="kpi"><span>قبوض باز</span><strong>{{ kpis.open_bills }}</strong></article>
