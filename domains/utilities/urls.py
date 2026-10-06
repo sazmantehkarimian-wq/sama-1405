@@ -1,10 +1,11 @@
 from django.urls import path
 
-from . import views
+from . import exports, views
 
 app_name = "utilities"
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
+    path("report.xlsx", exports.dashboard_xlsx, name="dashboard-xlsx"),
     path("accounts/new/", views.account_create, name="account-create"),
     path("accounts/<int:pk>/", views.account_detail, name="account-detail"),
     path("accounts/<int:pk>/edit/", views.account_edit, name="account-edit"),
