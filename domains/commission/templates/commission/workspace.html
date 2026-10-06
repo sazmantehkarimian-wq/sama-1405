@@ -1,0 +1,30 @@
+{% extends 'ui/base.html' %}
+{% block title %}کمیسیون معاملات{% endblock %}
+{% block section_class %}section-auctions{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>کمیسیون معاملات</h1><p>مدیریت جلسه، دستور جلسه، مصوبات و پیگیری اجرای تصمیم‌ها</p></div><div><a href="{% url 'commission-members' %}">اعضای کمیسیون</a> · <a class="button" href="{% url 'commission-session-new' %}">ایجاد جلسه جدید</a></div></div>
+
+<div class="kpi-grid">
+ <article class="kpi"><span>جلسات</span><strong>{{ kpi_sessions }}</strong></article>
+ <article class="kpi"><span>موضوعات کمیسیون</span><strong>{{ kpi_cases }}</strong></article>
+ <article class="kpi"><span>مصوبات باز</span><strong>{{ kpi_open }}</strong></article>
+ <article class="kpi"><span>سوابق قدیمی محفوظ</span><strong>{{ legacy_count }}</strong></article>
+</div>
+
+<section class="card">
+ <h2>جست‌وجو و فیلتر جلسات</h2>
+ <form class="filters" method="get">
+  <label>جست‌وجو<input name="q" value="{{ q }}" placeholder="کد جلسه، شماره یا عنوان"></label>
+  <label>وضعیت<select name="state"><option value="">همه وضعیت‌ها</option>{% for value,label in states %}<option value="{{ value }}" {% if selected_state == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <button type="submit">جست‌وجو</button>
+ </form>
+</section>
+
+<section class="card"><h2>جلسات کمیسیون</h2><div class="table-wrap"><table><thead><tr><th>کد داخلی</th><th>شماره جلسه</th><th>تاریخ</th><th>عنوان</th><th>موضوعات</th><th>مصوبات باز</th><th>وضعیت</th><th>ثبت‌کننده</th><th>عملیات</th></tr></thead><tbody>
+{% for item in sessions %}<tr><td>{{ item.internal_code }}</td><td>{{ item.session_number|default:'—' }}</td><td>{{ item.session_date }}</td><td>{{ item.title }}</td><td>{{ item.case_count }}</td><td>{{ item.open_decision_count }}</td><td>{{ item.get_state_display }}</td><td>{{ item.created_by.get_full_name|default:item.created_by.username }}</td><td><a href="{% url 'commission-session-detail' item.pk %}">باز کردن پرونده جلسه</a></td></tr>{% empty %}<tr><td colspan="9" class="empty">جلسه‌ای ثبت نشده است.</td></tr>{% endfor %}
+</tbody></table></div></section>
+
+{% if open_followups %}<section class="card"><h2>پیگیری‌های باز</h2><div class="table-wrap"><table><thead><tr><th>جلسه</th><th>مصوبه</th><th>اقدام</th><th>مسئول</th><th>مهلت</th><th>وضعیت</th></tr></thead><tbody>{% for item in open_followups %}<tr><td><a href="{% url 'commission-session-detail' item.decision.case.session_id %}">{{ item.decision.case.session.internal_code }}</a></td><td><a href="{% url 'commission-case-detail' item.decision.case_id %}">{{ item.decision.internal_code }}</a></td><td>{{ item.action }}</td><td>{{ item.owner }}</td><td>{{ item.due_date|default:'—' }}</td><td>{{ item.get_state_display }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+
+{% if legacy_decisions %}<details class="card"><summary><strong>سوابق ساختار قدیمی کمیسیون — فقط برای حفظ سابقه</strong></summary><div class="table-wrap"><table><thead><tr><th>شناسه</th><th>تاریخ</th><th>موضوع</th><th>فضاهای مرتبط</th><th>تصمیم</th></tr></thead><tbody>{% for item in legacy_decisions %}<tr><td>{{ item.identity }}</td><td>{{ item.decision_date }}</td><td>{{ item.subject }}</td><td>{% for space in item.spaces.all %}<a href="{% url 'space-detail' space.code %}">{{ space.code }}</a>{% if not forloop.last %}، {% endif %}{% endfor %}</td><td>{{ item.decision }}</td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
+{% endblock %}

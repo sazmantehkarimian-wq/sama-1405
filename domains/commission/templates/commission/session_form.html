@@ -1,0 +1,17 @@
+{% extends 'ui/base.html' %}
+{% block title %}جلسه جدید کمیسیون{% endblock %}
+{% block section_class %}section-auctions{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>ایجاد جلسه کمیسیون</h1><p>شناسه داخلی پس از ثبت به‌صورت سیستمی ایجاد و غیرقابل‌تغییر خواهد بود.</p></div><div><a href="{% url 'commission-members' %}">مدیریت اعضای کمیسیون</a> · <a href="{% url 'commission-workspace' %}">بازگشت</a></div></div>
+<section class="card"><form class="filters" method="post" action="{% url 'commission-session-create' %}">{% csrf_token %}
+<label>شماره سازمانی جلسه<input name="session_number"></label>
+<label>تاریخ جلسه<input name="session_date" placeholder="۱۴۰۵/۰۷/۱۴" required></label>
+<label>ساعت<input name="session_time" placeholder="09:00"></label>
+<label>محل جلسه<input name="location"></label>
+<label>عنوان جلسه<input name="title" required></label>
+<label>وضعیت<select name="state"><option value="DRAFT">پیش‌نویس</option><option value="PLANNED">برنامه‌ریزی‌شده</option><option value="HELD">برگزارشده</option></select></label>
+<label class="wide">شرح کلی<textarea name="description"></textarea></label>
+<label class="wide">اعضای حاضر<details class="multi-select"><summary>انتخاب اعضای مرجع</summary><div class="multi-select-options">{% for member in members %}<label class="check"><input type="checkbox" name="members" value="{{ member.pk }}">{{ member.full_name }} — {{ member.position }} — {{ member.get_role_display }}</label>{% empty %}<p class="empty">هنوز عضو مرجعی ثبت نشده است. ابتدا از «مدیریت اعضای کمیسیون» اعضای مرجع را ثبت کنید.</p>{% endfor %}</div></details></label>
+<button type="submit">ثبت جلسه کمیسیون</button>
+</form></section>
+{% endblock %}
