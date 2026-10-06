@@ -2,7 +2,7 @@
 {% block title %}کمیسیون معاملات{% endblock %}
 {% block section_class %}section-auctions{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>کمیسیون معاملات</h1><p>مدیریت جلسه، دستور جلسه، مصوبات و پیگیری اجرای تصمیم‌ها</p></div><a class="button" href="{% url 'commission-session-new' %}">ایجاد جلسه جدید</a></div>
+<div class="page-header"><div><h1>کمیسیون معاملات</h1><p>مدیریت جلسه، دستور جلسه، مصوبات و پیگیری اجرای تصمیم‌ها</p></div><div><a href="{% url 'commission-members' %}">اعضای کمیسیون</a> · <a class="button" href="{% url 'commission-session-new' %}">ایجاد جلسه جدید</a></div></div>
 
 <div class="kpi-grid">
  <article class="kpi"><span>جلسات</span><strong>{{ kpi_sessions }}</strong></article>
