@@ -1,0 +1,21 @@
+{% extends "ui/base.html" %}
+{% block title %}انشعابات{% endblock %}
+{% block section_class %}section-utilities{% endblock %}
+{% block content %}
+<section class="page-head"><div><h1>سامانه انشعابات</h1><p>مدیریت برق، آب، گاز، تلفن، قبوض، سهم سازمان و بهره‌برداران با روش سوم</p></div><div class="actions no-print"><a class="button" href="{% url 'utilities:account-create' %}">تعریف انشعاب</a><a class="button" href="{% url 'utilities:dashboard-xlsx' %}?{{ request.GET.urlencode }}">Excel گزارش</a><button onclick="window.print()">چاپ</button></div></section>
+<section class="kpi-grid">
+  <article class="kpi"><span>انشعابات</span><strong>{{ kpis.accounts }}</strong></article>
+  <article class="kpi"><span>قبوض باز</span><strong>{{ kpis.open_bills }}</strong></article>
+  <article class="kpi"><span>مبلغ قبوض باز</span><strong>{{ kpis.debt_rial }}</strong></article>
+  <article class="kpi"><span>قبوض محاسبه‌شده</span><strong>{{ kpis.calculated }}</strong></article>
+</section>
+<form method="get" class="filter-bar no-print">
+  <input name="q" value="{{ request.GET.q }}" placeholder="شماره اشتراک، کنتور، مرکز یا ملک">
+  <select name="type"><option value="">همه انشعابات</option>{% for value,label in types %}<option value="{{ value }}" {% if request.GET.type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  <input name="region" value="{{ request.GET.region }}" placeholder="کد منطقه">
+  <button type="submit">جستجو</button>
+</form>
+<div class="table-wrap"><table><thead><tr><th>نوع</th><th>عنوان</th><th>منطقه / مرکز</th><th>شماره اشتراک</th><th>کنتور</th><th>وضعیت</th><th>قبوض</th></tr></thead><tbody>
+{% for a in accounts %}<tr><td>{{ a.get_utility_type_display }}</td><td><a href="{% url 'utilities:account-detail' a.pk %}">{{ a.title }}</a></td><td>{{ a.region.name|default:"—" }} / {{ a.center.name|default:"—" }}</td><td>{{ a.account_number|default:"—" }}</td><td>{{ a.meter_number|default:"—" }}</td><td>{{ a.get_status_display }}</td><td>{{ a.bill_count }}</td></tr>{% empty %}<tr><td colspan="7">رکوردی یافت نشد.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}
