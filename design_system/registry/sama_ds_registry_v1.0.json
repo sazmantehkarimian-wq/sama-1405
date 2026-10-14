@@ -1,0 +1,61 @@
+{
+  "design_system": "SAMA-DS",
+  "version": "1.0.0",
+  "status": "APPROVED_GOVERNING_BASELINE",
+  "governance": {
+    "single_source_of_truth": true,
+    "no_local_reinvention": true,
+    "delta_only_migration": true,
+    "frozen_component_changes_require_approval": true,
+    "report_engine_required_for_official_output": true
+  },
+  "families": {
+    "foundation": ["CLR", "TYP", "SPC", "SIZ", "RAD", "BRD", "SHD", "ZIX", "ICO", "DEN"],
+    "buttons": [
+      {"code":"BTN-PRI-01","name_fa":"اقدام اصلی","role":"primary"},
+      {"code":"BTN-SEC-01","name_fa":"اقدام ثانویه","role":"secondary"},
+      {"code":"BTN-TER-01","name_fa":"اقدام کم‌اهمیت","role":"tertiary"},
+      {"code":"BTN-DNG-01","name_fa":"اقدام خطرناک","role":"danger"},
+      {"code":"BTN-ICO-01","name_fa":"دکمه آیکونی","role":"icon"},
+      {"code":"BTN-OUT-01","name_fa":"دکمه خروجی","role":"export"},
+      {"code":"BTN-TBL-01","name_fa":"عملیات جدول","role":"table_action"}
+    ],
+    "titles": ["TTL-PAGE-01", "TTL-SECT-01", "TTL-CARD-01", "TTL-TBL-01", "TTL-MOD-01"],
+    "fields": ["FLD-TXT-01", "FLD-NUM-01", "FLD-MNY-01", "FLD-DAT-01", "FLD-SEL-01", "FLD-MUL-01", "FLD-TXA-01", "FLD-CHK-01", "FLD-RAD-01", "FLD-UPL-01", "FLD-SEA-01"],
+    "forms": ["FRM-STD-01", "FRM-PAIR-01", "FRM-SECT-01", "FRM-WIZ-01", "FRM-MOD-01"],
+    "surfaces": ["CRD-INF-01", "CRD-REC-01", "CRD-KPI-01", "CRD-STA-01", "PNL-SEC-01"],
+    "tables": ["TBL-SMP-01", "TBL-DAT-01", "TBL-MGT-01", "TBL-HIS-01", "TBL-SEL-01"],
+    "search_filter": ["SRC-FRE-01", "FLT-PRI-01", "FLT-ADV-01", "FLT-MUL-01", "FLT-RNG-01", "FLT-CHP-01", "FLT-RST-01"],
+    "toolbars": ["TBR-PAGE-01", "TBR-TBL-01", "TBR-FRM-01"],
+    "navigation": ["NAV-GLB-01", "NAV-MOD-01", "TAB-MOD-01", "TAB-DET-01", "BRC-CTX-01"],
+    "feedback": ["BDG-STA-01", "ALT-INF-01", "ALT-SUC-01", "ALT-WRN-01", "ALT-ERR-01", "EMP-STD-01", "LOD-STD-01", "TST-STD-01"],
+    "overlays": ["MOD-CFM-01", "MOD-SFM-01", "DRW-QVW-01", "DRW-FLT-01", "MNU-ACT-01"],
+    "patterns": ["PAT-LIST-01", "PAT-MGT-01", "PAT-FORM-01", "PAT-DETAIL-01", "PAT-HIST-01", "PAT-DASH-01", "PAT-REPORT-01"],
+    "pages": ["PAGE-LIST-01", "PAGE-MGT-01", "PAGE-FORM-01", "PAGE-DETAIL-01", "PAGE-WIZ-01", "PAGE-DASH-01", "PAGE-RPT-01"],
+    "reports": ["RPT-PDF-LIST-01", "RPT-PDF-DETAIL-01", "RPT-PDF-FILE-01", "RPT-PDF-MIN-01", "RPT-XLS-LIST-01", "RPT-XLS-DETAIL-01", "RPT-XLS-ANL-01", "RPT-PRT-OFFICIAL-01", "RPT-PRT-TABLE-01", "RPT-PRT-FILE-01"]
+  },
+  "module_mappings": {
+    "baseinfo.organization": ["PAGE-FORM-01", "PAT-FORM-01", "FRM-SECT-01", "PNL-SEC-01", "TBR-FRM-01"],
+    "baseinfo.regions_centers": ["PAGE-MGT-01", "PAT-MGT-01", "SRC-FRE-01", "TBL-MGT-01", "BTN-PRI-01", "BTN-TBL-01", "BTN-OUT-01"],
+    "baseinfo.contacts": ["PAGE-MGT-01", "PAT-MGT-01", "SRC-FRE-01", "FLT-MUL-01", "TBL-MGT-01", "BTN-PRI-01", "BTN-OUT-01"],
+    "baseinfo.commissions": ["PAGE-MGT-01", "PAT-MGT-01", "TBL-MGT-01", "BTN-PRI-01", "BTN-SEC-01", "BTN-TBL-01", "BTN-OUT-01"],
+    "baseinfo.bank_accounts": ["PAGE-MGT-01", "PAT-MGT-01", "TBL-MGT-01", "BTN-PRI-01", "BTN-OUT-01"]
+  },
+  "required_contract_fields": [
+    "code",
+    "name_fa",
+    "family",
+    "purpose",
+    "allowed_contexts",
+    "forbidden_contexts",
+    "visual_tokens",
+    "states",
+    "density",
+    "rtl_behavior",
+    "keyboard_behavior",
+    "accessibility_labeling",
+    "print_behavior",
+    "version",
+    "status"
+  ]
+}
